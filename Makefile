@@ -12,10 +12,10 @@ installdeps:
 	go mod tidy
 
 test:
-	go test -v ./...
+	go test -v -coverprofile=profile.cov ./...
 
 generate:
-	go generate
+	go generate ./...
 
 check-diff:
 	@./scripts/check-diff.sh

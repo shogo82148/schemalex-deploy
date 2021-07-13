@@ -4,6 +4,17 @@ package model
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[ReferenceOptionNone-0]
+	_ = x[ReferenceOptionRestrict-1]
+	_ = x[ReferenceOptionCascade-2]
+	_ = x[ReferenceOptionSetNull-3]
+	_ = x[ReferenceOptionNoAction-4]
+}
+
 const _ReferenceOption_name = "ReferenceOptionNoneReferenceOptionRestrictReferenceOptionCascadeReferenceOptionSetNullReferenceOptionNoAction"
 
 var _ReferenceOption_index = [...]uint8{0, 19, 42, 64, 86, 109}

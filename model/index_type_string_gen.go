@@ -4,6 +4,15 @@ package model
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[IndexTypeNone-0]
+	_ = x[IndexTypeBtree-1]
+	_ = x[IndexTypeHash-2]
+}
+
 const _IndexType_name = "IndexTypeNoneIndexTypeBtreeIndexTypeHash"
 
 var _IndexType_index = [...]uint8{0, 13, 27, 40}

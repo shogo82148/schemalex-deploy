@@ -31,7 +31,9 @@ jobs:
             ${{ runner.os }}-go-
 
       - name: Before script
-        run: make generate
+        run: |
+          go install golang.org/x/tools/cmd/stringer@latest
+          make generate
         shell: bash
       - name: Test
         run: make test
@@ -40,3 +42,19 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: make check-diff
         shell: bash
+
+      - name: Send coverage
+        uses: shogo82148/actions-goveralls@v1
+        with:
+          path-to-profile: profile.cov
+          flag-name: Go-${{ matrix.go }}-OS-${{ matrix.os }}
+          parallel: true
+
+  # notifies that all test jobs are finished.
+  finish:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: shogo82148/actions-goveralls@v1
+        with:
+          parallel-finished: true
