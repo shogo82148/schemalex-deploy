@@ -4,6 +4,16 @@ package model
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[ReferenceMatchNone-0]
+	_ = x[ReferenceMatchFull-1]
+	_ = x[ReferenceMatchPartial-2]
+	_ = x[ReferenceMatchSimple-3]
+}
+
 const _ReferenceMatch_name = "ReferenceMatchNoneReferenceMatchFullReferenceMatchPartialReferenceMatchSimple"
 
 var _ReferenceMatch_index = [...]uint8{0, 18, 36, 57, 77}
