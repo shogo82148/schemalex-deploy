@@ -8,11 +8,11 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/deckarep/golang-set"
-	"github.com/schemalex/schemalex"
-	"github.com/schemalex/schemalex/format"
-	"github.com/schemalex/schemalex/internal/errors"
-	"github.com/schemalex/schemalex/model"
+	mapset "github.com/deckarep/golang-set"
+	"github.com/shogo82148/schemalex-deploy"
+	"github.com/shogo82148/schemalex-deploy/format"
+	"github.com/shogo82148/schemalex-deploy/internal/errors"
+	"github.com/shogo82148/schemalex-deploy/model"
 )
 
 type diffCtx struct {

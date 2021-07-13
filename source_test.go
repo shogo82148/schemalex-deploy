@@ -230,7 +230,7 @@ func TestSchemaSource(t *testing.T) {
 				},
 			},
 		},
-		{Input: "https://github.com/schemalex/schemalex", Error: true},
+		{Input: "https://github.com/shogo82148/schemalex-deploy", Error: true},
 	}
 
 	for _, c := range testcases {

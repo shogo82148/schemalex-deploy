@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/schemalex/schemalex/internal/errors"
+	"github.com/shogo82148/schemalex-deploy/internal/errors"
 )
 
 const eof = rune(0)

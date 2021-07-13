@@ -1,8 +1,8 @@
 package diff
 
 import (
-	"github.com/schemalex/schemalex"
-	"github.com/schemalex/schemalex/internal/option"
+	"github.com/shogo82148/schemalex-deploy"
+	"github.com/shogo82148/schemalex-deploy/internal/option"
 )
 
 type Option = schemalex.Option
