@@ -32,7 +32,10 @@ jobs:
 
       - name: Before script
         run: make generate
+        shell: bash
       - name: Test
         run: make test
+        shell: bash
       - name: Diff check
         run: make check-diff
+        shell: bash
