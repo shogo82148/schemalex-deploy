@@ -61,7 +61,7 @@ nfpms:
     package_name: schemalex-deploy
     homepage: https://github.com/shogo82148/schemalex-deploy/
     maintainer: Ichinose Shogo <shogo82148@gmail.com>
-    description: Yet Another Go port of schemalex-deploy by shogo82148
+    description: Schema management tool for MySQL
     license: MIT
     formats:
       - apk
