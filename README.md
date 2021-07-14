@@ -2,9 +2,9 @@
 
 Generate the difference of two mysql schema
 
-![Test](https://github.com/schemalex/schemalex/workflows/Test/badge.svg)
+![Test](https://github.com/shogo82148/schemalex-deploy/workflows/Test/badge.svg)
 
-[![PkgGoDev](https://pkg.go.dev/badge/github.com/schemalex/schemalex?tab=doc)](https://pkg.go.dev/github.com/schemalex/schemalex?tab=doc)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/shogo82148/schemalex-deploy?tab=doc)](https://pkg.go.dev/github.com/shogo82148/schemalex-deploy?tab=doc)
 
 ## SYNOPSIS
 
@@ -101,7 +101,7 @@ package schemalex_test
 import (
 	"os"
 
-	"github.com/schemalex/schemalex/diff"
+	"github.com/shogo82148/schemalex-deploy/diff"
 )
 
 func Example() {

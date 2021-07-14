@@ -16,7 +16,7 @@ import (
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/schemalex/schemalex/internal/errors"
+	"github.com/shogo82148/schemalex-deploy/internal/errors"
 )
 
 // SchemaSource is the interface used for objects that provide us with

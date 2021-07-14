@@ -5,8 +5,8 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/schemalex/schemalex/internal/errors"
-	"github.com/schemalex/schemalex/model"
+	"github.com/shogo82148/schemalex-deploy/internal/errors"
+	"github.com/shogo82148/schemalex-deploy/model"
 )
 
 const (
@@ -810,7 +810,7 @@ func (p *Parser) parseCreateTableOptions(ctx *parseCtx, table model.Table) error
 
 // parse column options
 //
-// Also see: https://github.com/schemalex/schemalex/pull/40
+// Also see: https://github.com/shogo82148/schemalex-deploy/pull/40
 // Seems like MySQL doesn't really care about the order of some elements in the
 // column options, although the docs (https://dev.mysql.com/doc/refman/5.7/en/create-table.html)
 // seem to state otherwise.
