@@ -15,8 +15,8 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: |
+              ~/.cache/golangci-lint
               ~/.cache/go-build
-              ~/go/pkg/mod
               ~/go/pkg/mod
           key: ${{ runner.os }}-golangcilint-${{ hashFiles('**/go.sum') }}
           restore-keys: |
