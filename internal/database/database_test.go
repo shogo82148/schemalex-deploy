@@ -92,3 +92,96 @@ func TestTruncateAll(t *testing.T) {
 		}
 	})
 }
+
+func TestDropAll(t *testing.T) {
+	SkipIfNoTestDatabase(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	t.Run("normal", func(t *testing.T) {
+		db, cleanup := SetupTestDB()
+		defer cleanup()
+
+		// prepare tables
+		mustExec(ctx, t, db, "CREATE TABLE `users` (`id` BIGINT unsigned NOT NULL AUTO_INCREMENT, `name` VARCHAR(191) NOT NULL, PRIMARY KEY (`id`))")
+		mustExec(ctx, t, db, "INSERT INTO `users` (`name`) VALUES (?), (?), (?)", "Alice", "Bob", "Charlie")
+		mustExec(ctx, t, db, "CREATE VIEW `user_ids` AS SELECT `id` FROM `users`")
+
+		tables, views, err := listTables(ctx, db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tables) != 1 {
+			t.Errorf("want one table, got %d tables", len(tables))
+		}
+		if len(views) != 1 {
+			t.Errorf("want one view, got %d views", len(views))
+		}
+
+		// drop all tables
+		if err := DropAll(ctx, db); err != nil {
+			t.Fatalf("failed to drop: %v", err)
+		}
+
+		// check the result
+		tables, views, err = listTables(ctx, db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tables) != 0 {
+			t.Errorf("want no table, got %d tables", len(tables))
+		}
+		if len(views) != 0 {
+			t.Errorf("want no view, got %d views", len(views))
+		}
+	})
+
+	t.Run("forgeign key", func(t *testing.T) {
+		db, cleanup := SetupTestDB()
+		defer cleanup()
+
+		// prepare tables
+		mustExec(ctx, t, db, "CREATE TABLE `users` (`id` BIGINT unsigned NOT NULL AUTO_INCREMENT, `name` VARCHAR(191) NOT NULL, PRIMARY KEY (`id`))")
+		mustExec(ctx, t, db, "INSERT INTO `users` (`name`) VALUES (?), (?), (?)", "Alice", "Bob", "Charlie")
+		mustExec(ctx, t, db, "CREATE TABLE `items` (`id` BIGINT unsigned NOT NULL AUTO_INCREMENT, `name` VARCHAR(191) NOT NULL, PRIMARY KEY (`id`))")
+		mustExec(ctx, t, db, "INSERT INTO `items` (`name`) VALUES (?), (?), (?)", "item1", "item2", "item3")
+
+		mustExec(ctx, t, db, "CREATE TABLE `user_items` ("+
+			"`user_id` BIGINT unsigned NOT NULL, "+
+			"`item_id` BIGINT unsigned NOT NULL, "+
+			"PRIMARY KEY (`user_id`, `item_id`), "+
+			"FOREIGN KEY (`user_id`) REFERENCES `users`(`id`), "+
+			"FOREIGN KEY (`item_id`) REFERENCES `items`(`id`)"+
+			")")
+		mustExec(ctx, t, db, "INSERT INTO `user_items` (`user_id`, `item_id`) VALUES (?, ?), (?, ?), (?, ?)", 1, 1, 2, 1, 3, 3)
+
+		tables, views, err := listTables(ctx, db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tables) != 3 {
+			t.Errorf("want 3 tables, got %d tables", len(tables))
+		}
+		if len(views) != 0 {
+			t.Errorf("want no view, got %d views", len(views))
+		}
+
+		// drop all tables
+		if err := DropAll(ctx, db); err != nil {
+			t.Fatalf("failed to drop: %v", err)
+		}
+
+		// check the result
+		tables, views, err = listTables(ctx, db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tables) != 0 {
+			t.Errorf("want no table, got %d tables", len(tables))
+		}
+		if len(views) != 0 {
+			t.Errorf("want no view, got %d views", len(views))
+		}
+	})
+}

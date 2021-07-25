@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -133,6 +134,47 @@ func TruncateAll(ctx context.Context, db *sql.DB) error {
 
 	for _, tableName := range tables {
 		if _, err := conn.ExecContext(ctx, "TRUNCATE TABLE "+util.Backquote(tableName)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// DropAll drops all tables in the database.
+func DropAll(ctx context.Context, db *sql.DB) error {
+	tables, views, err := listTables(ctx, db)
+	if err != nil {
+		return err
+	}
+
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, "SET FOREIGN_KEY_CHECKS = 0"); err != nil {
+		return err
+	}
+	defer conn.ExecContext(ctx, "SET FOREIGN_KEY_CHECKS = 1")
+
+	if len(views) > 0 {
+		for i := range views {
+			views[i] = util.Backquote(views[i])
+		}
+
+		if _, err := conn.ExecContext(ctx, "DROP VIEW "+strings.Join(views, ", ")); err != nil {
+			return err
+		}
+	}
+
+	if len(tables) > 0 {
+		for i := range tables {
+			tables[i] = util.Backquote(tables[i])
+		}
+
+		if _, err := conn.ExecContext(ctx, "DROP TABLE "+strings.Join(tables, ", ")); err != nil {
 			return err
 		}
 	}
