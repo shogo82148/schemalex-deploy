@@ -1,5 +1,14 @@
 name: Test
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  SCHEMALEX_DATABASE_HOST: "127.0.0.1"
+  SCHEMALEX_DATABASE_PORT: "3306"
+  SCHEMALEX_DATABASE_USER: "root"
+  SCHEMALEX_DATABASE_PASSWORD: "verysecret"
 
 jobs:
   test:
@@ -14,6 +23,14 @@ jobs:
           - windows-latest
         go:
           - "1.16"
+        mysql:
+          - '8.0'
+          - '5.7'
+          - '5.6'
+          - 'mariadb-10.6'
+          - 'mariadb-10.5'
+          - 'mariadb-10.4'
+          - 'mariadb-10.3'
 
     steps:
       - name: Set up Go ${{ matrix.go }}
@@ -31,6 +48,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
+      - uses: shogo82148/actions-setup-mysql@v1
+        with:
+          mysql-version: ${{ matrix.mysql }}
+          user: ${{ env.SCHEMALEX_DATABASE_USER }}
+          password: ${{ env.SCHEMALEX_DATABASE_PASSWORD }}
+
       - name: Test
         run: make test
         shell: bash
@@ -39,7 +62,7 @@ jobs:
         uses: shogo82148/actions-goveralls@v1
         with:
           path-to-profile: profile.cov
-          flag-name: Go-${{ matrix.go }}-OS-${{ matrix.os }}
+          flag-name: Go-${{ matrix.go }}-OS-${{ matrix.os }}-MYSQL-${{ matrix.mysql }}
           parallel: true
 
   # notifies that all test jobs are finished.
