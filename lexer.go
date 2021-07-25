@@ -311,12 +311,12 @@ func (l *lexer) runQuote(pair rune) error {
 			return errors.New(`unexpected eof`)
 		} else if r == '\\' {
 			if l.peek() == pair {
-				r = l.next()
+				l.next()
 			}
 		} else if r == pair {
 			if l.peek() == pair {
 				// it is escape
-				r = l.next()
+				l.next()
 			} else {
 				return nil
 			}
