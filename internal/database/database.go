@@ -22,10 +22,10 @@ func SetupTestDB() (*sql.DB, func()) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	user := os.Getenv("SCHMEMALEX_DATABASE_USER")
-	password := os.Getenv("SCHMEMALEX_DATABASE_PASSWORD")
-	host := os.Getenv("SCHMEMALEX_DATABASE_HOST")
-	port := os.Getenv("SCHMEMALEX_DATABASE_PORT")
+	user := os.Getenv("SCHEMALEX_DATABASE_USER")
+	password := os.Getenv("SCHEMALEX_DATABASE_PASSWORD")
+	host := os.Getenv("SCHEMALEX_DATABASE_HOST")
+	port := os.Getenv("SCHEMALEX_DATABASE_PORT")
 	if port == "" {
 		port = "3306"
 	}
@@ -78,13 +78,13 @@ func SetupTestDB() (*sql.DB, func()) {
 
 // HasTestDatabase returns whether a database for testing is configured.
 func HasTestDatabase() bool {
-	return os.Getenv("SCHMEMALEX_DATABASE_HOST") != ""
+	return os.Getenv("SCHEMALEX_DATABASE_HOST") != ""
 }
 
 // SkipIfNoTestDatabase skips tests if the database for testing is not configured.
 func SkipIfNoTestDatabase(t *testing.T) {
 	if !HasTestDatabase() {
-		t.Skip("SCHMEMALEX_DATABASE_HOST is not set. skip this test.")
+		t.Skip("SCHEMALEX_DATABASE_HOST is not set. skip this test.")
 	}
 }
 
