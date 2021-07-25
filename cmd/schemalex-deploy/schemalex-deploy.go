@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
+	"os/signal"
 	"runtime"
 	"runtime/debug"
+	"syscall"
 
 	"github.com/shogo82148/schemalex-deploy"
+	"github.com/shogo82148/schemalex-deploy/deploy"
 )
 
 func main() {
@@ -40,7 +44,18 @@ schemalex -version
 		return nil
 	}
 
-	fmt.Println("TODO: implement")
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	db, err := deploy.Open("mysql", "TODO: fill me!")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	if err := db.Deploy(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 

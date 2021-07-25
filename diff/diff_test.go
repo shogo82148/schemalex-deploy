@@ -4,88 +4,89 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/shogo82148/schemalex-deploy/diff"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestDiff(t *testing.T) {
 	type Spec struct {
+		Name   string
 		Before string
 		After  string
 		Expect string
 	}
 
 	specs := []Spec{
-		// drop table
 		{
+			Name:   "drop table",
 			Before: "CREATE TABLE `hoge` ( `id` integer not null ); CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );",
-			Expect: "DROP TABLE `hoge`;",
+			Expect: "DROP TABLE `hoge`;\n",
 		},
-		// create table
 		{
+			Name:   "create table",
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );",
 			After:  "CREATE TABLE `hoge` ( `id` INTEGER NOT NULL ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COMMENT 'table comment'; CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );",
-			Expect: "CREATE TABLE `hoge` (\n`id` INT (11) NOT NULL\n) ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4, COMMENT = 'table comment';",
+			Expect: "CREATE TABLE `hoge` (\n`id` INT (11) NOT NULL\n) ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4, COMMENT = 'table comment';\n",
 		},
-		// drop column
 		{
+			Name:   "drop column",
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `c` VARCHAR (20) NOT NULL DEFAULT 'xxx' );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );",
-			Expect: "ALTER TABLE `fuga` DROP COLUMN `c`;",
+			Expect: "ALTER TABLE `fuga` DROP COLUMN `c`;\n",
 		},
-		// add column (after)
 		{
+			Name:   "add column (after)",
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL, `c` INTEGER NOT NULL );",
-			Expect: "ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `id`;\nALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`;\nALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `b`;",
+			Expect: "ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `id`;\nALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`;\nALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `b`;\n",
 		},
 		// add column (first)
 		{
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );",
 			After:  "CREATE TABLE `fuga` ( `a` INTEGER NOT NULL, `b` INTEGER NOT NULL, `c` INTEGER NOT NULL, `id` INTEGER NOT NULL);",
-			Expect: "ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL FIRST;\nALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`;\nALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `b`;",
+			Expect: "ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL FIRST;\nALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`;\nALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `b`;\n",
 		},
 		{
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `c` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL );",
-			Expect: "ALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `id`;\nALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `c`;\nALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`;",
+			Expect: "ALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `id`;\nALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `c`;\nALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`;\n",
 		},
 		// change column
 		{
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );",
 			After:  "CREATE TABLE `fuga` ( `id` BIGINT NOT NULL );",
-			Expect: "ALTER TABLE `fuga` CHANGE COLUMN `id` `id` BIGINT (20) NOT NULL;",
+			Expect: "ALTER TABLE `fuga` CHANGE COLUMN `id` `id` BIGINT (20) NOT NULL;\n",
 		},
 		// change column with comment
 		{
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL COMMENT 'fuga is good' );",
-			Expect: "ALTER TABLE `fuga` CHANGE COLUMN `id` `id` INT (11) NOT NULL COMMENT 'fuga is good';",
+			Expect: "ALTER TABLE `fuga` CHANGE COLUMN `id` `id` INT (11) NOT NULL COMMENT 'fuga is good';\n",
 		},
 		// drop primary key
 		{
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT );",
-			Expect: "ALTER TABLE `fuga` DROP PRIMARY KEY;",
+			Expect: "ALTER TABLE `fuga` DROP PRIMARY KEY;\n",
 		},
 		// add primary key
 		{
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) );",
-			Expect: "ALTER TABLE `fuga` ADD PRIMARY KEY (`id`);",
+			Expect: "ALTER TABLE `fuga` ADD PRIMARY KEY (`id`);\n",
 		},
 		// drop unique key
 		{
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, CONSTRAINT `symbol` UNIQUE KEY `uniq_id` USING BTREE (`id`) );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT );",
-			Expect: "ALTER TABLE `fuga` DROP INDEX `uniq_id`;",
+			Expect: "ALTER TABLE `fuga` DROP INDEX `uniq_id`;\n",
 		},
 		// add unique key
 		{
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, CONSTRAINT `symbol` UNIQUE KEY `uniq_id` USING BTREE (`id`) );",
-			Expect: "ALTER TABLE `fuga` ADD CONSTRAINT `symbol` UNIQUE INDEX `uniq_id` USING BTREE (`id`);",
+			Expect: "ALTER TABLE `fuga` ADD CONSTRAINT `symbol` UNIQUE INDEX `uniq_id` USING BTREE (`id`);\n",
 		},
 		// not change index
 		{
@@ -103,31 +104,31 @@ func TestDiff(t *testing.T) {
 		{
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, CONSTRAINT `fsym` FOREIGN KEY (fid) REFERENCES f (id) );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, CONSTRAINT `ksym` FOREIGN KEY (fid) REFERENCES f (id) );",
-			Expect: "ALTER TABLE `fuga` DROP FOREIGN KEY `fsym`;\nALTER TABLE `fuga` DROP INDEX `fsym`;\nALTER TABLE `fuga` ADD INDEX `ksym` (`fid`);\nALTER TABLE `fuga` ADD CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES `f` (`id`);",
+			Expect: "ALTER TABLE `fuga` DROP FOREIGN KEY `fsym`;\nALTER TABLE `fuga` DROP INDEX `fsym`;\nALTER TABLE `fuga` ADD INDEX `ksym` (`fid`);\nALTER TABLE `fuga` ADD CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES `f` (`id`);\n",
 		},
 		// remove FOREIGN KEY
 		{
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, FOREIGN KEY fk (fid) REFERENCES f (id) );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, INDEX fid (fid) );",
-			Expect: "ALTER TABLE `fuga` DROP FOREIGN KEY `fk`;\nALTER TABLE `fuga` ADD INDEX `fid` (`fid`);",
+			Expect: "ALTER TABLE `fuga` DROP FOREIGN KEY `fk`;\nALTER TABLE `fuga` ADD INDEX `fid` (`fid`);\n",
 		},
 		// add  fulltext key
 		{
 			Before: "CREATE TABLE `hoge` ( `txt` TEXT );",
 			After:  "CREATE TABLE `hoge` ( `txt` TEXT, FULLTEXT INDEX `ft_idx` (`txt`) WITH PARSER `ngram`);",
-			Expect: "ALTER TABLE `hoge` ADD FULLTEXT INDEX `ft_idx` (`txt`) WITH PARSER `ngram`;",
+			Expect: "ALTER TABLE `hoge` ADD FULLTEXT INDEX `ft_idx` (`txt`) WITH PARSER `ngram`;\n",
 		},
 		// drop fulltext key
 		{
 			Before: "CREATE TABLE `hoge` ( `txt` TEXT, FULLTEXT INDEX `ft_idx` (`txt`) WITH PARSER `ngram`);",
 			After:  "CREATE TABLE `hoge` ( `txt` TEXT );",
-			Expect: "ALTER TABLE `hoge` DROP INDEX `ft_idx`;",
+			Expect: "ALTER TABLE `hoge` DROP INDEX `ft_idx`;\n",
 		},
 		// multi modify
 		{
 			Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `aid` INTEGER NOT NULL, `bid` INTEGER NOT NULL, INDEX `ab` (`aid`, `bid`) );",
 			After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `aid` INTEGER NOT NULL, `cid` INTEGER NOT NULL, INDEX `ac` (`aid`, `cid`) );",
-			Expect: "ALTER TABLE `fuga` DROP INDEX `ab`;\nALTER TABLE `fuga` DROP COLUMN `bid`;\nALTER TABLE `fuga` ADD COLUMN `cid` INT (11) NOT NULL AFTER `aid`;\nALTER TABLE `fuga` ADD INDEX `ac` (`aid`, `cid`);",
+			Expect: "ALTER TABLE `fuga` DROP INDEX `ab`;\nALTER TABLE `fuga` DROP COLUMN `bid`;\nALTER TABLE `fuga` ADD COLUMN `cid` INT (11) NOT NULL AFTER `aid`;\nALTER TABLE `fuga` ADD INDEX `ac` (`aid`, `cid`);\n",
 		},
 		// not change to query what generated by show create table
 		{
@@ -209,14 +210,19 @@ CREATE TABLE foo (
 	var buf bytes.Buffer
 	for _, spec := range specs {
 		buf.Reset()
-		if !assert.NoError(t, diff.Strings(&buf, spec.Before, spec.After), "diff.String should succeed") {
-			return
+		err := diff.Strings(&buf, spec.Before, spec.After)
+		if err != nil {
+			t.Errorf("spec %s failed: %v", spec.Name, err)
 		}
 
-		if !assert.Equal(t, spec.Expect, buf.String(), "result SQL should match") {
-			t.Logf("before = %s", spec.Before)
-			t.Logf("after = %s", spec.After)
-			return
+		actual := buf.String()
+		if diff := cmp.Diff(spec.Expect, actual); diff != "" {
+			t.Errorf(
+				"spec %s missmatch (-want/+got)\n%s\n"+
+					"before = %q\n"+
+					"after  = %q",
+				spec.Name, diff, spec.Before, spec.After,
+			)
 		}
 	}
 }
