@@ -52,6 +52,7 @@ jobs:
 
   # notifies that all test jobs are finished.
   finish:
+    if: always()
     needs: test
     runs-on: ubuntu-latest
     steps:
