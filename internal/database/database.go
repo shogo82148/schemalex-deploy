@@ -121,12 +121,15 @@ func TruncateAll(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
+	// we run all queries in the same database session.
+	// because we need to change some session system variables.
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
+	// disable foreign key checks during the truncation.
 	if _, err := conn.ExecContext(ctx, "SET FOREIGN_KEY_CHECKS = 0"); err != nil {
 		return err
 	}
@@ -148,12 +151,15 @@ func DropAll(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
+	// we run all queries in the same database session.
+	// because we need to change some session system variables.
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
+	// disable foreign key checks during the dropping.
 	if _, err := conn.ExecContext(ctx, "SET FOREIGN_KEY_CHECKS = 0"); err != nil {
 		return err
 	}

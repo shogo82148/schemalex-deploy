@@ -53,9 +53,11 @@ schemalex -version
 	}
 	defer db.Close()
 
-	if err := db.Deploy(ctx); err != nil {
-		return err
-	}
+	_ = ctx
+	// TODO: implement
+	// if err := db.Deploy(ctx); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 

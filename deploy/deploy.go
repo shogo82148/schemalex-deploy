@@ -5,9 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/shogo82148/schemalex-deploy"
+	"github.com/shogo82148/schemalex-deploy/diff"
 )
 
 // DB is the target of deploying a DDL schema.
@@ -31,24 +34,91 @@ func (db *DB) Close() error {
 	return db.db.Close()
 }
 
-// Deploy deploys the schema.
-func (db *DB) Deploy(ctx context.Context) error {
+type Plan struct {
+	From  string
+	To    string
+	Stmts diff.Stmts
+}
+
+// Plan generates a series statements to migrate from the current one to the new schema.
+func (db *DB) Plan(ctx context.Context, schema string) (*Plan, error) {
+	latest, err := getLatestVersion(ctx, db.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the current schema: %w", err)
+	}
+
+	p := schemalex.New()
+	stmts1, err := p.ParseString(latest.SQLText)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse the current schema: %w", err)
+	}
+
+	stmts2, err := p.ParseString(schema)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse the new schema: %w", err)
+	}
+
+	stmts, err := diff.Diff(stmts1, stmts2, diff.WithTransaction(false))
+	if err != nil {
+		return nil, fmt.Errorf("failed to plan: %w", err)
+	}
+
+	return &Plan{
+		From:  latest.SQLText,
+		To:    schema,
+		Stmts: stmts,
+	}, nil
+}
+
+// Deploy deploys the new schema according to the plan.
+func (db *DB) Deploy(ctx context.Context, plan *Plan) error {
+	log.Printf("starting to deploy")
+
 	tx, err := db.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	latest, err := getLatestVersion(ctx, tx)
+	latest, err := getLatestVersionTx(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to get the latest version: %w", err)
 	}
+	if latest.SQLText != plan.From {
+		return errors.New("detected unexpected change")
+	}
 
-	_ = latest
+	// disable foreign key checks during the migration.
+	if _, err := tx.ExecContext(ctx, "SET FOREIGN_KEY_CHECKS = 0"); err != nil {
+		return fmt.Errorf("failed to disable foreign key checks: %w", err)
+	}
+	// making share that foreign key checks are enabled after the migration.
+	defer tx.ExecContext(ctx, "SET FOREIGN_KEY_CHECKS = 1")
 
+	// migration
+	for _, stmt := range plan.Stmts {
+		log.Printf("executing: %s", stmt.String())
+		if _, err := tx.ExecContext(ctx, stmt.String()); err != nil {
+			return fmt.Errorf("failed to execute %q: %w", stmt.String(), err)
+		}
+	}
+	log.Printf("updating the schema information")
+	err = updateLatestVersion(ctx, tx, &schemalexRevision{
+		SQLText:    plan.To,
+		UpgradedAt: time.Now(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update the schema information: %w", err)
+	}
+
+	// enable foreign key checks
+	if _, err := tx.ExecContext(ctx, "SET FOREIGN_KEY_CHECKS = 1"); err != nil {
+		return fmt.Errorf("failed to disable foreign key checks: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit: %w", err)
 	}
+	log.Printf("done")
 	return nil
 }
 
@@ -58,8 +128,25 @@ type schemalexRevision struct {
 	UpgradedAt time.Time
 }
 
-// get the latest version of schema.
-func getLatestVersion(ctx context.Context, tx *sql.Tx) (*schemalexRevision, error) {
+// get the latest version of schema out of a transaction.
+func getLatestVersion(ctx context.Context, db *sql.DB) (*schemalexRevision, error) {
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{
+		ReadOnly: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Commit()
+
+	latest, err := getLatestVersionTx(ctx, tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the latest version: %w", err)
+	}
+	return latest, nil
+}
+
+// get the latest version of schema in a transaction.
+func getLatestVersionTx(ctx context.Context, tx *sql.Tx) (*schemalexRevision, error) {
 	var rev schemalexRevision
 	row := tx.QueryRowContext(ctx, "SELECT `id`, `sql_text`, `upgraded_at` FROM `schemalex_revision` ORDER BY `id` DESC LIMIT 1")
 	err := row.Scan(&rev.ID, &rev.SQLText, &rev.UpgradedAt)
@@ -83,13 +170,21 @@ func getLatestVersion(ctx context.Context, tx *sql.Tx) (*schemalexRevision, erro
 	return &rev, nil
 }
 
-func updateLatestVersion(ctx context.Context, tx *sql.Tx) error {
+// update the schema information.
+func updateLatestVersion(ctx context.Context, tx *sql.Tx, rev *schemalexRevision) error {
 	createTable := "CREATE TABLE IF NOT EXISTS `schemalex_revision` ( " +
 		"`id` BIGINT unsigned NOT NULL AUTO_INCREMENT, " +
 		"`sql_text` TEXT NOT NULL, " +
 		"`upgraded_at` DATETIME(6) NOT NULL, " +
 		"PRIMARY KEY (`id`) " +
 		") ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4"
-	_, err := tx.ExecContext(ctx, createTable)
-	return err
+	if _, err := tx.ExecContext(ctx, createTable); err != nil {
+		return err
+	}
+
+	query := "INSERT INTO `schemalex_revision` (`sql_text`, `upgraded_at`) VALUES (?, ?)"
+	if _, err := tx.ExecContext(ctx, query, rev.SQLText, rev.UpgradedAt); err != nil {
+		return err
+	}
+	return nil
 }
