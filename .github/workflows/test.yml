@@ -1,19 +1,59 @@
 name: Test
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  SCHEMALEX_DATABASE_HOST: "127.0.0.1"
+  SCHEMALEX_DATABASE_PORT: "3306"
+  SCHEMALEX_DATABASE_USER: "schemalex"
+  SCHEMALEX_DATABASE_PASSWORD: "verysecret"
 
 jobs:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: list
+        id: set-matrix
+        run: |
+          import json
+          go = [
+              '1.16',
+          ]
+          mysql = [
+              '8.0',
+              '5.7',
+              '5.6',
+              'mariadb-10.6',
+              'mariadb-10.5',
+              'mariadb-10.4',
+              'mariadb-10.3',
+          ]
+          includes = []
+          # MySQL versions compatibility check
+          for v in mysql[1:]:
+              includes.append({'os': 'ubuntu-latest', 'go': go[0], 'mysql': v})
+          matrix = {
+              # OS vs Go versions
+              'os': [ 'ubuntu-latest', 'macos-latest', 'windows-latest' ],
+              'go': go,
+              'mysql': mysql[:1],
+              'include': includes
+          }
+          output = json.dumps(matrix, separators=(',', ':'))
+          print('::set-output name=matrix::{0}'.format(output))
+        shell: python
+
   test:
     name: Test
+    needs: list
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
-        go:
-          - "1.16"
+      matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
 
     steps:
       - name: Set up Go ${{ matrix.go }}
@@ -31,6 +71,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
+      - uses: shogo82148/actions-setup-mysql@v1
+        with:
+          mysql-version: ${{ matrix.mysql }}
+          user: ${{ env.SCHEMALEX_DATABASE_USER }}
+          password: ${{ env.SCHEMALEX_DATABASE_PASSWORD }}
+
       - name: Test
         run: make test
         shell: bash
@@ -39,7 +85,7 @@ jobs:
         uses: shogo82148/actions-goveralls@v1
         with:
           path-to-profile: profile.cov
-          flag-name: Go-${{ matrix.go }}-OS-${{ matrix.os }}
+          flag-name: Go-${{ matrix.go }}-OS-${{ matrix.os }}-MYSQL-${{ matrix.mysql }}
           parallel: true
 
   # notifies that all test jobs are finished.
