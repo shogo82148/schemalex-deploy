@@ -98,7 +98,7 @@ schemalex -version
 
 func showVersion() {
 	fmt.Printf(
-		"schemalex-deploy version %s, built with go %s for %s/%s\n",
+		"schemalex-deploy version %s, built with %s for %s/%s\n",
 		getVersion(),
 		runtime.Version(),
 		runtime.GOOS,
