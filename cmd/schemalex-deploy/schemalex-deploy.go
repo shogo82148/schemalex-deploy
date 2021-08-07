@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
@@ -74,11 +74,11 @@ schemalex -version
 
 	// read the schema
 	var schema []byte
-	if flag.NArg() > 0 {
-		schema, err = os.ReadFile(flag.Arg(0))
-	} else {
-		schema, err = io.ReadAll(os.Stdin)
+	if flag.NArg() == 0 {
+		flag.Usage()
+		return errors.New("schema file is required")
 	}
+	schema, err = os.ReadFile(flag.Arg(0))
 	if err != nil {
 		return err
 	}
