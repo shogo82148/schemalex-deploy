@@ -1,19 +1,24 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"os/signal"
 	"runtime"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/shogo82148/schemalex-deploy"
 	"github.com/shogo82148/schemalex-deploy/deploy"
+	"golang.org/x/term"
 )
 
 func main() {
@@ -60,11 +65,35 @@ func _main() error {
 		return fmt.Errorf("failed to plan: %w", err)
 	}
 
+	if !cfn.autoApprove {
+		if result, err := approved(); err != nil {
+			return err
+		} else if !result {
+			return errors.New("the plan was cancelled")
+		}
+	}
+
 	// deploy
 	if err := db.Deploy(ctx, plan); err != nil {
 		return fmt.Errorf("failed to deploy: %w", err)
 	}
 	return nil
+}
+
+func approved() (bool, error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return false, errors.New("tty is required")
+	}
+	fmt.Println("Do you want to perform these actions?")
+	fmt.Println("Only 'yes' will be accepted to confirm.")
+	fmt.Print("Enter a value: ")
+	buf := bufio.NewReader(os.Stdin)
+	line, err := buf.ReadString('\n')
+	if err != nil {
+		return false, err
+	}
+	line = strings.TrimSpace(line)
+	return line == "yes", nil
 }
 
 func showVersion() {

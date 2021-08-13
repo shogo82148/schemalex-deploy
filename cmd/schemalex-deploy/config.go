@@ -13,13 +13,14 @@ import (
 )
 
 type config struct {
-	version  bool
-	host     string
-	user     string
-	password string
-	database string
-	port     int
-	schema   []byte
+	version     bool
+	host        string
+	user        string
+	password    string
+	database    string
+	port        int
+	schema      []byte
+	autoApprove bool
 }
 
 func loadConfig() (*config, error) {
@@ -27,6 +28,7 @@ func loadConfig() (*config, error) {
 	var version bool
 	var host, username, password, database string
 	var port int
+	var approve bool
 
 	flag.Usage = func() {
 		// TODO: fill the usage
@@ -41,12 +43,15 @@ schemalex -version
 	flag.StringVar(&password, "password", "", "password")
 	flag.StringVar(&database, "database", "", "the database name")
 	flag.BoolVar(&version, "version", false, "show the version")
+	flag.BoolVar(&approve, "auto-approve", false, "skips interactive approval of plan before deploying")
 	flag.Parse()
 
 	if version {
 		cfn.version = true
 		return &cfn, nil
 	}
+
+	cfn.autoApprove = approve
 
 	// load configure from files
 	cnfFile, err := mycnf.LoadDefault("")
