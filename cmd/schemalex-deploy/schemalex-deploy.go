@@ -2,12 +2,9 @@ package main
 
 import (
 	"context"
-	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"os/signal"
 	"runtime"
 	"runtime/debug"
@@ -26,26 +23,11 @@ func main() {
 }
 
 func _main() error {
-	var version bool
-	var host, user, password, database string
-	var port int
-
-	flag.Usage = func() {
-		// TODO: fill the usage
-		fmt.Printf(`schemalex-deploy version %s
-
-schemalex -version
-`, getVersion())
+	cfn, err := loadConfig()
+	if err != nil {
+		return err
 	}
-	flag.StringVar(&host, "host", "", "the host name of the database")
-	flag.IntVar(&port, "port", 3306, "the port number")
-	flag.StringVar(&user, "user", "", "username")
-	flag.StringVar(&password, "password", "", "password")
-	flag.StringVar(&database, "database", "", "the database name")
-	flag.BoolVar(&version, "version", false, "show the version")
-	flag.Parse()
-
-	if version {
+	if cfn.version {
 		showVersion()
 		return nil
 	}
@@ -54,10 +36,10 @@ schemalex -version
 	defer stop()
 
 	config := mysql.NewConfig()
-	config.Addr = net.JoinHostPort(host, strconv.Itoa(port))
-	config.User = user
-	config.Passwd = password
-	config.DBName = database
+	config.Addr = net.JoinHostPort(cfn.host, strconv.Itoa(cfn.port))
+	config.User = cfn.user
+	config.Passwd = cfn.password
+	config.DBName = cfn.database
 	config.ParseTime = true
 	config.RejectReadOnly = true
 	config.Params = map[string]string{
@@ -72,19 +54,8 @@ schemalex -version
 	}
 	defer db.Close()
 
-	// read the schema
-	var schema []byte
-	if flag.NArg() == 0 {
-		flag.Usage()
-		return errors.New("schema file is required")
-	}
-	schema, err = os.ReadFile(flag.Arg(0))
-	if err != nil {
-		return err
-	}
-
 	// plan
-	plan, err := db.Plan(ctx, string(schema))
+	plan, err := db.Plan(ctx, string(cfn.schema))
 	if err != nil {
 		return fmt.Errorf("failed to plan: %w", err)
 	}
