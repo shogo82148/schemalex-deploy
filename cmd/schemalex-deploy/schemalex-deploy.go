@@ -66,7 +66,7 @@ func _main() error {
 	}
 
 	if !cfn.autoApprove {
-		if result, err := approved(); err != nil {
+		if result, err := approved(ctx); err != nil {
 			return err
 		} else if !result {
 			return errors.New("the plan was cancelled")
@@ -80,20 +80,35 @@ func _main() error {
 	return nil
 }
 
-func approved() (bool, error) {
+func approved(ctx context.Context) (bool, error) {
+	type result struct {
+		line string
+		err  error
+	}
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return false, errors.New("tty is required")
 	}
 	fmt.Println("Do you want to perform these actions?")
 	fmt.Println("Only 'yes' will be accepted to confirm.")
 	fmt.Print("Enter a value: ")
-	buf := bufio.NewReader(os.Stdin)
-	line, err := buf.ReadString('\n')
-	if err != nil {
-		return false, err
+
+	ch := make(chan result, 1)
+	go func() {
+		buf := bufio.NewReader(os.Stdin)
+		line, err := buf.ReadString('\n')
+		if err != nil {
+			ch <- result{err: err}
+			return
+		}
+		ch <- result{line: strings.TrimSpace(line)}
+	}()
+
+	select {
+	case ret := <-ch:
+		return ret.line == "yes", ret.err
+	case <-ctx.Done():
+		return false, ctx.Err()
 	}
-	line = strings.TrimSpace(line)
-	return line == "yes", nil
 }
 
 func showVersion() {
