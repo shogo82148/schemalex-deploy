@@ -347,7 +347,7 @@ type TableColumn interface {
 	// Otherwise, Normalize() returns the receiver unchanged, with a false
 	// as the second return value.
 	//
-	// Normalization is performed on numertic type display lengths, synonym
+	// Normalization is performed on numeric type display lengths, synonym
 	// types, and NULL expressions
 	Normalize() (TableColumn, bool)
 
@@ -380,7 +380,6 @@ type tablecol struct {
 	primary      bool
 	unique       bool
 	unsigned     bool
-	fulltext     bool
 	zerofill     bool
 }
 
