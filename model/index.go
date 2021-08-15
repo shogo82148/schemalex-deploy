@@ -44,7 +44,7 @@ func (stmt *index) ID() string {
 	}
 	if stmt.reference != nil {
 		fmt.Fprintf(h, ".")
-		fmt.Fprintf(h, stmt.reference.ID())
+		fmt.Fprintf(h, "%s", stmt.reference.ID())
 	}
 	return fmt.Sprintf("%s#%x", name, h.Sum(nil))
 }

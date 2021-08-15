@@ -1,11 +1,10 @@
 package model
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"fmt"
+	"strings"
 
-	"github.com/shogo82148/schemalex-deploy/internal/errors"
 	"github.com/shogo82148/schemalex-deploy/internal/util"
 )
 
@@ -88,7 +87,7 @@ func (r *reference) SetTableName(v string) Reference {
 }
 
 func (r reference) String() string {
-	var buf bytes.Buffer
+	var buf strings.Builder
 
 	buf.WriteString("REFERENCES ")
 	buf.WriteString(util.Backquote(r.TableName()))
@@ -115,14 +114,14 @@ func (r reference) String() string {
 		buf.WriteString(" MATCH SIMPLE")
 	}
 
-	// we should really check for errors...
+	// we don't need to check the errors, because strings.Builder doesn't return any error.
 	writeReferenceOption(&buf, "ON DELETE", r.OnDelete())
 	writeReferenceOption(&buf, "ON UPDATE", r.OnUpdate())
 
 	return buf.String()
 }
 
-func writeReferenceOption(buf *bytes.Buffer, prefix string, opt ReferenceOption) error {
+func writeReferenceOption(buf *strings.Builder, prefix string, opt ReferenceOption) error {
 	if opt != ReferenceOptionNone {
 		buf.WriteByte(' ')
 		buf.WriteString(prefix)
@@ -136,7 +135,7 @@ func writeReferenceOption(buf *bytes.Buffer, prefix string, opt ReferenceOption)
 		case ReferenceOptionNoAction:
 			buf.WriteString(" NO ACTION")
 		default:
-			return errors.New("unknown reference option")
+			panic(fmt.Errorf("unknown reference option: %d", int(opt)))
 		}
 	}
 	return nil
