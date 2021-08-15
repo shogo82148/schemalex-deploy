@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -68,6 +69,16 @@ func (db *DB) Plan(ctx context.Context, schema string) (*Plan, error) {
 		To:    schema,
 		Stmts: stmts,
 	}, nil
+}
+
+func (plan *Plan) Preview(w io.Writer) error {
+	for _, stmt := range plan.Stmts {
+		_, err := fmt.Fprintf(w, "%s;\n", stmt.String())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Deploy deploys the new schema according to the plan.

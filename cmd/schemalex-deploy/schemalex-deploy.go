@@ -65,6 +65,12 @@ func _main() error {
 		return fmt.Errorf("failed to plan: %w", err)
 	}
 
+	// preview
+	if err := plan.Preview(os.Stderr); err != nil {
+		return fmt.Errorf("failed to preview: %w", err)
+	}
+
+	// ask to approve
 	if !cfn.autoApprove {
 		if result, err := approved(ctx); err != nil {
 			return err
