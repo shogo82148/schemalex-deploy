@@ -28,7 +28,7 @@ func LoadDefault(extraFile string) (MyCnf, error) {
 		if extraFile != "" {
 			paths = append(paths, extraFile)
 		}
-		if home, err := os.UserHomeDir(); err != nil && home != "" {
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
 			paths = append(paths, filepath.Join(home, ".my.cnf"))
 		}
 	}
