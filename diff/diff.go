@@ -131,30 +131,6 @@ func Strings(dst io.Writer, from, to string, options ...Option) error {
 	return Statements(dst, stmts1, stmts2, options...)
 }
 
-// Files compares contents of two files and generates a series
-// of statements to migrate from the old one to the new one,
-// writing the result to `dst`
-func Files(dst io.Writer, from, to string, options ...Option) error {
-	return Sources(dst, schemalex.NewLocalFileSource(from), schemalex.NewLocalFileSource(to), options...)
-}
-
-// Files compares contents from two sources and generates a series
-// of statements to migrate from the old one to the new one,
-// writing the result to `dst`
-func Sources(dst io.Writer, from, to schemalex.SchemaSource, options ...Option) error {
-	var buf bytes.Buffer
-	if err := from.WriteSchema(&buf); err != nil {
-		return errors.Wrapf(err, `failed to retrieve schema from "from" source %s`, from)
-	}
-	fromStr := buf.String()
-	buf.Reset()
-
-	if err := to.WriteSchema(&buf); err != nil {
-		return errors.Wrapf(err, `failed to retrieve schema from "to" source %s`, to)
-	}
-	return Strings(dst, fromStr, buf.String(), options...)
-}
-
 func (ctx *diffCtx) dropTables() error {
 	ids := ctx.fromSet.Difference(ctx.toSet)
 	for _, id := range ids.ToSlice() {
