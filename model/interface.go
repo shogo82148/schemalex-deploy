@@ -12,9 +12,6 @@ type Stmt interface {
 	ID() string
 }
 
-// Stmts describes a list of statements
-type Stmts []Stmt
-
 type maybeString struct {
 	Valid bool
 	Value string

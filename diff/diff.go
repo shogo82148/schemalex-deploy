@@ -19,12 +19,12 @@ import (
 type diffCtx struct {
 	fromSet mapset.Set
 	toSet   mapset.Set
-	from    model.Stmts
-	to      model.Stmts
+	from    []schemalex.Stmt
+	to      []schemalex.Stmt
 	result  Stmts
 }
 
-func newDiffCtx(from, to model.Stmts) *diffCtx {
+func newDiffCtx(from, to []schemalex.Stmt) *diffCtx {
 	fromSet := mapset.NewSet()
 	for _, stmt := range from {
 		if cs, ok := stmt.(model.Table); ok {
@@ -53,7 +53,7 @@ func (ctx *diffCtx) append(stmt string) {
 // Diff compares two model.Stmts, and generates a series of
 // statements as `diff.Stmts` so the consumer can, for example,
 // analyze or use these statements standalone by themselves.
-func Diff(from, to model.Stmts, options ...Option) (Stmts, error) {
+func Diff(from, to []schemalex.Stmt, options ...Option) (Stmts, error) {
 	var txn bool
 	for _, o := range options {
 		switch o.Name() {
@@ -91,7 +91,7 @@ func Diff(from, to model.Stmts, options ...Option) (Stmts, error) {
 // Statements compares two model.Stmts and generates a series
 // of statements to migrate from the old one to the new one,
 // writing the result to `dst`
-func Statements(dst io.Writer, from, to model.Stmts, options ...Option) error {
+func Statements(dst io.Writer, from, to []schemalex.Stmt, options ...Option) error {
 	stmts, err := Diff(from, to, options...)
 	if err != nil {
 		return err
@@ -134,7 +134,7 @@ func Strings(dst io.Writer, from, to string, options ...Option) error {
 func (ctx *diffCtx) dropTables() error {
 	ids := ctx.fromSet.Difference(ctx.toSet)
 	for _, id := range ids.ToSlice() {
-		stmt, ok := ctx.from.Lookup(id.(string))
+		stmt, ok := lookup(ctx.from, id.(string))
 		if !ok {
 			return fmt.Errorf("failed to lookup table: %q", id)
 		}
@@ -154,7 +154,7 @@ func (ctx *diffCtx) createTables() error {
 	ids := ctx.toSet.Difference(ctx.fromSet)
 	for _, id := range ids.ToSlice() {
 		// Lookup the corresponding statement, and add its SQL
-		stmt, ok := ctx.to.Lookup(id.(string))
+		stmt, ok := lookup(ctx.to, id.(string))
 		if !ok {
 			return fmt.Errorf("failed to lookup table: %q", id)
 		}
@@ -228,13 +228,13 @@ func (ctx *diffCtx) alterTables() error {
 		var stmt model.Stmt
 		var ok bool
 
-		stmt, ok = ctx.from.Lookup(id.(string))
+		stmt, ok = lookup(ctx.from, id.(string))
 		if !ok {
 			return fmt.Errorf("table not found in old schema (alter table): %q", id)
 		}
 		beforeStmt := stmt.(model.Table)
 
-		stmt, ok = ctx.to.Lookup(id.(string))
+		stmt, ok = lookup(ctx.to, id.(string))
 		if !ok {
 			return fmt.Errorf("table not found in new schema (alter table): %q", id)
 		}
@@ -501,4 +501,13 @@ func (ctx *alterCtx) addTableIndexes() error {
 	}
 
 	return nil
+}
+
+func lookup(stmts []schemalex.Stmt, id string) (schemalex.Stmt, bool) {
+	for _, stmt := range stmts {
+		if stmt.ID() == id {
+			return stmt, true
+		}
+	}
+	return nil, false
 }
