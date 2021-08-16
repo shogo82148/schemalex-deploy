@@ -121,22 +121,22 @@ func (r reference) String() string {
 	return buf.String()
 }
 
-func writeReferenceOption(buf *strings.Builder, prefix string, opt ReferenceOption) error {
-	if opt != ReferenceOptionNone {
-		buf.WriteByte(' ')
-		buf.WriteString(prefix)
-		switch opt {
-		case ReferenceOptionRestrict:
-			buf.WriteString(" RESTRICT")
-		case ReferenceOptionCascade:
-			buf.WriteString(" CASCADE")
-		case ReferenceOptionSetNull:
-			buf.WriteString(" SET NULL")
-		case ReferenceOptionNoAction:
-			buf.WriteString(" NO ACTION")
-		default:
-			panic(fmt.Errorf("unknown reference option: %d", int(opt)))
-		}
+func writeReferenceOption(buf *strings.Builder, prefix string, opt ReferenceOption) {
+	if opt == ReferenceOptionNone {
+		return
 	}
-	return nil
+	buf.WriteByte(' ')
+	buf.WriteString(prefix)
+	switch opt {
+	case ReferenceOptionRestrict:
+		buf.WriteString(" RESTRICT")
+	case ReferenceOptionCascade:
+		buf.WriteString(" CASCADE")
+	case ReferenceOptionSetNull:
+		buf.WriteString(" SET NULL")
+	case ReferenceOptionNoAction:
+		buf.WriteString(" NO ACTION")
+	default:
+		panic(fmt.Errorf("unknown reference option: %d", int(opt)))
+	}
 }

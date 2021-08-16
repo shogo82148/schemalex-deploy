@@ -455,7 +455,7 @@ func formatReference(ctx *fmtCtx, r model.Reference) error {
 		buf.WriteString(" MATCH SIMPLE")
 	}
 
-	// we should really check for errors...
+	// we don't need to check the errors, because bytes.Buffer doesn't return any error.
 	writeReferenceOption(&buf, "ON DELETE", r.OnDelete())
 	writeReferenceOption(&buf, "ON UPDATE", r.OnUpdate())
 
@@ -465,22 +465,22 @@ func formatReference(ctx *fmtCtx, r model.Reference) error {
 	return nil
 }
 
-func writeReferenceOption(buf *bytes.Buffer, prefix string, opt model.ReferenceOption) error {
-	if opt != model.ReferenceOptionNone {
-		buf.WriteByte(' ')
-		buf.WriteString(prefix)
-		switch opt {
-		case model.ReferenceOptionRestrict:
-			buf.WriteString(" RESTRICT")
-		case model.ReferenceOptionCascade:
-			buf.WriteString(" CASCADE")
-		case model.ReferenceOptionSetNull:
-			buf.WriteString(" SET NULL")
-		case model.ReferenceOptionNoAction:
-			buf.WriteString(" NO ACTION")
-		default:
-			return errors.New("unknown reference option")
-		}
+func writeReferenceOption(buf *bytes.Buffer, prefix string, opt model.ReferenceOption) {
+	if opt == model.ReferenceOptionNone {
+		return
 	}
-	return nil
+	buf.WriteByte(' ')
+	buf.WriteString(prefix)
+	switch opt {
+	case model.ReferenceOptionRestrict:
+		buf.WriteString(" RESTRICT")
+	case model.ReferenceOptionCascade:
+		buf.WriteString(" CASCADE")
+	case model.ReferenceOptionSetNull:
+		buf.WriteString(" SET NULL")
+	case model.ReferenceOptionNoAction:
+		buf.WriteString(" NO ACTION")
+	default:
+		panic(fmt.Errorf("unknown reference option: %d", int(opt)))
+	}
 }
