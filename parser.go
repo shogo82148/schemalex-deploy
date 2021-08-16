@@ -93,7 +93,7 @@ func (pctx *parseCtx) next() *Token {
 // ParseString parses a string containing SQL statements and creates
 // a mode.Stmts structure.
 // See Parse for details.
-func (p *Parser) ParseString(src string) ([]model.Stmt, error) {
+func (p *Parser) ParseString(src string) ([]Stmt, error) {
 	return p.Parse([]byte(src))
 }
 
@@ -101,12 +101,12 @@ func (p *Parser) ParseString(src string) ([]model.Stmt, error) {
 // model.Stmts structure.
 // If it encounters errors while parsing, the returned error will be a
 // ParseError type.
-func (p *Parser) Parse(src []byte) ([]model.Stmt, error) {
+func (p *Parser) Parse(src []byte) ([]Stmt, error) {
 	ctx := newParseCtx()
 	ctx.input = src
 	ctx.lexsrc = lex(src)
 
-	var stmts []model.Stmt
+	var stmts []Stmt
 LOOP:
 	for {
 		ctx.skipWhiteSpaces()

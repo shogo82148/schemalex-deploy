@@ -51,7 +51,7 @@ func format(ctx *fmtCtx, v interface{}) error {
 		return formatColumnType(ctx, v)
 	case *schemalex.Database:
 		return formatDatabase(ctx, v)
-	case []model.Stmt:
+	case []schemalex.Stmt:
 		for _, s := range v {
 			if err := format(ctx, s); err != nil {
 				return err
