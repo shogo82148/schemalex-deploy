@@ -382,25 +382,3 @@ type tablecol struct {
 	unsigned     bool
 	zerofill     bool
 }
-
-// Database represents a database definition
-type Database interface {
-	// This is a dummy method to differentiate between Table/Database interfaces.
-	// without this, the Database interface is a subset of Table interface,
-	// and then you need to be aware to check for v.(model.Table) BEFORE
-	// making a check for v.(model.Database), which is silly.
-	// Once you include a dummy method like this that differs from the
-	// other interface, Go happily thinks that the two are separate entities
-	isDatabase() bool
-
-	Stmt
-
-	Name() string
-	IsIfNotExists() bool
-	SetIfNotExists(bool) Database
-}
-
-type database struct {
-	name        string
-	ifnotexists bool
-}

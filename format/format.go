@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/shogo82148/schemalex-deploy"
 	"github.com/shogo82148/schemalex-deploy/internal/util"
 	"github.com/shogo82148/schemalex-deploy/model"
 )
@@ -48,9 +49,9 @@ func format(ctx *fmtCtx, v interface{}) error {
 	switch v := v.(type) {
 	case model.ColumnType:
 		return formatColumnType(ctx, v)
-	case model.Database:
+	case *schemalex.Database:
 		return formatDatabase(ctx, v)
-	case model.Stmts:
+	case []model.Stmt:
 		for _, s := range v {
 			if err := format(ctx, s); err != nil {
 				return err
@@ -72,14 +73,14 @@ func format(ctx *fmtCtx, v interface{}) error {
 	}
 }
 
-func formatDatabase(ctx *fmtCtx, d model.Database) error {
+func formatDatabase(ctx *fmtCtx, d *schemalex.Database) error {
 	var buf bytes.Buffer
 	buf.WriteString("CREATE DATABASE")
-	if d.IsIfNotExists() {
+	if d.IfNotExists {
 		buf.WriteString(" IF NOT EXISTS")
 	}
 	buf.WriteByte(' ')
-	buf.WriteString(util.Backquote(d.Name()))
+	buf.WriteString(util.Backquote(d.Name))
 	buf.WriteByte(';')
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {

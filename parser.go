@@ -93,7 +93,7 @@ func (pctx *parseCtx) next() *Token {
 // ParseString parses a string containing SQL statements and creates
 // a mode.Stmts structure.
 // See Parse for details.
-func (p *Parser) ParseString(src string) (model.Stmts, error) {
+func (p *Parser) ParseString(src string) ([]model.Stmt, error) {
 	return p.Parse([]byte(src))
 }
 
@@ -101,12 +101,12 @@ func (p *Parser) ParseString(src string) (model.Stmts, error) {
 // model.Stmts structure.
 // If it encounters errors while parsing, the returned error will be a
 // ParseError type.
-func (p *Parser) Parse(src []byte) (model.Stmts, error) {
+func (p *Parser) Parse(src []byte) ([]model.Stmt, error) {
 	ctx := newParseCtx()
 	ctx.input = src
 	ctx.lexsrc = lex(src)
 
-	var stmts model.Stmts
+	var stmts []model.Stmt
 LOOP:
 	for {
 		ctx.skipWhiteSpaces()
@@ -164,10 +164,7 @@ func (p *Parser) parseCreate(ctx *parseCtx) (model.Stmt, error) {
 	ctx.skipWhiteSpaces()
 	switch t := ctx.peek(); t.Type {
 	case DATABASE:
-		if _, err := p.parseCreateDatabase(ctx); err != nil {
-			return nil, err
-		}
-		return nil, errors.Ignorable(nil)
+		return p.parseCreateDatabase(ctx)
 	case TABLE:
 		return p.parseCreateTable(ctx)
 	default:
@@ -177,33 +174,31 @@ func (p *Parser) parseCreate(ctx *parseCtx) (model.Stmt, error) {
 
 // https://dev.mysql.com/doc/refman/5.5/en/create-database.html
 // TODO: charset, collation
-func (p *Parser) parseCreateDatabase(ctx *parseCtx) (model.Database, error) {
+func (p *Parser) parseCreateDatabase(ctx *parseCtx) (*Database, error) {
 	if t := ctx.next(); t.Type != DATABASE {
 		return nil, errors.New(`expected DATABASE`)
 	}
 
 	ctx.skipWhiteSpaces()
 
-	var notexists bool
+	database := &Database{}
 	if ctx.peek().Type == IF {
 		ctx.advance()
 		if _, err := p.parseIdents(ctx, NOT, EXISTS); err != nil {
 			return nil, err
 		}
-		notexists = true
+		database.IfNotExists = true
 	}
 
 	ctx.skipWhiteSpaces()
 
-	var database model.Database
 	switch t := ctx.next(); t.Type {
 	case IDENT, BACKTICK_IDENT:
-		database = model.NewDatabase(t.Value)
+		database.Name = t.Value
 	default:
 		return nil, newParseError(ctx, t, "expected IDENT, BACKTICK_IDENT")
 	}
 
-	database.SetIfNotExists(notexists)
 	p.eol(ctx)
 	return database, nil
 }
