@@ -1,9 +1,7 @@
 package schemalex
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -92,10 +90,7 @@ func TestLexToken(t *testing.T) {
 
 	for _, spec := range specs {
 		t.Run(spec.input, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			tok := lex(ctx, []byte(spec.input))
+			tok := lex([]byte(spec.input))
 			spec.token.Line = 1
 			spec.token.Col = 1
 			if diff := cmp.Diff(&spec.token, tok[0]); diff != "" {

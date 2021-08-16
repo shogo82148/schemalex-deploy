@@ -2,7 +2,6 @@ package schemalex
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"unicode/utf8"
 
@@ -33,10 +32,10 @@ type lexer struct {
 	width int
 }
 
-func lex(ctx context.Context, input []byte) []*Token {
+func lex(input []byte) []*Token {
 	ch := make(chan *Token, 3)
 	l := newLexer(ch, input)
-	go l.Run(ctx)
+	go l.Run()
 
 	ret := []*Token{}
 	for t := range ch {
@@ -57,7 +56,7 @@ func newLexer(out chan *Token, input []byte) *lexer {
 	return &l
 }
 
-func (l *lexer) emit(ctx context.Context, typ TokenType) {
+func (l *lexer) emit(typ TokenType) {
 	var t Token
 	t.Line = l.start.line
 	t.Col = l.start.col
@@ -79,10 +78,7 @@ func (l *lexer) emit(ctx context.Context, typ TokenType) {
 		}
 	}
 
-	select {
-	case <-ctx.Done():
-	case l.out <- &t:
-	}
+	l.out <- &t
 
 	// when we emit, we must copy the value of cur to start
 	// but we also must adjust the position by the read-ahead offset
@@ -99,17 +95,11 @@ func (l *lexer) str() string {
 	return string(l.input[l.start.pos:endpos])
 }
 
-func (l *lexer) Run(ctx context.Context) {
+func (l *lexer) Run() {
 	defer close(l.out)
 
 OUTER:
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-
 		r := l.peek()
 
 		// These require peek, and then consume
@@ -117,7 +107,7 @@ OUTER:
 		case isSpace(r):
 			// read until space end
 			l.runSpace()
-			l.emit(ctx, SPACE)
+			l.emit(SPACE)
 			continue OUTER
 		case isLetter(r):
 			t := l.runIdent()
@@ -125,11 +115,11 @@ OUTER:
 			if typ, ok := keywordIdentMap[strings.ToUpper(s)]; ok {
 				t = typ
 			}
-			l.emit(ctx, t)
+			l.emit(t)
 			continue OUTER
 		case isDigit(r):
 			l.runNumber()
-			l.emit(ctx, NUMBER)
+			l.emit(NUMBER)
 			continue OUTER
 		}
 
@@ -137,36 +127,36 @@ OUTER:
 		l.advance()
 		switch r {
 		case eof:
-			l.emit(ctx, EOF)
+			l.emit(EOF)
 			return
 		case '`':
 			if err := l.runQuote('`'); err != nil {
-				l.emit(ctx, ILLEGAL)
+				l.emit(ILLEGAL)
 				return
 			}
 
-			l.emit(ctx, BACKTICK_IDENT)
+			l.emit(BACKTICK_IDENT)
 		case '"':
 			if err := l.runQuote('"'); err != nil {
-				l.emit(ctx, ILLEGAL)
+				l.emit(ILLEGAL)
 				return
 			}
 
-			l.emit(ctx, DOUBLE_QUOTE_IDENT)
+			l.emit(DOUBLE_QUOTE_IDENT)
 		case '\'':
 			if err := l.runQuote('\''); err != nil {
-				l.emit(ctx, ILLEGAL)
+				l.emit(ILLEGAL)
 				return
 			}
 
-			l.emit(ctx, SINGLE_QUOTE_IDENT)
+			l.emit(SINGLE_QUOTE_IDENT)
 		case '/':
 			switch c := l.peek(); c {
 			case '*':
 				l.runCComment()
-				l.emit(ctx, COMMENT_IDENT)
+				l.emit(COMMENT_IDENT)
 			default:
-				l.emit(ctx, SLASH)
+				l.emit(SLASH)
 			}
 		case '-':
 			switch r1 := l.peek(); {
@@ -175,47 +165,47 @@ OUTER:
 				// TODO: https://dev.mysql.com/doc/refman/5.6/en/comments.html
 				// TODO: not only space. control character
 				if !isSpace(l.peek()) {
-					l.emit(ctx, DASH)
+					l.emit(DASH)
 					continue OUTER
 				}
 				l.runToEOL()
-				l.emit(ctx, COMMENT_IDENT)
+				l.emit(COMMENT_IDENT)
 			case isDigit(r1):
 				l.runNumber()
-				l.emit(ctx, NUMBER)
+				l.emit(NUMBER)
 			default:
-				l.emit(ctx, DASH)
+				l.emit(DASH)
 			}
 		case '#':
 			// https://dev.mysql.com/doc/refman/5.6/en/comments.html
 			l.runToEOL()
-			l.emit(ctx, COMMENT_IDENT)
+			l.emit(COMMENT_IDENT)
 		case '(':
-			l.emit(ctx, LPAREN)
+			l.emit(LPAREN)
 		case ')':
-			l.emit(ctx, RPAREN)
+			l.emit(RPAREN)
 		case ';':
-			l.emit(ctx, SEMICOLON)
+			l.emit(SEMICOLON)
 		case ',':
-			l.emit(ctx, COMMA)
+			l.emit(COMMA)
 		case '.':
 			if isDigit(l.peek()) {
 				l.runNumber()
-				l.emit(ctx, NUMBER)
+				l.emit(NUMBER)
 			} else {
-				l.emit(ctx, DOT)
+				l.emit(DOT)
 			}
 		case '+':
 			if isDigit(l.peek()) {
 				l.runNumber()
-				l.emit(ctx, NUMBER)
+				l.emit(NUMBER)
 			} else {
-				l.emit(ctx, PLUS)
+				l.emit(PLUS)
 			}
 		case '=':
-			l.emit(ctx, EQUAL)
+			l.emit(EQUAL)
 		default:
-			l.emit(ctx, ILLEGAL)
+			l.emit(ILLEGAL)
 		}
 	}
 }
