@@ -2,7 +2,6 @@ package schemalex
 
 import (
 	"context"
-	"io/ioutil"
 	"strings"
 
 	"github.com/shogo82148/schemalex-deploy/internal/errors"
@@ -111,25 +110,6 @@ func (pctx *parseCtx) next() *Token {
 	t := pctx.peek()
 	pctx.advance()
 	return t
-}
-
-// ParseFile parses a file containing SQL statements and creates
-// a mode.Stmts structure.
-// See Parse for details.
-func (p *Parser) ParseFile(fn string) (model.Stmts, error) {
-	src, err := ioutil.ReadFile(fn)
-	if err != nil {
-		return nil, errors.Wrapf(err, `failed to open file %s`, fn)
-	}
-
-	stmts, err := p.Parse(src)
-	if err != nil {
-		if pe, ok := err.(*parseError); ok {
-			pe.file = fn
-		}
-		return nil, err
-	}
-	return stmts, nil
 }
 
 // ParseString parses a string containing SQL statements and creates
