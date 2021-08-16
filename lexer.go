@@ -22,7 +22,7 @@ type position struct {
 }
 
 type lexer struct {
-	out       chan *Token
+	out       []*Token
 	input     []byte
 	peekCount int
 	peekRunes [3]lrune
@@ -33,20 +33,13 @@ type lexer struct {
 }
 
 func lex(input []byte) []*Token {
-	ch := make(chan *Token, 3)
-	l := newLexer(ch, input)
-	go l.Run()
-
-	ret := []*Token{}
-	for t := range ch {
-		ret = append(ret, t)
-	}
-	return ret
+	l := newLexer(input)
+	l.run()
+	return l.out
 }
 
-func newLexer(out chan *Token, input []byte) *lexer {
+func newLexer(input []byte) *lexer {
 	var l lexer
-	l.out = out
 	l.input = input
 	l.start.line = 1
 	l.start.col = 1
@@ -78,7 +71,7 @@ func (l *lexer) emit(typ TokenType) {
 		}
 	}
 
-	l.out <- &t
+	l.out = append(l.out, &t)
 
 	// when we emit, we must copy the value of cur to start
 	// but we also must adjust the position by the read-ahead offset
@@ -95,9 +88,7 @@ func (l *lexer) str() string {
 	return string(l.input[l.start.pos:endpos])
 }
 
-func (l *lexer) Run() {
-	defer close(l.out)
-
+func (l *lexer) run() {
 OUTER:
 	for {
 		r := l.peek()
