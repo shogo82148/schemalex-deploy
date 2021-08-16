@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestLexToken(t *testing.T) {
@@ -91,22 +91,16 @@ func TestLexToken(t *testing.T) {
 	}
 
 	for _, spec := range specs {
-		t.Logf("Lexing %s", spec.input)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+		t.Run(spec.input, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
 
-		ch := lex(ctx, []byte(spec.input))
-		select {
-		case <-ctx.Done():
-			t.Logf("%s", ctx.Err())
-			t.Fail()
-			return
-		case tok := <-ch:
+			tok := lex(ctx, []byte(spec.input))
 			spec.token.Line = 1
 			spec.token.Col = 1
-			if !assert.Equal(t, spec.token, *tok, "tok matches") {
-				return
+			if diff := cmp.Diff(&spec.token, tok[0]); diff != "" {
+				t.Errorf("tok mismatch: (-want/+got):\n%s", diff)
 			}
-		}
+		})
 	}
 }

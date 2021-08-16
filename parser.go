@@ -59,7 +59,7 @@ func New() *Parser {
 type parseCtx struct {
 	context.Context
 	input      []byte
-	lexsrc     chan *Token
+	lexsrc     []*Token
 	peekCount  int
 	peekTokens [3]*Token
 }
@@ -71,7 +71,7 @@ func newParseCtx(ctx context.Context) *parseCtx {
 	}
 }
 
-var eofToken = Token{Type: EOF}
+var eofToken = &Token{Type: EOF}
 
 // peek the next token. this operation fills the peekTokens
 // buffer. `next()` is a combination of peek+advance.
@@ -80,16 +80,13 @@ var eofToken = Token{Type: EOF}
 // if you do that, you're f*cked.
 func (pctx *parseCtx) peek() *Token {
 	if pctx.peekCount < 0 {
-		select {
-		case <-pctx.Context.Done():
-			return &eofToken
-		case t, ok := <-pctx.lexsrc:
-			if !ok {
-				return &eofToken
-			}
-			pctx.peekCount++
-			pctx.peekTokens[pctx.peekCount] = t
+		if len(pctx.lexsrc) == 0 {
+			return eofToken
 		}
+		t := pctx.lexsrc[0]
+		pctx.lexsrc = pctx.lexsrc[1:]
+		pctx.peekCount++
+		pctx.peekTokens[pctx.peekCount] = t
 	}
 	return pctx.peekTokens[pctx.peekCount]
 }

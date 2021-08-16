@@ -33,11 +33,16 @@ type lexer struct {
 	width int
 }
 
-func lex(ctx context.Context, input []byte) chan *Token {
+func lex(ctx context.Context, input []byte) []*Token {
 	ch := make(chan *Token, 3)
 	l := newLexer(ch, input)
 	go l.Run(ctx)
-	return ch
+
+	ret := []*Token{}
+	for t := range ch {
+		ret = append(ret, t)
+	}
+	return ret
 }
 
 func newLexer(out chan *Token, input []byte) *lexer {
