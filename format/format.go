@@ -2,9 +2,10 @@ package format
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 
-	"github.com/shogo82148/schemalex-deploy/internal/errors"
 	"github.com/shogo82148/schemalex-deploy/internal/util"
 	"github.com/shogo82148/schemalex-deploy/model"
 )
@@ -44,30 +45,30 @@ func SQL(dst io.Writer, v interface{}, options ...Option) error {
 }
 
 func format(ctx *fmtCtx, v interface{}) error {
-	switch v.(type) {
+	switch v := v.(type) {
 	case model.ColumnType:
-		return formatColumnType(ctx, v.(model.ColumnType))
+		return formatColumnType(ctx, v)
 	case model.Database:
-		return formatDatabase(ctx, v.(model.Database))
+		return formatDatabase(ctx, v)
 	case model.Stmts:
-		for _, s := range v.(model.Stmts) {
+		for _, s := range v {
 			if err := format(ctx, s); err != nil {
 				return err
 			}
 		}
 		return nil
 	case model.Table:
-		return formatTable(ctx, v.(model.Table))
+		return formatTable(ctx, v)
 	case model.TableColumn:
-		return formatTableColumn(ctx, v.(model.TableColumn))
+		return formatTableColumn(ctx, v)
 	case model.TableOption:
-		return formatTableOption(ctx, v.(model.TableOption))
+		return formatTableOption(ctx, v)
 	case model.Index:
-		return formatIndex(ctx, v.(model.Index))
+		return formatIndex(ctx, v)
 	case model.Reference:
-		return formatReference(ctx, v.(model.Reference))
+		return formatReference(ctx, v)
 	default:
-		return errors.New("unsupported model type")
+		return fmt.Errorf("unsupported model type: %T", v)
 	}
 }
 
@@ -188,7 +189,7 @@ func formatTable(ctx *fmtCtx, table model.Table) error {
 
 func formatColumnType(ctx *fmtCtx, col model.ColumnType) error {
 	if col <= model.ColumnTypeInvalid || col >= model.ColumnTypeMax {
-		return errors.New(`invalid column type`)
+		return fmt.Errorf("known column type: %d", int(col))
 	}
 
 	if _, err := io.WriteString(ctx.dst, col.String()); err != nil {
@@ -454,7 +455,7 @@ func formatReference(ctx *fmtCtx, r model.Reference) error {
 		buf.WriteString(" MATCH SIMPLE")
 	}
 
-	// we should really check for errors...
+	// we don't need to check the errors, because bytes.Buffer doesn't return any error.
 	writeReferenceOption(&buf, "ON DELETE", r.OnDelete())
 	writeReferenceOption(&buf, "ON UPDATE", r.OnUpdate())
 
@@ -464,22 +465,22 @@ func formatReference(ctx *fmtCtx, r model.Reference) error {
 	return nil
 }
 
-func writeReferenceOption(buf *bytes.Buffer, prefix string, opt model.ReferenceOption) error {
-	if opt != model.ReferenceOptionNone {
-		buf.WriteByte(' ')
-		buf.WriteString(prefix)
-		switch opt {
-		case model.ReferenceOptionRestrict:
-			buf.WriteString(" RESTRICT")
-		case model.ReferenceOptionCascade:
-			buf.WriteString(" CASCADE")
-		case model.ReferenceOptionSetNull:
-			buf.WriteString(" SET NULL")
-		case model.ReferenceOptionNoAction:
-			buf.WriteString(" NO ACTION")
-		default:
-			return errors.New("unknown reference option")
-		}
+func writeReferenceOption(buf *bytes.Buffer, prefix string, opt model.ReferenceOption) {
+	if opt == model.ReferenceOptionNone {
+		return
 	}
-	return nil
+	buf.WriteByte(' ')
+	buf.WriteString(prefix)
+	switch opt {
+	case model.ReferenceOptionRestrict:
+		buf.WriteString(" RESTRICT")
+	case model.ReferenceOptionCascade:
+		buf.WriteString(" CASCADE")
+	case model.ReferenceOptionSetNull:
+		buf.WriteString(" SET NULL")
+	case model.ReferenceOptionNoAction:
+		buf.WriteString(" NO ACTION")
+	default:
+		panic(fmt.Errorf("unknown reference option: %d", int(opt)))
+	}
 }
