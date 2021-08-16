@@ -44,28 +44,28 @@ func SQL(dst io.Writer, v interface{}, options ...Option) error {
 }
 
 func format(ctx *fmtCtx, v interface{}) error {
-	switch v.(type) {
+	switch v := v.(type) {
 	case model.ColumnType:
-		return formatColumnType(ctx, v.(model.ColumnType))
+		return formatColumnType(ctx, v)
 	case model.Database:
-		return formatDatabase(ctx, v.(model.Database))
+		return formatDatabase(ctx, v)
 	case model.Stmts:
-		for _, s := range v.(model.Stmts) {
+		for _, s := range v {
 			if err := format(ctx, s); err != nil {
 				return err
 			}
 		}
 		return nil
 	case model.Table:
-		return formatTable(ctx, v.(model.Table))
+		return formatTable(ctx, v)
 	case model.TableColumn:
-		return formatTableColumn(ctx, v.(model.TableColumn))
+		return formatTableColumn(ctx, v)
 	case model.TableOption:
-		return formatTableOption(ctx, v.(model.TableOption))
+		return formatTableOption(ctx, v)
 	case model.Index:
-		return formatIndex(ctx, v.(model.Index))
+		return formatIndex(ctx, v)
 	case model.Reference:
-		return formatReference(ctx, v.(model.Reference))
+		return formatReference(ctx, v)
 	default:
 		return errors.New("unsupported model type")
 	}
