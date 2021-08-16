@@ -2,9 +2,10 @@ package format
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 
-	"github.com/shogo82148/schemalex-deploy/internal/errors"
 	"github.com/shogo82148/schemalex-deploy/internal/util"
 	"github.com/shogo82148/schemalex-deploy/model"
 )
@@ -67,7 +68,7 @@ func format(ctx *fmtCtx, v interface{}) error {
 	case model.Reference:
 		return formatReference(ctx, v)
 	default:
-		return errors.New("unsupported model type")
+		return fmt.Errorf("unsupported model type: %T", v)
 	}
 }
 
@@ -188,7 +189,7 @@ func formatTable(ctx *fmtCtx, table model.Table) error {
 
 func formatColumnType(ctx *fmtCtx, col model.ColumnType) error {
 	if col <= model.ColumnTypeInvalid || col >= model.ColumnTypeMax {
-		return errors.New(`invalid column type`)
+		return fmt.Errorf("known column type: %d", int(col))
 	}
 
 	if _, err := io.WriteString(ctx.dst, col.String()); err != nil {
