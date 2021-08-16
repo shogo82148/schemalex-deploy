@@ -73,48 +73,47 @@ nfpms:
     epoch: 0
     bindir: /usr/bin
 
-# TODO: publish rpm packages
-# blobs:
-#   - provider: s3
-#     bucket: shogo82148-rpm-temporary
-#     ids: [package-amd64]
-#     folder: amazonlinux/2/x86_64/schemalex-deploy
-#   - provider: s3
-#     bucket: shogo82148-rpm-temporary
-#     ids: [package-arm64]
-#     folder: amazonlinux/2/aarch64/schemalex-deploy
-#   - provider: s3
-#     bucket: shogo82148-rpm-temporary
-#     ids: [package-amd64]
-#     folder: centos/7/x86_64/schemalex-deploy
-#   - provider: s3
-#     bucket: shogo82148-rpm-temporary
-#     ids: [package-arm64]
-#     folder: centos/7/aarch64/schemalex-deploy
-#   - provider: s3
-#     bucket: shogo82148-rpm-temporary
-#     ids: [package-amd64]
-#     folder: centos/8/x86_64/schemalex-deploy
-#   - provider: s3
-#     bucket: shogo82148-rpm-temporary
-#     ids: [package-arm64]
-#     folder: centos/8/aarch64/schemalex-deploy
-#   - provider: s3
-#     bucket: shogo82148-rpm-temporary
-#     ids: [package-amd64]
-#     folder: almalinux/8/x86_64/schemalex-deploy
-#   - provider: s3
-#     bucket: shogo82148-rpm-temporary
-#     ids: [package-arm64]
-#     folder: almalinux/8/aarch64/schemalex-deploy
-#   - provider: s3
-#     bucket: shogo82148-rpm-temporary
-#     ids: [package-amd64]
-#     folder: rockylinux/8/x86_64/schemalex-deploy
-#   - provider: s3
-#     bucket: shogo82148-rpm-temporary
-#     ids: [package-arm64]
-#     folder: rockylinux/8/aarch64/schemalex-deploy
+blobs:
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-amd64]
+    folder: amazonlinux/2/x86_64/schemalex-deploy
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-arm64]
+    folder: amazonlinux/2/aarch64/schemalex-deploy
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-amd64]
+    folder: centos/7/x86_64/schemalex-deploy
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-arm64]
+    folder: centos/7/aarch64/schemalex-deploy
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-amd64]
+    folder: centos/8/x86_64/schemalex-deploy
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-arm64]
+    folder: centos/8/aarch64/schemalex-deploy
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-amd64]
+    folder: almalinux/8/x86_64/schemalex-deploy
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-arm64]
+    folder: almalinux/8/aarch64/schemalex-deploy
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-amd64]
+    folder: rockylinux/8/x86_64/schemalex-deploy
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-arm64]
+    folder: rockylinux/8/aarch64/schemalex-deploy
 
 changelog:
   sort: asc
