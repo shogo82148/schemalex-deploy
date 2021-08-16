@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	packageName = flag.String("package", "model", "name of package")
-	fileName    = flag.String("file", "model/columns_gen.go", "name of file")
+	packageName = flag.String("package", "schemalex", "the name of the package")
+	fileName    = flag.String("file", "columns_gen.go", "the name of the file")
 )
 
 func main() {
