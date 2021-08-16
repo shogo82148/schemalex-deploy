@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"flag"
 	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/pmezard/go-difflib/difflib"
@@ -382,38 +381,6 @@ func TestParseError2(t *testing.T) {
 
 	expected := "parse error: unexpected column option IDENT at line 2 column 37\n    \"CREATE TABLE bar (id int PRIMARY KEY \" <---- AROUND HERE"
 	if !assert.Equal(t, expected, err.Error(), "error matches") {
-		return
-	}
-}
-
-func TestParseFileError(t *testing.T) {
-	f, err := ioutil.TempFile("", "schemalex-file")
-	if !assert.NoError(t, err, "creating tempfile should succeed") {
-		return
-	}
-	defer os.Remove(f.Name())
-	defer f.Close()
-
-	f.Write([]byte("CREATE TABLE foo (id int PRIMARY KEY);\nCREATE TABLE bar (id int PRIMARY KEY baz TEXT)"))
-	f.Sync()
-
-	p := schemalex.New()
-	_, err = p.ParseFile(f.Name())
-	if !assert.Error(t, err, "schemalex.ParseFile should fail") {
-		return
-	}
-
-	pe, ok := err.(schemalex.ParseError)
-	if !assert.True(t, ok, "err is a ParseError") {
-		return
-	}
-
-	if !assert.Equal(t, f.Name(), pe.File(), "pe.File() should be the filename") {
-		return
-	}
-
-	expected := "parse error: unexpected column option IDENT in file " + f.Name() + " at line 2 column 37\n    \"CREATE TABLE bar (id int PRIMARY KEY \" <---- AROUND HERE"
-	if !assert.Equal(t, expected, pe.Error(), "pe.Error() matches expected") {
 		return
 	}
 }
