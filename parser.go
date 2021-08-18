@@ -204,40 +204,37 @@ func (p *Parser) parseCreateDatabase(ctx *parseCtx) (*Database, error) {
 }
 
 // http://dev.mysql.com/doc/refman/5.6/en/create-table.html
-func (p *Parser) parseCreateTable(ctx *parseCtx) (model.Table, error) {
+func (p *Parser) parseCreateTable(ctx *parseCtx) (*Table, error) {
 	if t := ctx.next(); t.Type != TABLE {
-		return nil, errors.New(`expected TABLE`)
+		return nil, newParseError(ctx, t, "expected TABLE")
 	}
 
-	var table model.Table
+	table := &Table{}
 
+	// TEMPORARY
 	ctx.skipWhiteSpaces()
-	var temporary bool
 	if t := ctx.peek(); t.Type == TEMPORARY {
 		ctx.advance()
 		ctx.skipWhiteSpaces()
-		temporary = true
+		table.Temporary = true
 	}
 
 	// IF NOT EXISTS
-	var notexists bool
 	if ctx.peek().Type == IF {
 		ctx.advance()
 		if _, err := p.parseIdents(ctx, NOT, EXISTS); err != nil {
 			return nil, err
 		}
 		ctx.skipWhiteSpaces()
-		notexists = true
+		table.IfNotExists = true
 	}
 
 	switch t := ctx.next(); t.Type {
 	case IDENT, BACKTICK_IDENT:
-		table = model.NewTable(t.Value)
+		table.Name = t.Value
 	default:
 		return nil, newParseError(ctx, t, "expected IDENT or BACKTICK_IDENT")
 	}
-	table.SetTemporary(temporary)
-	table.SetIfNotExists(notexists)
 
 	ctx.skipWhiteSpaces()
 	switch t := ctx.peek(); t.Type {
@@ -247,7 +244,10 @@ func (p *Parser) parseCreateTable(ctx *parseCtx) (model.Table, error) {
 		ctx.skipWhiteSpaces()
 		switch t := ctx.next(); t.Type {
 		case IDENT, BACKTICK_IDENT:
-			table.SetLikeTable(t.Value)
+			table.LikeTable = MaybeString{
+				Valid: true,
+				Value: t.Value,
+			}
 		default:
 			return nil, newParseError(ctx, t, "expected table name after LIKE")
 		}
@@ -264,7 +264,7 @@ func (p *Parser) parseCreateTable(ctx *parseCtx) (model.Table, error) {
 			return nil, newParseError(ctx, t, "should NOT EXISTS")
 		}
 		ctx.skipWhiteSpaces()
-		table.SetIfNotExists(true)
+		table.IfNotExists = true
 	}
 
 	if t := ctx.next(); t.Type != LPAREN {
@@ -280,7 +280,7 @@ func (p *Parser) parseCreateTable(ctx *parseCtx) (model.Table, error) {
 }
 
 // Start parsing after `CREATE TABLE *** (`
-func (p *Parser) parseCreateTableFields(ctx *parseCtx, stmt model.Table) error {
+func (p *Parser) parseCreateTableFields(ctx *parseCtx, stmt *Table) error {
 	for {
 		ctx.skipWhiteSpaces()
 		switch t := ctx.peek(); t.Type {
@@ -344,7 +344,7 @@ func (p *Parser) parseCreateTableFields(ctx *parseCtx, stmt model.Table) error {
 	}
 }
 
-func (p *Parser) parseTableConstraint(ctx *parseCtx, table model.Table) error {
+func (p *Parser) parseTableConstraint(ctx *parseCtx, table *Table) error {
 	if t := ctx.next(); t.Type != CONSTRAINT {
 		return newParseError(ctx, t, "expected CONSTRAINT")
 	}
@@ -389,7 +389,7 @@ func (p *Parser) parseTableConstraint(ctx *parseCtx, table model.Table) error {
 	return nil
 }
 
-func (p *Parser) parseTablePrimaryKey(ctx *parseCtx, table model.Table) error {
+func (p *Parser) parseTablePrimaryKey(ctx *parseCtx, table *Table) error {
 	index := model.NewIndex(model.IndexKindPrimaryKey, table.ID())
 	if err := p.parseColumnIndexPrimaryKey(ctx, index); err != nil {
 		return err
@@ -398,7 +398,7 @@ func (p *Parser) parseTablePrimaryKey(ctx *parseCtx, table model.Table) error {
 	return nil
 }
 
-func (p *Parser) parseTableUniqueKey(ctx *parseCtx, table model.Table) error {
+func (p *Parser) parseTableUniqueKey(ctx *parseCtx, table *Table) error {
 	index := model.NewIndex(model.IndexKindUnique, table.ID())
 	if err := p.parseColumnIndexUniqueKey(ctx, index); err != nil {
 		return err
@@ -407,7 +407,7 @@ func (p *Parser) parseTableUniqueKey(ctx *parseCtx, table model.Table) error {
 	return nil
 }
 
-func (p *Parser) parseTableIndex(ctx *parseCtx, table model.Table) error {
+func (p *Parser) parseTableIndex(ctx *parseCtx, table *Table) error {
 	index := model.NewIndex(model.IndexKindNormal, table.ID())
 	if err := p.parseColumnIndexKey(ctx, index); err != nil {
 		return err
@@ -416,7 +416,7 @@ func (p *Parser) parseTableIndex(ctx *parseCtx, table model.Table) error {
 	return nil
 }
 
-func (p *Parser) parseTableFulltextIndex(ctx *parseCtx, table model.Table) error {
+func (p *Parser) parseTableFulltextIndex(ctx *parseCtx, table *Table) error {
 	index := model.NewIndex(model.IndexKindFullText, table.ID())
 	if err := p.parseColumnIndexFullTextKey(ctx, index); err != nil {
 		return err
@@ -425,7 +425,7 @@ func (p *Parser) parseTableFulltextIndex(ctx *parseCtx, table model.Table) error
 	return nil
 }
 
-func (p *Parser) parseTableSpatialIndex(ctx *parseCtx, table model.Table) error {
+func (p *Parser) parseTableSpatialIndex(ctx *parseCtx, table *Table) error {
 	index := model.NewIndex(model.IndexKindSpatial, table.ID())
 	if err := p.parseColumnIndexSpatialKey(ctx, index); err != nil {
 		return err
@@ -434,7 +434,7 @@ func (p *Parser) parseTableSpatialIndex(ctx *parseCtx, table model.Table) error 
 	return nil
 }
 
-func (p *Parser) parseTableForeignKey(ctx *parseCtx, table model.Table) error {
+func (p *Parser) parseTableForeignKey(ctx *parseCtx, table *Table) error {
 	index := model.NewIndex(model.IndexKindForeignKey, table.ID())
 	if err := p.parseColumnIndexForeignKey(ctx, index); err != nil {
 		return err
@@ -443,12 +443,12 @@ func (p *Parser) parseTableForeignKey(ctx *parseCtx, table model.Table) error {
 	return nil
 }
 
-func (p *Parser) parseTableColumn(ctx *parseCtx, table model.Table) error {
+func (p *Parser) parseTableColumn(ctx *parseCtx, table *Table) error {
 	t := ctx.next()
 	switch t.Type {
 	case IDENT, BACKTICK_IDENT:
 	default:
-		return newParseError(ctx, t, "expcted IDENT or BACKTICK_IDENT")
+		return newParseError(ctx, t, "expected IDENT or BACKTICK_IDENT")
 	}
 
 	col := model.NewTableColumn(t.Value)
