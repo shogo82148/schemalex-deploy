@@ -41,6 +41,7 @@ func _main() error {
 	defer stop()
 
 	config := mysql.NewConfig()
+	config.Net = "tcp"
 	config.Addr = net.JoinHostPort(cfn.host, strconv.Itoa(cfn.port))
 	config.User = cfn.user
 	config.Passwd = cfn.password
