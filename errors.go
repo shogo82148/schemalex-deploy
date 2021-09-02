@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // ParseError is returned from the various `Parse` methods when an
@@ -47,7 +48,7 @@ func (e parseError) Message() string { return e.message }
 
 // Error returns the formatted string representation of this parse error.
 func (e parseError) Error() string {
-	var buf bytes.Buffer
+	var buf strings.Builder
 	buf.WriteString("parse error: ")
 	buf.WriteString(e.message)
 	if f := e.file; len(f) > 0 {

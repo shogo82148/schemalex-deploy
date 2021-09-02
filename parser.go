@@ -1,7 +1,6 @@
 package schemalex
 
 import (
-	"context"
 	"strings"
 
 	"github.com/shogo82148/schemalex-deploy/internal/errors"
@@ -57,53 +56,32 @@ func New() *Parser {
 }
 
 type parseCtx struct {
-	context.Context
-	input      []byte
-	lexsrc     chan *Token
-	peekCount  int
-	peekTokens [3]*Token
+	input  []byte
+	lexsrc []*Token
+	idx    int
 }
 
-func newParseCtx(ctx context.Context) *parseCtx {
-	return &parseCtx{
-		Context:   ctx,
-		peekCount: -1,
-	}
+func newParseCtx() *parseCtx {
+	return &parseCtx{}
 }
 
-var eofToken = Token{Type: EOF}
+var eofToken = &Token{Type: EOF}
 
 // peek the next token. this operation fills the peekTokens
 // buffer. `next()` is a combination of peek+advance.
-//
-// note: we do NOT check for peekCout > 2 for efficiency.
-// if you do that, you're f*cked.
 func (pctx *parseCtx) peek() *Token {
-	if pctx.peekCount < 0 {
-		select {
-		case <-pctx.Context.Done():
-			return &eofToken
-		case t, ok := <-pctx.lexsrc:
-			if !ok {
-				return &eofToken
-			}
-			pctx.peekCount++
-			pctx.peekTokens[pctx.peekCount] = t
-		}
+	if pctx.idx >= len(pctx.lexsrc) {
+		return eofToken
 	}
-	return pctx.peekTokens[pctx.peekCount]
+	return pctx.lexsrc[pctx.idx]
 }
 
 func (pctx *parseCtx) advance() {
-	if pctx.peekCount >= 0 {
-		pctx.peekCount--
-	}
+	pctx.idx++
 }
 
 func (pctx *parseCtx) rewind() {
-	if pctx.peekCount < 2 {
-		pctx.peekCount++
-	}
+	pctx.idx--
 }
 
 func (pctx *parseCtx) next() *Token {
@@ -124,12 +102,9 @@ func (p *Parser) ParseString(src string) (model.Stmts, error) {
 // If it encounters errors while parsing, the returned error will be a
 // ParseError type.
 func (p *Parser) Parse(src []byte) (model.Stmts, error) {
-	cctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	ctx := newParseCtx(cctx)
+	ctx := newParseCtx()
 	ctx.input = src
-	ctx.lexsrc = lex(cctx, src)
+	ctx.lexsrc = lex(src)
 
 	var stmts model.Stmts
 LOOP:
