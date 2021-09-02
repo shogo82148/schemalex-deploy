@@ -41,7 +41,13 @@ func _main() error {
 	defer stop()
 
 	config := mysql.NewConfig()
-	config.Addr = net.JoinHostPort(cfn.host, strconv.Itoa(cfn.port))
+	if cfn.socket != "" {
+		config.Net = "unix"
+		config.Addr = cfn.socket
+	} else {
+		config.Net = "tcp"
+		config.Addr = net.JoinHostPort(cfn.host, strconv.Itoa(cfn.port))
+	}
 	config.User = cfn.user
 	config.Passwd = cfn.password
 	config.DBName = cfn.database

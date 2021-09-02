@@ -14,6 +14,7 @@ import (
 
 type config struct {
 	version     bool
+	socket      string
 	host        string
 	user        string
 	password    string
@@ -26,6 +27,7 @@ type config struct {
 func loadConfig() (*config, error) {
 	var cfn config
 	var version bool
+	var socket string
 	var host, username, password, database string
 	var port int
 	var approve bool
@@ -37,12 +39,18 @@ func loadConfig() (*config, error) {
 schemalex -version
 `, getVersion())
 	}
+
+	// options that are compatible with the mysql(1)
+	// https://dev.mysql.com/doc/refman/8.0/en/mysql-command-options.html
+	flag.StringVar(&socket, "socket", "", "the unix domain socket path for the database")
 	flag.StringVar(&host, "host", "", "the host name of the database")
 	flag.IntVar(&port, "port", 3306, "the port number")
 	flag.StringVar(&username, "user", "", "username")
 	flag.StringVar(&password, "password", "", "password")
 	flag.StringVar(&database, "database", "", "the database name")
 	flag.BoolVar(&version, "version", false, "show the version")
+
+	// for schemalex-deploy
 	flag.BoolVar(&approve, "auto-approve", false, "skips interactive approval of plan before deploying")
 	flag.Parse()
 
@@ -59,6 +67,9 @@ schemalex -version
 		return nil, err
 	}
 	if client, ok := cnfFile["client"]; ok {
+		if v, ok := client["socket"]; ok {
+			cfn.socket = v
+		}
 		if v, ok := client["host"]; ok {
 			cfn.host = v
 		}
@@ -78,6 +89,9 @@ schemalex -version
 
 	// load configure from the environment values
 	// https://dev.mysql.com/doc/refman/8.0/en/environment-variables.html
+	if v := os.Getenv("MYSQL_UNIX_PORT"); v != "" {
+		cfn.socket = v
+	}
 	if v := os.Getenv("MYSQL_HOST"); v != "" {
 		cfn.host = v
 	}
@@ -101,6 +115,9 @@ schemalex -version
 		}
 	}
 
+	if socket != "" {
+		cfn.socket = socket
+	}
 	if host != "" {
 		cfn.host = host
 	}
