@@ -44,8 +44,8 @@ type TableColumn struct {
 	Type          ColumnType
 	Length        *Length
 	NullState     NullState
-	CharacterSet  MaybeString
-	Collation     MaybeString
+	CharacterSet  MaybeIdent
+	Collation     MaybeIdent
 	Default       DefaultValue
 	Comment       MaybeString
 	AutoUpdate    MaybeString

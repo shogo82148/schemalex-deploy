@@ -251,12 +251,12 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 
 	if col.CharacterSet.Valid {
 		buf.WriteString(" CHARACTER SET ")
-		buf.WriteString(util.Backquote(col.CharacterSet.Value))
+		buf.WriteString(col.CharacterSet.Quoted())
 	}
 
 	if col.Collation.Valid {
 		buf.WriteString(" COLLATE ")
-		buf.WriteString(util.Backquote(col.Collation.Value))
+		buf.WriteString(col.Collation.Quoted())
 	}
 
 	if col.AutoUpdate.Valid {

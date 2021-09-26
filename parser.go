@@ -867,14 +867,22 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 				return newParseError(ctx, t, "expected SET")
 			}
 			ctx.skipWhiteSpaces()
-			v := ctx.next()
-			col.CharacterSet.Valid = true
-			col.CharacterSet.Value = v.Value
+			switch v := ctx.next(); v.Type {
+			case IDENT, BACKTICK_IDENT:
+				col.CharacterSet.Valid = true
+				col.CharacterSet.Ident = v.Ident()
+			default:
+				return newParseError(ctx, t, "should IDENT or BACKTICK_IDENT")
+			}
 		case COLLATE:
 			ctx.skipWhiteSpaces()
-			v := ctx.next()
-			col.Collation.Valid = true
-			col.Collation.Value = v.Value
+			switch v := ctx.next(); v.Type {
+			case IDENT, BACKTICK_IDENT:
+				col.Collation.Valid = true
+				col.Collation.Ident = v.Ident()
+			default:
+				return newParseError(ctx, t, "should IDENT or BACKTICK_IDENT")
+			}
 		case UNSIGNED:
 			if !check(coloptUnsigned) {
 				return newParseError(ctx, t, "cannot apply UNSIGNED")
