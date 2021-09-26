@@ -97,11 +97,7 @@ func (stmt *Index) ID() string {
 	return fmt.Sprintf("%s#%x", name, h.Sum(nil))
 }
 
-func (stmt *Index) Normalize() (*Index, bool) {
-	return stmt, false
-}
-
-func (stmt *Index) Clone() *Index {
+func (stmt *Index) Normalize() *Index {
 	newindex := *stmt
 	return &newindex
 }

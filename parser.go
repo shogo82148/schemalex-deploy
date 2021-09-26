@@ -282,7 +282,7 @@ func (p *Parser) parseCreateTable(ctx *parseCtx) (*model.Table, error) {
 		return nil, err
 	}
 
-	table, _ = table.Normalize()
+	table = table.Normalize()
 	return table, nil
 }
 

@@ -111,8 +111,7 @@ func (t *TableColumn) NativeLength() *Length {
 	return NewLength(strconv.Itoa(size))
 }
 
-func (t *TableColumn) Normalize() (*TableColumn, bool) {
-	var clone bool
+func (t *TableColumn) Normalize() *TableColumn {
 	var length *Length
 	var synonym ColumnType
 	var removeQuotes bool
@@ -120,13 +119,11 @@ func (t *TableColumn) Normalize() (*TableColumn, bool) {
 
 	if t.Length == nil {
 		if l := t.NativeLength(); l != nil {
-			clone = true
 			length = l
 		}
 	}
 
 	if t.Type.SynonymType() != t.Type {
-		clone = true
 		synonym = t.Type.SynonymType()
 	}
 
@@ -134,7 +131,6 @@ func (t *TableColumn) Normalize() (*TableColumn, bool) {
 	// remove null state if not `NOT NULL`
 	// If none is specified, the column is treated as if NULL was specified.
 	if nullState == NullStateNull {
-		clone = true
 		nullState = NullStateNone
 	}
 
@@ -147,7 +143,6 @@ func (t *TableColumn) Normalize() (*TableColumn, bool) {
 			ColumnTypeDecimal, ColumnTypeNumeric, ColumnTypeReal:
 			// If numeric type then trim quote
 			if t.Default.Quoted {
-				clone = true
 				removeQuotes = true
 			}
 		case ColumnTypeBool, ColumnTypeBoolean:
@@ -171,18 +166,12 @@ func (t *TableColumn) Normalize() (*TableColumn, bool) {
 		default:
 			// if nullable then set default null.
 			if nullState != NullStateNotNull {
-				clone = true
 				setDefaultNull = true
 			}
 		}
 	}
 
-	// avoid cloning if we don't have to
-	if !clone {
-		return t, false
-	}
-
-	col := t.Clone()
+	col := *t
 	if length != nil {
 		col.Length = length
 	}
@@ -203,10 +192,5 @@ func (t *TableColumn) Normalize() (*TableColumn, bool) {
 		col.Default.Value = "NULL"
 		col.Default.Quoted = false
 	}
-	return col, true
-}
-
-func (t *TableColumn) Clone() *TableColumn {
-	col := *t
 	return &col
 }

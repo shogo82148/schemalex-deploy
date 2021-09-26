@@ -63,15 +63,11 @@ func (t *Table) LookupIndex(id string) (*Index, bool) {
 	return nil, false
 }
 
-func (t *Table) Normalize() (*Table, bool) {
-	var clone bool
+func (t *Table) Normalize() *Table {
 	var additionalIndexes []*Index
 	var columns []*TableColumn
 	for _, col := range t.Columns {
-		ncol, modified := col.Normalize()
-		if modified {
-			clone = true
-		}
+		ncol := col.Normalize()
 
 		// column_definition [UNIQUE [KEY] | [PRIMARY] KEY]
 		// they mean same as INDEX or CONSTRAINT
@@ -84,10 +80,6 @@ func (t *Table) Normalize() (*Table, bool) {
 			idxCol := NewIndexColumn(ncol.Name)
 			index.Columns = append(index.Columns, idxCol)
 			additionalIndexes = append(additionalIndexes, index)
-			if !modified {
-				clone = true
-			}
-			ncol = ncol.Clone()
 			ncol.Primary = false
 		case ncol.Unique:
 			index := NewIndex(IndexKindUnique, t.ID())
@@ -98,10 +90,6 @@ func (t *Table) Normalize() (*Table, bool) {
 			idxCol := NewIndexColumn(ncol.Name)
 			index.Columns = append(index.Columns, idxCol)
 			additionalIndexes = append(additionalIndexes, index)
-			if !modified {
-				clone = true
-			}
-			ncol = ncol.Clone()
 			ncol.Unique = false
 		}
 
@@ -111,10 +99,7 @@ func (t *Table) Normalize() (*Table, bool) {
 	var indexes []*Index
 	var seen = make(map[string]struct{})
 	for _, idx := range t.Indexes {
-		nidx, modified := idx.Normalize()
-		if modified {
-			clone = true
-		}
+		nidx := idx.Normalize()
 
 		// if Not defined CONSTRAINT symbol, then resolve
 		// implicitly created INDEX too difficult.
@@ -125,7 +110,6 @@ func (t *Table) Normalize() (*Table, bool) {
 			// index for this constraint. Only add this implicit index if we
 			// haven't seen it before
 			if _, ok := seen[nidx.Symbol.Value]; !ok {
-				clone = true
 				// add implicitly created INDEX
 				index := NewIndex(IndexKindNormal, t.ID())
 				index.Name.Valid = true
@@ -140,10 +124,6 @@ func (t *Table) Normalize() (*Table, bool) {
 		seen[nidx.Name.Value] = struct{}{}
 	}
 
-	if !clone {
-		return t, false
-	}
-
 	tbl := NewTable(t.Name)
 	tbl.IfNotExists = t.IfNotExists
 	tbl.Temporary = t.Temporary
@@ -152,7 +132,7 @@ func (t *Table) Normalize() (*Table, bool) {
 	tbl.Options = make([]*TableOption, len(t.Options))
 	copy(tbl.Options, t.Options)
 
-	return tbl, true
+	return tbl
 }
 
 // TableOption describes a possible table option, such as `ENGINE=InnoDB`
