@@ -465,7 +465,7 @@ func (p *Parser) parseTableColumn(ctx *parseCtx, table *model.Table) error {
 	return nil
 }
 
-func (p *Parser) parseTableColumnSpec(ctx *parseCtx, col model.TableColumn) error {
+func (p *Parser) parseTableColumnSpec(ctx *parseCtx, col *model.TableColumn) error {
 	var coltyp model.ColumnType
 	var colopt int
 
@@ -580,7 +580,7 @@ func (p *Parser) parseTableColumnSpec(ctx *parseCtx, col model.TableColumn) erro
 		return newParseError(ctx, t, "unsupported type in column specification")
 	}
 
-	col.SetType(coltyp)
+	col.Type = coltyp
 	return p.parseColumnOption(ctx, col, colopt)
 }
 
@@ -771,7 +771,7 @@ func (p *Parser) parseCreateTableOptions(ctx *parseCtx, table *model.Table) erro
 // column options, although the docs (https://dev.mysql.com/doc/refman/5.7/en/create-table.html)
 // seem to state otherwise.
 //
-func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) error {
+func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int) error {
 	f = f | coloptNull | coloptDefault | coloptAutoIncrement | coloptKey | coloptComment
 	pos := 0
 	check := func(_f int) bool {
@@ -801,7 +801,7 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 				if t.Type != RPAREN {
 					return newParseError(ctx, t, "expected RPAREN (column size)")
 				}
-				col.SetLength(model.NewLength(tlen))
+				col.Length = model.NewLength(tlen)
 			} else if check(coloptDecimalSize) {
 				strs, err := p.parseIdents(ctx, NUMBER, COMMA, NUMBER, RPAREN)
 				if err != nil {
@@ -809,7 +809,7 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 				}
 				l := model.NewLength(strs[0])
 				l.SetDecimal(strs[2])
-				col.SetLength(l)
+				col.Length = l
 			} else if check(coloptDecimalOptionalSize) {
 				ctx.skipWhiteSpaces()
 				t := ctx.next()
@@ -821,7 +821,7 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 				ctx.skipWhiteSpaces()
 				t = ctx.next()
 				if t.Type == RPAREN {
-					col.SetLength(model.NewLength(tlen))
+					col.Length = model.NewLength(tlen)
 					continue
 				} else if t.Type != COMMA {
 					return newParseError(ctx, t, "expected COMMA (decimal size)")
@@ -840,11 +840,17 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 				}
 				l := model.NewLength(tlen)
 				l.SetDecimal(tscale)
-				col.SetLength(l)
+				col.Length = l
 			} else if check(coloptEnumValues) {
-				ctx.parseSetOrEnum(col.SetEnumValues)
+				ctx.parseSetOrEnum(func(enum []string) *model.TableColumn {
+					col.EnumValues = enum
+					return col
+				})
 			} else if check(coloptSetValues) {
-				ctx.parseSetOrEnum(col.SetSetValues)
+				ctx.parseSetOrEnum(func(enum []string) *model.TableColumn {
+					col.SetValues = enum
+					return col
+				})
 			} else {
 				return newParseError(ctx, t, "cannot apply coloptSize, coloptDecimalSize, coloptDecimalOptionalSize, coloptEnumValues, coloptSetValues")
 			}
@@ -855,26 +861,28 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 			}
 			ctx.skipWhiteSpaces()
 			v := ctx.next()
-			col.SetCharacterSet(v.Value)
+			col.CharacterSet.Valid = true
+			col.CharacterSet.Value = v.Value
 		case COLLATE:
 			ctx.skipWhiteSpaces()
 			v := ctx.next()
-			col.SetCollation(v.Value)
+			col.Collation.Valid = true
+			col.Collation.Value = v.Value
 		case UNSIGNED:
 			if !check(coloptUnsigned) {
 				return newParseError(ctx, t, "cannot apply UNSIGNED")
 			}
-			col.SetUnsigned(true)
+			col.Unsigned = true
 		case ZEROFILL:
 			if !check(coloptZerofill) {
 				return newParseError(ctx, t, "cannot apply ZEROFILL")
 			}
-			col.SetZeroFill(true)
+			col.ZeroFill = true
 		case BINARY:
 			if !check(coloptBinary) {
 				return newParseError(ctx, t, "cannot apply BINARY")
 			}
-			col.SetBinary(true)
+			col.Binary = true
 		case NOT:
 			if !check(coloptNull) {
 				return newParseError(ctx, t, "cannot apply NOT NULL")
@@ -882,7 +890,7 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 			ctx.skipWhiteSpaces()
 			switch t := ctx.next(); t.Type {
 			case NULL:
-				col.SetNullState(model.NullStateNotNull)
+				col.NullState = model.NullStateNotNull
 			default:
 				return newParseError(ctx, t, "expected NULL")
 			}
@@ -890,7 +898,7 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 			if !check(coloptNull) {
 				return newParseError(ctx, t, "cannot apply NULL")
 			}
-			col.SetNullState(model.NullStateNull)
+			col.NullState = model.NullStateNull
 		case ON:
 			// for now, only applicable to ON UPDATE ...
 			ctx.skipWhiteSpaces()
@@ -899,7 +907,8 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 			}
 			ctx.skipWhiteSpaces()
 			v := ctx.next()
-			col.SetAutoUpdate(v.Value)
+			col.AutoUpdate.Valid = true
+			col.AutoUpdate.Value = v.Value
 		case DEFAULT:
 			if !check(coloptDefault) {
 				return newParseError(ctx, t, "cannot apply DEFAULT")
@@ -907,9 +916,13 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 			ctx.skipWhiteSpaces()
 			switch t := ctx.next(); t.Type {
 			case IDENT, SINGLE_QUOTE_IDENT, DOUBLE_QUOTE_IDENT:
-				col.SetDefault(t.Value, true)
+				col.Default.Valid = true
+				col.Default.Value = t.Value
+				col.Default.Quoted = true
 			case NUMBER, CURRENT_TIMESTAMP, NULL, TRUE, FALSE:
-				col.SetDefault(strings.ToUpper(t.Value), false)
+				col.Default.Valid = true
+				col.Default.Value = strings.ToUpper(t.Value)
+				col.Default.Quoted = false
 			case NOW:
 				now := t.Value
 				if t := ctx.next(); t.Type != LPAREN {
@@ -918,7 +931,9 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 				if t := ctx.next(); t.Type != RPAREN {
 					return newParseError(ctx, t, "expected RPAREN")
 				}
-				col.SetDefault(strings.ToUpper(now)+"()", false)
+				col.Default.Valid = true
+				col.Default.Value = strings.ToUpper(now) + "()"
+				col.Default.Quoted = false
 			default:
 				return newParseError(ctx, t, "expected IDENT, SINGLE_QUOTE_IDENT, DOUBLE_QUOTE_IDENT, NUMBER, CURRENT_TIMESTAMP, NULL")
 			}
@@ -926,7 +941,7 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 			if !check(coloptAutoIncrement) {
 				return newParseError(ctx, t, "cannot apply AUTO_INCREMENT")
 			}
-			col.SetAutoIncrement(true)
+			col.AutoIncrement = true
 		case UNIQUE:
 			if !check(coloptKey) {
 				return newParseError(ctx, t, "cannot apply UNIQUE KEY")
@@ -935,12 +950,12 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 			if t := ctx.peek(); t.Type == KEY {
 				ctx.advance()
 			}
-			col.SetUnique(true)
+			col.Unique = true
 		case KEY:
 			if !check(coloptKey) {
 				return newParseError(ctx, t, "cannot apply KEY")
 			}
-			col.SetKey(true)
+			col.Key = true
 		case PRIMARY:
 			if !check(coloptKey) {
 				return newParseError(ctx, t, "cannot apply PRIMARY KEY")
@@ -949,7 +964,7 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 			if t := ctx.next(); t.Type != KEY {
 				return newParseError(ctx, t, "expected PRIMARY KEY")
 			}
-			col.SetPrimary(true)
+			col.Primary = true
 		case COMMENT:
 			if !check(coloptComment) {
 				return newParseError(ctx, t, "cannot apply COMMENT")
@@ -957,7 +972,8 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 			ctx.skipWhiteSpaces()
 			switch t := ctx.next(); t.Type {
 			case SINGLE_QUOTE_IDENT:
-				col.SetComment(t.Value)
+				col.Comment.Valid = true
+				col.Comment.Value = t.Value
 			default:
 				return newParseError(ctx, t, "should SINGLE_QUOTE_IDENT")
 			}
@@ -973,7 +989,7 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col model.TableColumn, f int) 
 	}
 }
 
-func (ctx *parseCtx) parseSetOrEnum(setter func([]string) model.TableColumn) error {
+func (ctx *parseCtx) parseSetOrEnum(setter func([]string) *model.TableColumn) error {
 	var values []string
 OUTER:
 	for {

@@ -59,7 +59,7 @@ func format(ctx *fmtCtx, v interface{}) error {
 		return nil
 	case *model.Table:
 		return formatTable(ctx, v)
-	case model.TableColumn:
+	case *model.TableColumn:
 		return formatTableColumn(ctx, v)
 	case model.TableOption:
 		return formatTableOption(ctx, v)
@@ -190,24 +190,24 @@ func formatColumnType(ctx *fmtCtx, col model.ColumnType) error {
 	return nil
 }
 
-func formatTableColumn(ctx *fmtCtx, col model.TableColumn) error {
+func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 	var buf bytes.Buffer
 
 	buf.WriteString(ctx.curIndent)
-	buf.WriteString(util.Backquote(col.Name()))
+	buf.WriteString(util.Backquote(col.Name))
 	buf.WriteByte(' ')
 
 	newctx := ctx.clone()
 	newctx.curIndent = ""
 	newctx.dst = &buf
-	if err := formatColumnType(newctx, col.Type()); err != nil {
+	if err := formatColumnType(newctx, col.Type); err != nil {
 		return err
 	}
 
-	switch col.Type() {
+	switch col.Type {
 	case model.ColumnTypeEnum:
 		buf.WriteString(" (")
-		for enumValue := range col.EnumValues() {
+		for _, enumValue := range col.EnumValues {
 			buf.WriteByte('\'')
 			buf.WriteString(enumValue)
 			buf.WriteByte('\'')
@@ -217,7 +217,7 @@ func formatTableColumn(ctx *fmtCtx, col model.TableColumn) error {
 		buf.WriteByte(')')
 	case model.ColumnTypeSet:
 		buf.WriteString(" (")
-		for setValue := range col.SetValues() {
+		for _, setValue := range col.SetValues {
 			buf.WriteByte('\'')
 			buf.WriteString(setValue)
 			buf.WriteByte('\'')
@@ -226,8 +226,8 @@ func formatTableColumn(ctx *fmtCtx, col model.TableColumn) error {
 		buf.Truncate(buf.Len() - 1)
 		buf.WriteByte(')')
 	default:
-		if col.HasLength() {
-			l := col.Length()
+		if col.Length != nil {
+			l := col.Length
 			buf.WriteString(" (")
 			buf.WriteString(l.Length())
 			if l.HasDecimal() {
@@ -238,34 +238,34 @@ func formatTableColumn(ctx *fmtCtx, col model.TableColumn) error {
 		}
 	}
 
-	if col.IsUnsigned() {
+	if col.Unsigned {
 		buf.WriteString(" UNSIGNED")
 	}
 
-	if col.IsZeroFill() {
+	if col.ZeroFill {
 		buf.WriteString(" ZEROFILL")
 	}
 
-	if col.IsBinary() {
+	if col.Binary {
 		buf.WriteString(" BINARY")
 	}
 
-	if col.HasCharacterSet() {
+	if col.CharacterSet.Valid {
 		buf.WriteString(" CHARACTER SET ")
-		buf.WriteString(util.Backquote(col.CharacterSet()))
+		buf.WriteString(util.Backquote(col.CharacterSet.Value))
 	}
 
-	if col.HasCollation() {
+	if col.Collation.Valid {
 		buf.WriteString(" COLLATE ")
-		buf.WriteString(util.Backquote(col.Collation()))
+		buf.WriteString(util.Backquote(col.Collation.Value))
 	}
 
-	if col.HasAutoUpdate() {
+	if col.AutoUpdate.Valid {
 		buf.WriteString(" ON UPDATE ")
-		buf.WriteString(col.AutoUpdate())
+		buf.WriteString(col.AutoUpdate.Value)
 	}
 
-	if n := col.NullState(); n != model.NullStateNone {
+	if n := col.NullState; n != model.NullStateNone {
 		buf.WriteByte(' ')
 		switch n {
 		case model.NullStateNull:
@@ -275,34 +275,34 @@ func formatTableColumn(ctx *fmtCtx, col model.TableColumn) error {
 		}
 	}
 
-	if col.HasDefault() {
+	if col.Default.Valid {
 		buf.WriteString(" DEFAULT ")
-		if col.IsQuotedDefault() {
+		if col.Default.Quoted {
 			buf.WriteByte('\'')
-			buf.WriteString(col.Default())
+			buf.WriteString(col.Default.Value)
 			buf.WriteByte('\'')
 		} else {
-			buf.WriteString(col.Default())
+			buf.WriteString(col.Default.Value)
 		}
 	}
 
-	if col.IsAutoIncrement() {
+	if col.AutoIncrement {
 		buf.WriteString(" AUTO_INCREMENT")
 	}
 
-	if col.IsUnique() {
+	if col.Unique {
 		buf.WriteString(" UNIQUE KEY")
 	}
 
-	if col.IsPrimary() {
+	if col.Primary {
 		buf.WriteString(" PRIMARY KEY")
-	} else if col.IsKey() {
+	} else if col.Key {
 		buf.WriteString(" KEY")
 	}
 
-	if col.HasComment() {
+	if col.Comment.Valid {
 		buf.WriteString(" COMMENT '")
-		buf.WriteString(col.Comment())
+		buf.WriteString(col.Comment.Value)
 		buf.WriteByte('\'')
 	}
 

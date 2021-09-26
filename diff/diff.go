@@ -266,7 +266,7 @@ func (ctx *alterCtx) dropTableColumns() error {
 		if !ok {
 			return fmt.Errorf("failed to lookup column %q", columnName)
 		}
-		buf.WriteString(col.Name())
+		buf.WriteString(col.Name)
 		buf.WriteString("`")
 		ctx.append(buf.String())
 	}
@@ -280,7 +280,7 @@ func (ctx *alterCtx) addTableColumns() error {
 	// In order to do this correctly, we need to create a graph so that
 	// we always start adding with a column that has a either no before
 	// columns, or one that already exists in the database
-	var firstColumn model.TableColumn
+	var firstColumn *model.TableColumn
 	for _, v := range ctx.toColumns.Difference(ctx.fromColumns).ToSlice() {
 		columnName := v.(string)
 		// find the before-column for each.
@@ -362,7 +362,7 @@ func (ctx *alterCtx) writeAddColumn(columnNames ...string) error {
 		}
 		if hasBeforeCol {
 			buf.WriteString(" AFTER ")
-			buf.WriteString(util.Backquote(beforeCol.Name()))
+			buf.WriteString(util.Backquote(beforeCol.Name))
 			buf.WriteString("")
 		} else {
 			buf.WriteString(" FIRST")
@@ -394,7 +394,7 @@ func (ctx *alterCtx) alterTableColumns() error {
 		buf.WriteString("ALTER TABLE ")
 		buf.WriteString(util.Backquote(ctx.from.Name))
 		buf.WriteString(" CHANGE COLUMN `")
-		buf.WriteString(afterColumnStmt.Name())
+		buf.WriteString(afterColumnStmt.Name)
 		buf.WriteString("` ")
 		if err := format.SQL(&buf, afterColumnStmt); err != nil {
 			return err

@@ -8,7 +8,7 @@ type Table struct {
 	Temporary   bool
 	IfNotExists bool
 	LikeTable   maybeString
-	Columns     []TableColumn
+	Columns     []*TableColumn
 	Indexes     []Index
 	Options     []TableOption
 }
@@ -24,7 +24,7 @@ func (t *Table) ID() string {
 	return "table#" + strings.ToLower(t.Name)
 }
 
-func (t *Table) LookupColumn(id string) (TableColumn, bool) {
+func (t *Table) LookupColumn(id string) (*TableColumn, bool) {
 	for _, col := range t.Columns {
 		if col.ID() == id {
 			return col, true
@@ -42,7 +42,7 @@ func (t *Table) LookupColumnOrder(id string) (int, bool) {
 	return 0, false
 }
 
-func (t *Table) LookupColumnBefore(id string) (TableColumn, bool) {
+func (t *Table) LookupColumnBefore(id string) (*TableColumn, bool) {
 	for i, col := range t.Columns {
 		if col.ID() == id {
 			if i > 0 {
@@ -66,7 +66,7 @@ func (t *Table) LookupIndex(id string) (Index, bool) {
 func (t *Table) Normalize() (*Table, bool) {
 	var clone bool
 	var additionalIndexes []Index
-	var columns []TableColumn
+	var columns []*TableColumn
 	for _, col := range t.Columns {
 		ncol, modified := col.Normalize()
 		if modified {
@@ -76,32 +76,32 @@ func (t *Table) Normalize() (*Table, bool) {
 		// column_definition [UNIQUE [KEY] | [PRIMARY] KEY]
 		// they mean same as INDEX or CONSTRAINT
 		switch {
-		case ncol.IsPrimary():
+		case ncol.Primary:
 			// we have to move off the index declaration from the
 			// primary key column to an index associated with the table
 			index := NewIndex(IndexKindPrimaryKey, t.ID())
 			index.SetType(IndexTypeNone)
-			idxCol := NewIndexColumn(ncol.Name())
+			idxCol := NewIndexColumn(ncol.Name)
 			index.AddColumns(idxCol)
 			additionalIndexes = append(additionalIndexes, index)
 			if !modified {
 				clone = true
 			}
 			ncol = ncol.Clone()
-			ncol.SetPrimary(false)
-		case ncol.IsUnique():
+			ncol.Primary = false
+		case ncol.Unique:
 			index := NewIndex(IndexKindUnique, t.ID())
 			// if you do not assign a name, the index is assigned the same name as the first indexed column
-			index.SetName(ncol.Name())
+			index.SetName(ncol.Name)
 			index.SetType(IndexTypeNone)
-			idxCol := NewIndexColumn(ncol.Name())
+			idxCol := NewIndexColumn(ncol.Name)
 			index.AddColumns(idxCol)
 			additionalIndexes = append(additionalIndexes, index)
 			if !modified {
 				clone = true
 			}
 			ncol = ncol.Clone()
-			ncol.SetUnique(false)
+			ncol.Unique = false
 		}
 
 		columns = append(columns, ncol)

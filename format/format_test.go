@@ -16,7 +16,7 @@ func TestFormat(t *testing.T) {
 	table := model.NewTable("hoge")
 
 	col := model.NewTableColumn("fuga")
-	col.SetType(model.ColumnTypeInt)
+	col.Type = model.ColumnTypeInt
 	table.Columns = append(table.Columns, col)
 
 	opt := model.NewTableOption("ENGINE", "InnoDB", false)

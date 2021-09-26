@@ -2,6 +2,7 @@ package model
 
 import (
 	"strconv"
+	"strings"
 )
 
 // NewLength creates a new Length which describes the
@@ -30,243 +31,49 @@ func (l *length) Length() string {
 	return l.length
 }
 
+// TableColumn describes a model object that describes a column
+// definition of a table
+type TableColumn struct {
+	TableID       string
+	Name          string
+	Type          ColumnType
+	Length        Length
+	NullState     NullState
+	CharacterSet  maybeString
+	Collation     maybeString
+	Default       DefaultValue
+	Comment       maybeString
+	AutoUpdate    maybeString
+	EnumValues    []string
+	SetValues     []string
+	AutoIncrement bool
+	Binary        bool
+	Key           bool
+	Primary       bool
+	Unique        bool
+	Unsigned      bool
+	ZeroFill      bool
+}
+
 // NewTableColumn creates a new TableColumn with the given name
-func NewTableColumn(name string) TableColumn {
-	return &tablecol{
-		name: name,
+func NewTableColumn(name string) *TableColumn {
+	return &TableColumn{
+		Name: name,
 	}
 }
 
-func (t *tablecol) ID() string {
-	return "tablecol#" + t.name
+func (t *TableColumn) ID() string {
+	return "tablecol#" + strings.ToLower(t.Name)
 }
 
-func (t *tablecol) SetTableID(id string) TableColumn {
-	t.tableID = id
-	return t
-}
-
-func (t *tablecol) TableID() string {
-	return t.tableID
-}
-
-func (t *tablecol) SetCharacterSet(s string) TableColumn {
-	t.charset.Valid = true
-	t.charset.Value = s
-	return t
-}
-
-func (t *tablecol) SetCollation(s string) TableColumn {
-	t.collation.Valid = true
-	t.collation.Value = s
-	return t
-}
-
-func (t *tablecol) CharacterSet() string {
-	return t.charset.Value
-}
-
-func (t *tablecol) Collation() string {
-	return t.collation.Value
-}
-
-func (t *tablecol) Comment() string {
-	return t.comment.Value
-}
-
-func (t *tablecol) Default() string {
-	return t.defaultValue.Value
-}
-
-func (t *tablecol) HasCharacterSet() bool {
-	return t.charset.Valid
-}
-
-func (t *tablecol) HasCollation() bool {
-	return t.collation.Valid
-}
-
-func (t *tablecol) HasComment() bool {
-	return t.comment.Valid
-}
-
-func (t *tablecol) HasDefault() bool {
-	return t.defaultValue.Valid
-}
-
-func (t *tablecol) IsQuotedDefault() bool {
-	return t.defaultValue.Quoted
-}
-
-func (t *tablecol) HasLength() bool {
-	return t.length != nil
-}
-
-func (t *tablecol) IsAutoIncrement() bool {
-	return t.autoincr
-}
-
-func (t *tablecol) IsBinary() bool {
-	return t.binary
-}
-
-func (t *tablecol) IsKey() bool {
-	return t.key
-}
-
-func (t *tablecol) IsPrimary() bool {
-	return t.primary
-}
-
-func (t *tablecol) IsUnique() bool {
-	return t.unique
-}
-
-func (t *tablecol) IsUnsigned() bool {
-	return t.unsigned
-}
-
-func (t *tablecol) IsZeroFill() bool {
-	return t.zerofill
-}
-
-func (t *tablecol) Length() Length {
-	return t.length
-}
-
-func (t *tablecol) Name() string {
-	return t.name
-}
-
-func (t *tablecol) NullState() NullState {
-	return t.nullstate
-}
-
-func (t *tablecol) Type() ColumnType {
-	return t.typ
-}
-
-func (t *tablecol) SetAutoIncrement(v bool) TableColumn {
-	t.autoincr = v
-	return t
-}
-
-func (t *tablecol) SetBinary(v bool) TableColumn {
-	t.binary = v
-	return t
-}
-
-func (t *tablecol) SetComment(v string) TableColumn {
-	t.comment.Valid = true
-	t.comment.Value = v
-	return t
-}
-
-func (t *tablecol) SetDefault(v string, quoted bool) TableColumn {
-	t.defaultValue.Valid = true
-	t.defaultValue.Value = v
-	t.defaultValue.Quoted = quoted
-	return t
-}
-
-func (t *tablecol) SetKey(v bool) TableColumn {
-	t.key = v
-	return t
-}
-
-func (t *tablecol) SetLength(v Length) TableColumn {
-	t.length = v
-	return t
-}
-
-func (t *tablecol) SetNullState(v NullState) TableColumn {
-	t.nullstate = v
-	return t
-}
-
-func (t *tablecol) SetPrimary(v bool) TableColumn {
-	t.primary = v
-	return t
-}
-
-func (t *tablecol) SetType(v ColumnType) TableColumn {
-	t.typ = v
-	return t
-}
-
-func (t *tablecol) SetUnique(v bool) TableColumn {
-	t.unique = v
-	return t
-}
-
-func (t *tablecol) SetUnsigned(v bool) TableColumn {
-	t.unsigned = v
-	return t
-}
-
-func (t *tablecol) SetZeroFill(v bool) TableColumn {
-	t.zerofill = v
-	return t
-}
-
-func (t *tablecol) HasAutoUpdate() bool {
-	return t.autoUpdate.Valid
-}
-
-func (t *tablecol) SetAutoUpdate(s string) TableColumn {
-	t.autoUpdate.Value = s
-	t.autoUpdate.Valid = true
-	return t
-}
-
-func (t *tablecol) AutoUpdate() string {
-	return t.autoUpdate.Value
-}
-
-func (t *tablecol) HasEnumValues() bool {
-	return len(t.enumValues) != 0
-}
-
-func (t *tablecol) SetEnumValues(enumValues []string) TableColumn {
-	t.enumValues = enumValues
-	return t
-}
-
-func (t *tablecol) EnumValues() chan string {
-	ch := make(chan string, len(t.enumValues))
-	for _, enumValue := range t.enumValues {
-		ch <- enumValue
-	}
-	close(ch)
-	return ch
-}
-
-func (t *tablecol) HasSetValues() bool {
-	return len(t.setValues) != 0
-}
-
-func (t *tablecol) SetSetValues(setValues []string) TableColumn {
-	t.setValues = setValues
-	return t
-}
-
-func (t *tablecol) SetValues() chan string {
-	ch := make(chan string, len(t.setValues))
-	for _, setValue := range t.setValues {
-		ch <- setValue
-	}
-	close(ch)
-	return ch
-}
-
-func (t *tablecol) NativeLength() Length {
+func (t *TableColumn) NativeLength() Length {
 	// I referred to perl: SQL::Translator::Parser::MySQL#normalize_field https://metacpan.org/source/SQL::Translator::Parser::MySQL#L1072
 	unsigned := 0
-	if t.IsUnsigned() {
+	if t.Unsigned {
 		unsigned++
 	}
 	var size int
-	switch t.Type() {
+	switch t.Type {
 	case ColumnTypeBool, ColumnTypeBoolean:
 		// bool and boolean is tinyint(1)
 		size = 1
@@ -294,26 +101,26 @@ func (t *tablecol) NativeLength() Length {
 	return NewLength(strconv.Itoa(size))
 }
 
-func (t *tablecol) Normalize() (TableColumn, bool) {
+func (t *TableColumn) Normalize() (*TableColumn, bool) {
 	var clone bool
 	var length Length
 	var synonym ColumnType
 	var removeQuotes bool
 	var setDefaultNull bool
 
-	if !t.HasLength() {
+	if t.Length != nil {
 		if l := t.NativeLength(); l != nil {
 			clone = true
 			length = l
 		}
 	}
 
-	if typ := t.Type(); typ.SynonymType() != typ {
+	if t.Type.SynonymType() != t.Type {
 		clone = true
-		synonym = typ.SynonymType()
+		synonym = t.Type.SynonymType()
 	}
 
-	nullState := t.NullState()
+	nullState := t.NullState
 	// remove null state if not `NOT NULL`
 	// If none is specified, the column is treated as if NULL was specified.
 	if nullState == NullStateNull {
@@ -321,28 +128,32 @@ func (t *tablecol) Normalize() (TableColumn, bool) {
 		nullState = NullStateNone
 	}
 
-	if t.HasDefault() {
-		switch t.Type() {
+	if t.Default.Valid {
+		switch t.Type {
 		case ColumnTypeTinyInt, ColumnTypeSmallInt,
 			ColumnTypeMediumInt, ColumnTypeInt,
 			ColumnTypeInteger, ColumnTypeBigInt,
 			ColumnTypeFloat, ColumnTypeDouble,
 			ColumnTypeDecimal, ColumnTypeNumeric, ColumnTypeReal:
 			// If numeric type then trim quote
-			if t.IsQuotedDefault() {
+			if t.Default.Quoted {
 				clone = true
 				removeQuotes = true
 			}
 		case ColumnTypeBool, ColumnTypeBoolean:
-			switch t.Default() {
+			switch t.Default.Value {
 			case "TRUE":
-				t.SetDefault("1", false)
+				t.Default.Valid = true
+				t.Default.Value = "1"
+				t.Default.Quoted = false
 			case "FALSE":
-				t.SetDefault("0", false)
+				t.Default.Valid = true
+				t.Default.Value = "0"
+				t.Default.Quoted = false
 			}
 		}
 	} else {
-		switch t.Type() {
+		switch t.Type {
 		case ColumnTypeTinyText, ColumnTypeTinyBlob,
 			ColumnTypeBlob, ColumnTypeText,
 			ColumnTypeMediumBlob, ColumnTypeMediumText,
@@ -363,26 +174,29 @@ func (t *tablecol) Normalize() (TableColumn, bool) {
 
 	col := t.Clone()
 	if length != nil {
-		col.SetLength(length)
+		col.Length = length
 	}
 	if synonym != ColumnTypeInvalid {
-		col.SetType(synonym)
+		col.Type = synonym
 	}
 
-	col.SetNullState(nullState)
+	col.NullState = nullState
 
 	if removeQuotes {
-		col.SetDefault(t.Default(), false)
+		col.Default.Valid = true
+		col.Default.Value = t.Default.Value
+		col.Default.Quoted = t.Default.Quoted
 	}
 
 	if setDefaultNull {
-		col.SetDefault("NULL", false)
+		col.Default.Valid = true
+		col.Default.Value = "NULL"
+		col.Default.Quoted = true
 	}
 	return col, true
 }
 
-func (t *tablecol) Clone() TableColumn {
-	col := &tablecol{}
-	*col = *t
-	return col
+func (t *TableColumn) Clone() *TableColumn {
+	col := *t
+	return &col
 }
