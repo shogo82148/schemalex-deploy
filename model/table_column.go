@@ -40,7 +40,7 @@ func NewLength(v string) *Length {
 // definition of a table
 type TableColumn struct {
 	TableID       string
-	Name          string
+	Name          Ident
 	Type          ColumnType
 	Length        *Length
 	NullState     NullState
@@ -63,12 +63,12 @@ type TableColumn struct {
 // NewTableColumn creates a new TableColumn with the given name
 func NewTableColumn(name string) *TableColumn {
 	return &TableColumn{
-		Name: name,
+		Name: Ident(name),
 	}
 }
 
 func (t *TableColumn) ID() string {
-	return "tablecol#" + strings.ToLower(t.Name)
+	return "tablecol#" + strings.ToLower(string(t.Name))
 }
 
 func (t *TableColumn) NativeLength() *Length {

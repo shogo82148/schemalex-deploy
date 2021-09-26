@@ -193,7 +193,7 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 	var buf bytes.Buffer
 
 	buf.WriteString(ctx.curIndent)
-	buf.WriteString(util.Backquote(col.Name))
+	buf.WriteString(col.Name.Quoted())
 	buf.WriteByte(' ')
 
 	newctx := ctx.clone()
@@ -317,7 +317,7 @@ func formatIndex(ctx *fmtCtx, index *model.Index) error {
 	buf.WriteString(ctx.curIndent)
 	if index.Symbol.Valid {
 		buf.WriteString("CONSTRAINT ")
-		buf.WriteString(util.Backquote(index.Symbol.Value))
+		buf.WriteString(index.Symbol.Quoted())
 		buf.WriteByte(' ')
 	}
 
@@ -338,7 +338,7 @@ func formatIndex(ctx *fmtCtx, index *model.Index) error {
 
 	if index.Name.Valid {
 		buf.WriteByte(' ')
-		buf.WriteString(util.Backquote(index.Name.Value))
+		buf.WriteString(index.Name.Quoted())
 	}
 
 	switch index.Type {
@@ -349,14 +349,12 @@ func formatIndex(ctx *fmtCtx, index *model.Index) error {
 	}
 
 	buf.WriteString(" (")
-	ch := index.Columns
-	lch := len(ch)
-	if lch == 0 {
+	if len(index.Columns) == 0 {
 		return fmt.Errorf("format: no columns in the index %q", index.ID())
 	}
 
-	for i, col := range ch {
-		buf.WriteString(util.Backquote(col.Name))
+	for i, col := range index.Columns {
+		buf.WriteString(col.Name.Quoted())
 		if col.Length.Valid {
 			buf.WriteByte('(')
 			buf.WriteString(col.Length.Value)
@@ -371,7 +369,7 @@ func formatIndex(ctx *fmtCtx, index *model.Index) error {
 			buf.WriteString(" DESC")
 		}
 
-		if i < lch-1 {
+		if i < len(index.Columns)-1 {
 			buf.WriteString(", ")
 		}
 	}
@@ -421,7 +419,7 @@ func formatReference(ctx *fmtCtx, r *model.Reference) error {
 	ch := r.Columns
 	lch := len(ch)
 	for i, col := range ch {
-		buf.WriteString(util.Backquote(col.Name))
+		buf.WriteString(col.Name.Quoted())
 		if col.Length.Valid {
 			buf.WriteByte('(')
 			buf.WriteString(col.Length.Value)

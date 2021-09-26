@@ -75,7 +75,7 @@ func (r *Reference) String() string {
 	ch := r.Columns
 	lch := len(ch)
 	for i, col := range ch {
-		buf.WriteString(util.Backquote(col.Name))
+		buf.WriteString(col.Name.Quoted())
 		if i < lch-1 {
 			buf.WriteString(", ")
 		}

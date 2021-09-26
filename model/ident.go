@@ -28,3 +28,9 @@ func (ident Ident) Quoted() string {
 	buf.WriteByte('`')
 	return buf.String()
 }
+
+// MaybeIdent is an Ident that may not be set.
+type MaybeIdent struct {
+	Ident
+	Valid bool
+}

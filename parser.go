@@ -390,9 +390,9 @@ func (p *Parser) parseTableConstraint(ctx *parseCtx, table *model.Table) error {
 	}
 
 	if len(sym) > 0 {
-		index.Symbol = model.MaybeString{
+		index.Symbol = model.MaybeIdent{
+			Ident: model.Ident(sym),
 			Valid: true,
-			Value: sym,
 		}
 	}
 
@@ -1268,9 +1268,9 @@ func (p *Parser) parseColumnIndexName(ctx *parseCtx, index *model.Index) error {
 	switch t := ctx.peek(); t.Type {
 	case BACKTICK_IDENT, IDENT:
 		ctx.advance()
-		index.Name = model.MaybeString{
+		index.Name = model.MaybeIdent{
 			Valid: true,
-			Value: t.Value,
+			Ident: model.Ident(t.Value),
 		}
 	}
 	return nil
@@ -1326,7 +1326,7 @@ OUTER:
 			return nil, newParseError(ctx, t, "should IDENT or BACKTICK_IDENT")
 		}
 
-		col := model.NewIndexColumn(t.Value)
+		col := model.NewIndexColumn(model.Ident(t.Value))
 		cols = append(cols, col)
 
 		ctx.skipWhiteSpaces()

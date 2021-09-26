@@ -12,7 +12,6 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/shogo82148/schemalex-deploy"
 	"github.com/shogo82148/schemalex-deploy/format"
-	"github.com/shogo82148/schemalex-deploy/internal/util"
 	"github.com/shogo82148/schemalex-deploy/model"
 )
 
@@ -260,13 +259,12 @@ func (ctx *alterCtx) dropTableColumns() error {
 		buf.Reset()
 		buf.WriteString("ALTER TABLE ")
 		buf.WriteString(ctx.from.Name.Quoted())
-		buf.WriteString(" DROP COLUMN `")
+		buf.WriteString(" DROP COLUMN ")
 		col, ok := ctx.from.LookupColumn(columnName.(string))
 		if !ok {
 			return fmt.Errorf("failed to lookup column %q", columnName)
 		}
-		buf.WriteString(col.Name)
-		buf.WriteString("`")
+		buf.WriteString(col.Name.Quoted())
 		ctx.append(buf.String())
 	}
 	return nil
@@ -361,7 +359,7 @@ func (ctx *alterCtx) writeAddColumn(columnNames ...string) error {
 		}
 		if hasBeforeCol {
 			buf.WriteString(" AFTER ")
-			buf.WriteString(util.Backquote(beforeCol.Name))
+			buf.WriteString(beforeCol.Name.Quoted())
 			buf.WriteString("")
 		} else {
 			buf.WriteString(" FIRST")
@@ -392,9 +390,9 @@ func (ctx *alterCtx) alterTableColumns() error {
 		buf.Reset()
 		buf.WriteString("ALTER TABLE ")
 		buf.WriteString(ctx.from.Name.Quoted())
-		buf.WriteString(" CHANGE COLUMN `")
-		buf.WriteString(afterColumnStmt.Name)
-		buf.WriteString("` ")
+		buf.WriteString(" CHANGE COLUMN ")
+		buf.WriteString(afterColumnStmt.Name.Quoted())
+		buf.WriteString(" ")
 		if err := format.SQL(&buf, afterColumnStmt); err != nil {
 			return err
 		}
@@ -435,13 +433,12 @@ func (ctx *alterCtx) dropTableIndexes() error {
 		buf.Reset()
 		buf.WriteString("ALTER TABLE ")
 		buf.WriteString(ctx.from.Name.Quoted())
-		buf.WriteString(" DROP FOREIGN KEY `")
+		buf.WriteString(" DROP FOREIGN KEY ")
 		if indexStmt.Symbol.Valid {
-			buf.WriteString(indexStmt.Symbol.Value)
+			buf.WriteString(indexStmt.Symbol.Quoted())
 		} else {
-			buf.WriteString(indexStmt.Name.Value)
+			buf.WriteString(indexStmt.Name.Quoted())
 		}
-		buf.WriteString("`")
 		ctx.append(buf.String())
 	}
 
@@ -450,13 +447,12 @@ func (ctx *alterCtx) dropTableIndexes() error {
 		buf.Reset()
 		buf.WriteString("ALTER TABLE ")
 		buf.WriteString(ctx.from.Name.Quoted())
-		buf.WriteString(" DROP INDEX `")
+		buf.WriteString(" DROP INDEX ")
 		if !indexStmt.Name.Valid {
-			buf.WriteString(indexStmt.Symbol.Value)
+			buf.WriteString(indexStmt.Symbol.Quoted())
 		} else {
-			buf.WriteString(indexStmt.Name.Value)
+			buf.WriteString(indexStmt.Name.Quoted())
 		}
-		buf.WriteString("`")
 		ctx.append(buf.String())
 	}
 
