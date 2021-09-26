@@ -51,76 +51,124 @@ func TestTableColumnNormalize(t *testing.T) {
 				},
 			},
 		},
-		// {
-		// 	// foo INTEGER NOT NULL,
-		// 	before: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeInteger).
-		// 		SetNullState(model.NullStateNotNull),
-		// 	// foo INT (11) NOT NULL,
-		// 	after: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeInt).
-		// 		SetLength(model.NewLength("11")).
-		// 		SetNullState(model.NullStateNotNull),
-		// },
-		// {
-		// 	// foo INTEGER UNSIGNED NULL DEFAULT 0,
-		// 	before: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeInteger).
-		// 		SetUnsigned(true).
-		// 		SetNullState(model.NullStateNull).
-		// 		SetDefault("0", false),
-		// 	// foo INT (10) UNSIGNED DEFAULT 0,
-		// 	after: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeInt).
-		// 		SetLength(model.NewLength("10")).
-		// 		SetUnsigned(true).
-		// 		SetNullState(model.NullStateNone).
-		// 		SetDefault("0", false),
-		// },
-		// {
-		// 	// foo bigint null default null,
-		// 	before: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeBigInt).
-		// 		SetNullState(model.NullStateNull).
-		// 		SetDefault("NULL", false),
-		// 	// foo BIGINT (20) DEFAULT NULL,
-		// 	after: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeBigInt).
-		// 		SetLength(model.NewLength("20")).
-		// 		SetNullState(model.NullStateNone).
-		// 		SetDefault("NULL", false),
-		// },
-		// {
-		// 	// foo DECIMAL,
-		// 	before: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeNumeric).
-		// 		SetNullState(model.NullStateNone),
-		// 	// foo DECIMAL (10,0) DEFAULT NULL,
-		// 	after: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeDecimal).
-		// 		SetLength(model.NewLength("10").SetDecimal("0")).
-		// 		SetNullState(model.NullStateNone).
-		// 		SetDefault("NULL", false),
-		// },
-		// {
-		// 	// foo TEXT,
-		// 	before: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeText),
-		// 	// foo TEXT,
-		// 	after: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeText),
-		// },
-		// {
-		// 	// foo BOOL,
-		// 	before: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeBool),
-		// 	// foo TINYINT(1) DEFAULT NULL,
-		// 	after: model.NewTableColumn("foo").
-		// 		SetType(model.ColumnTypeTinyInt).
-		// 		SetLength(model.NewLength("1")).
-		// 		SetNullState(model.NullStateNone).
-		// 		SetDefault("NULL", false),
-		// },
+		{
+			// foo INTEGER NOT NULL,
+			before: &model.TableColumn{
+				Name:      "foo",
+				Type:      model.ColumnTypeInteger,
+				NullState: model.NullStateNotNull,
+			},
+			// foo INT (11) NOT NULL,
+			after: &model.TableColumn{
+				Name:      "foo",
+				Type:      model.ColumnTypeInt,
+				Length:    model.NewLength("11"),
+				NullState: model.NullStateNotNull,
+			},
+		},
+		{
+			// foo INTEGER UNSIGNED NULL DEFAULT 0,
+			before: &model.TableColumn{
+				Name:      "foo",
+				Unsigned:  true,
+				Type:      model.ColumnTypeInteger,
+				NullState: model.NullStateNull,
+				Default: model.DefaultValue{
+					Valid:  true,
+					Value:  "0",
+					Quoted: false,
+				},
+			},
+			// foo INT (10) UNSIGNED DEFAULT 0,
+			after: &model.TableColumn{
+				Name:      "foo",
+				Unsigned:  true,
+				Type:      model.ColumnTypeInt,
+				Length:    model.NewLength("10"),
+				NullState: model.NullStateNone,
+				Default: model.DefaultValue{
+					Valid:  true,
+					Value:  "0",
+					Quoted: false,
+				},
+			},
+		},
+		{
+			// foo bigint null default null,
+			before: &model.TableColumn{
+				Name:      "foo",
+				Type:      model.ColumnTypeBigInt,
+				NullState: model.NullStateNull,
+				Default: model.DefaultValue{
+					Valid:  true,
+					Value:  "NULL",
+					Quoted: false,
+				},
+			},
+			// foo BIGINT (20) DEFAULT NULL,
+			after: &model.TableColumn{
+				Name:      "foo",
+				Type:      model.ColumnTypeBigInt,
+				Length:    model.NewLength("20"),
+				NullState: model.NullStateNone,
+				Default: model.DefaultValue{
+					Valid:  true,
+					Value:  "NULL",
+					Quoted: false,
+				},
+			},
+		},
+		{
+			// foo NUMERIC,
+			before: &model.TableColumn{
+				Name:      "foo",
+				Type:      model.ColumnTypeNumeric,
+				NullState: model.NullStateNone,
+			},
+			// foo DECIMAL (10,0) DEFAULT NULL,
+			after: &model.TableColumn{
+				Name:      "foo",
+				Type:      model.ColumnTypeDecimal,
+				Length:    model.NewLength("10").SetDecimal("0"),
+				NullState: model.NullStateNone,
+				Default: model.DefaultValue{
+					Valid:  true,
+					Value:  "NULL",
+					Quoted: false,
+				},
+			},
+		},
+		{
+			// foo TEXT,
+			before: &model.TableColumn{
+				Name: "foo",
+				Type: model.ColumnTypeText,
+			},
+			// foo TEXT,
+			after: &model.TableColumn{
+				Name: "foo",
+				Type: model.ColumnTypeText,
+			},
+		},
+		{
+			// foo BOOL,
+			before: &model.TableColumn{
+				Name: "foo",
+				Type: model.ColumnTypeBool,
+			},
+			// foo TINYINT(1) DEFAULT NULL,
+			after: &model.TableColumn{
+				Name:      "foo",
+				Type:      model.ColumnTypeTinyInt,
+				Length:    model.NewLength("1"),
+				NullState: model.NullStateNone,
+				Default: model.DefaultValue{
+					Valid:  true,
+					Value:  "NULL",
+					Quoted: false,
+				},
+			},
+		},
 	} {
 		var buf bytes.Buffer
 		format.SQL(&buf, tc.before)
