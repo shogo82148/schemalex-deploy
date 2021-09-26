@@ -13,7 +13,7 @@ type Stmt interface {
 // Stmts describes a list of statements
 type Stmts []Stmt
 
-type maybeString struct {
+type MaybeString struct {
 	Valid bool
 	Value string
 }
@@ -111,7 +111,7 @@ const (
 // name or name(length)
 type indexColumn struct {
 	name          string
-	length        maybeString
+	length        MaybeString
 	sortDirection IndexColumnSortDirection
 }
 
@@ -124,9 +124,9 @@ type IndexOption interface {
 }
 
 type index struct {
-	symbol    maybeString
+	symbol    MaybeString
 	kind      IndexKind
-	name      maybeString
+	name      MaybeString
 	typ       IndexType
 	table     string
 	columns   []IndexColumn
@@ -225,7 +225,7 @@ type Length interface {
 }
 
 type length struct {
-	decimals maybeString
+	decimals MaybeString
 	length   string
 }
 

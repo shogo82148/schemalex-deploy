@@ -7,7 +7,7 @@ type Table struct {
 	Name        string
 	Temporary   bool
 	IfNotExists bool
-	LikeTable   maybeString
+	LikeTable   MaybeString
 	Columns     []*TableColumn
 	Indexes     []Index
 	Options     []TableOption

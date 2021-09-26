@@ -39,11 +39,11 @@ type TableColumn struct {
 	Type          ColumnType
 	Length        Length
 	NullState     NullState
-	CharacterSet  maybeString
-	Collation     maybeString
+	CharacterSet  MaybeString
+	Collation     MaybeString
 	Default       DefaultValue
-	Comment       maybeString
-	AutoUpdate    maybeString
+	Comment       MaybeString
+	AutoUpdate    MaybeString
 	EnumValues    []string
 	SetValues     []string
 	AutoIncrement bool
