@@ -3,6 +3,7 @@ package model
 import (
 	"crypto/sha256"
 	"fmt"
+	"strings"
 )
 
 // NewIndex creates a new index with the given index kind.
@@ -140,13 +141,13 @@ func (stmt *index) IsForeignKey() bool {
 	return stmt.kind == IndexKindForeignKey
 }
 
-func (stmt *index) AddOption(v IndexOption) Index {
+func (stmt *index) AddOption(v *IndexOption) Index {
 	stmt.options = append(stmt.options, v)
 	return stmt
 }
 
-func (stmt *index) Options() chan IndexOption {
-	ch := make(chan IndexOption, len(stmt.options))
+func (stmt *index) Options() chan *IndexOption {
+	ch := make(chan *IndexOption, len(stmt.options))
 	for _, idx := range stmt.options {
 		ch <- idx
 	}
@@ -211,15 +212,19 @@ func (col *indexColumn) IsDescending() bool {
 	return col.sortDirection == SortDirectionDescending
 }
 
-func NewIndexOption(k, v string, q bool) IndexOption {
-	return &indexopt{
-		key:        k,
-		value:      v,
-		needQuotes: q,
+// IndexOption describes a possible index option, such as `WITH PARSER ngram`
+type IndexOption struct {
+	Key        string
+	Value      string
+	NeedQuotes bool
+}
+
+func NewIndexOption(k, v string, q bool) *IndexOption {
+	return &IndexOption{
+		Key:        k,
+		Value:      v,
+		NeedQuotes: q,
 	}
 }
 
-func (i *indexopt) ID() string       { return "indexopt#" + i.key }
-func (i *indexopt) Key() string      { return i.key }
-func (i *indexopt) Value() string    { return i.value }
-func (i *indexopt) NeedQuotes() bool { return i.needQuotes }
+func (opt *IndexOption) ID() string { return "indexopt#" + strings.ToLower(opt.Key) }
