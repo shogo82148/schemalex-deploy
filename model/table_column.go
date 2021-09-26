@@ -185,7 +185,7 @@ func (t *TableColumn) Normalize() (*TableColumn, bool) {
 	if removeQuotes {
 		col.Default.Valid = true
 		col.Default.Value = t.Default.Value
-		col.Default.Quoted = t.Default.Quoted
+		col.Default.Quoted = false
 	}
 
 	if setDefaultNull {

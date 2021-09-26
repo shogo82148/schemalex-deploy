@@ -169,6 +169,33 @@ func TestTableColumnNormalize(t *testing.T) {
 				},
 			},
 		},
+		{
+			// intud int unsigned default 0,
+			before: &model.TableColumn{
+				Name:      "intud",
+				Unsigned:  true,
+				Type:      model.ColumnTypeInt,
+				NullState: model.NullStateNone,
+				Default: model.DefaultValue{
+					Valid:  true,
+					Value:  "0",
+					Quoted: true,
+				},
+			},
+			// intud INT (10) UNSIGNED DEFAULT '0'
+			after: &model.TableColumn{
+				Name:      "intud",
+				Unsigned:  true,
+				Type:      model.ColumnTypeInt,
+				Length:    model.NewLength("10"),
+				NullState: model.NullStateNone,
+				Default: model.DefaultValue{
+					Valid:  true,
+					Value:  "0",
+					Quoted: false,
+				},
+			},
+		},
 	} {
 		var buf bytes.Buffer
 		format.SQL(&buf, tc.before)
