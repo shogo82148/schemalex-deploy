@@ -23,8 +23,11 @@ func TestFormat(t *testing.T) {
 	table.Options = append(table.Options, opt)
 
 	index := model.NewIndex(model.IndexKindPrimaryKey, table.ID())
-	index.SetName("hoge_pk")
-	index.AddColumns(model.NewIndexColumn("fuga"))
+	index.Name = model.MaybeString{
+		Valid: true,
+		Value: "hoge_pk",
+	}
+	index.Columns = append(index.Columns, model.NewIndexColumn("fuga"))
 	table.Indexes = append(table.Indexes, index)
 
 	if !assert.NoError(t, format.SQL(&dst, table), "format.SQL should succeed") {

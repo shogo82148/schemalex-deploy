@@ -409,14 +409,14 @@ func (ctx *alterCtx) dropTableIndexes() error {
 	indexes := ctx.fromIndexes.Difference(ctx.toIndexes)
 	// drop index after drop constraint.
 	// because cannot drop index if needed in a foreign key constraint
-	lazy := make([]model.Index, 0, indexes.Cardinality())
+	lazy := make([]*model.Index, 0, indexes.Cardinality())
 	for _, index := range indexes.ToSlice() {
 		indexStmt, ok := ctx.from.LookupIndex(index.(string))
 		if !ok {
 			return fmt.Errorf("index not found in old schema: %q", index)
 		}
 
-		if indexStmt.IsPrimaryKey() {
+		if indexStmt.Kind == model.IndexKindPrimaryKey {
 			buf.Reset()
 			buf.WriteString("ALTER TABLE ")
 			buf.WriteString(util.Backquote(ctx.from.Name))
@@ -425,10 +425,10 @@ func (ctx *alterCtx) dropTableIndexes() error {
 			continue
 		}
 
-		if !indexStmt.HasName() && !indexStmt.HasSymbol() {
+		if !indexStmt.Name.Valid && !indexStmt.Symbol.Valid {
 			return fmt.Errorf("can not drop index without name: %q", indexStmt.ID())
 		}
-		if !indexStmt.IsForeignKey() {
+		if indexStmt.Kind != model.IndexKindForeignKey {
 			lazy = append(lazy, indexStmt)
 			continue
 		}
@@ -437,10 +437,10 @@ func (ctx *alterCtx) dropTableIndexes() error {
 		buf.WriteString("ALTER TABLE ")
 		buf.WriteString(util.Backquote(ctx.from.Name))
 		buf.WriteString(" DROP FOREIGN KEY `")
-		if indexStmt.HasSymbol() {
-			buf.WriteString(indexStmt.Symbol())
+		if indexStmt.Symbol.Valid {
+			buf.WriteString(indexStmt.Symbol.Value)
 		} else {
-			buf.WriteString(indexStmt.Name())
+			buf.WriteString(indexStmt.Name.Value)
 		}
 		buf.WriteString("`")
 		ctx.append(buf.String())
@@ -452,10 +452,10 @@ func (ctx *alterCtx) dropTableIndexes() error {
 		buf.WriteString("ALTER TABLE ")
 		buf.WriteString(util.Backquote(ctx.from.Name))
 		buf.WriteString(" DROP INDEX `")
-		if !indexStmt.HasName() {
-			buf.WriteString(indexStmt.Symbol())
+		if !indexStmt.Name.Valid {
+			buf.WriteString(indexStmt.Symbol.Value)
 		} else {
-			buf.WriteString(indexStmt.Name())
+			buf.WriteString(indexStmt.Name.Value)
 		}
 		buf.WriteString("`")
 		ctx.append(buf.String())
@@ -469,13 +469,13 @@ func (ctx *alterCtx) addTableIndexes() error {
 	indexes := ctx.toIndexes.Difference(ctx.fromIndexes)
 	// add index before add foreign key.
 	// because cannot add index if create implicitly index by foreign key.
-	lazy := make([]model.Index, 0, indexes.Cardinality())
+	lazy := make([]*model.Index, 0, indexes.Cardinality())
 	for _, index := range indexes.ToSlice() {
 		indexStmt, ok := ctx.to.LookupIndex(index.(string))
 		if !ok {
 			return fmt.Errorf("index not found in old schema: %q", index)
 		}
-		if indexStmt.IsForeignKey() {
+		if indexStmt.Kind == model.IndexKindForeignKey {
 			lazy = append(lazy, indexStmt)
 			continue
 		}

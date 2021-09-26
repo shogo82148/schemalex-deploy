@@ -1,6 +1,7 @@
 package schemalex
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/shogo82148/schemalex-deploy/internal/errors"
@@ -366,7 +367,7 @@ func (p *Parser) parseTableConstraint(ctx *parseCtx, table *model.Table) error {
 		ctx.skipWhiteSpaces()
 	}
 
-	var index model.Index
+	var index *model.Index
 	switch t := ctx.peek(); t.Type {
 	case PRIMARY:
 		index = model.NewIndex(model.IndexKindPrimaryKey, table.ID())
@@ -388,7 +389,10 @@ func (p *Parser) parseTableConstraint(ctx *parseCtx, table *model.Table) error {
 	}
 
 	if len(sym) > 0 {
-		index.SetSymbol(sym)
+		index.Symbol = model.MaybeString{
+			Valid: true,
+			Value: sym,
+		}
 	}
 
 	table.Indexes = append(table.Indexes, index)
@@ -1016,7 +1020,7 @@ OUTER:
 	return nil
 }
 
-func (p *Parser) parseColumnIndexPrimaryKey(ctx *parseCtx, index model.Index) error {
+func (p *Parser) parseColumnIndexPrimaryKey(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	if t := ctx.next(); t.Type != PRIMARY {
 		return newParseError(ctx, t, "expected PRIMARY")
@@ -1029,7 +1033,7 @@ func (p *Parser) parseColumnIndexPrimaryKey(ctx *parseCtx, index model.Index) er
 	return p.parseColumnIndexCommon(ctx, index)
 }
 
-func (p *Parser) parseColumnIndexUniqueKey(ctx *parseCtx, index model.Index) error {
+func (p *Parser) parseColumnIndexUniqueKey(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	switch t := ctx.next(); t.Type {
 	case UNIQUE:
@@ -1046,7 +1050,7 @@ func (p *Parser) parseColumnIndexUniqueKey(ctx *parseCtx, index model.Index) err
 	return p.parseColumnIndexCommon(ctx, index)
 }
 
-func (p *Parser) parseColumnIndexCommon(ctx *parseCtx, index model.Index) error {
+func (p *Parser) parseColumnIndexCommon(ctx *parseCtx, index *model.Index) error {
 	if err := p.parseColumnIndexName(ctx, index); err != nil {
 		return err
 	}
@@ -1059,7 +1063,7 @@ func (p *Parser) parseColumnIndexCommon(ctx *parseCtx, index model.Index) error 
 	if err != nil {
 		return err
 	}
-	index.AddColumns(cols...)
+	index.Columns = append(index.Columns, cols...)
 
 	// Doing this AGAIN, because apparently you can specify the index_type
 	// before or after the column declarations
@@ -1070,7 +1074,7 @@ func (p *Parser) parseColumnIndexCommon(ctx *parseCtx, index model.Index) error 
 	return nil
 }
 
-func (p *Parser) parseColumnIndexKey(ctx *parseCtx, index model.Index) error {
+func (p *Parser) parseColumnIndexKey(ctx *parseCtx, index *model.Index) error {
 	switch t := ctx.next(); t.Type {
 	case KEY, INDEX:
 		ctx.advance()
@@ -1081,7 +1085,7 @@ func (p *Parser) parseColumnIndexKey(ctx *parseCtx, index model.Index) error {
 	return p.parseColumnIndexCommon(ctx, index)
 }
 
-func (p *Parser) parseColumnIndexFullTextKey(ctx *parseCtx, index model.Index) error {
+func (p *Parser) parseColumnIndexFullTextKey(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	if t := ctx.next(); t.Type != FULLTEXT {
 		return newParseError(ctx, t, "expected FULLTEXT")
@@ -1101,7 +1105,7 @@ func (p *Parser) parseColumnIndexFullTextKey(ctx *parseCtx, index model.Index) e
 	if err != nil {
 		return err
 	}
-	index.AddColumns(cols...)
+	index.Columns = append(index.Columns, cols...)
 
 	if err := p.parseColumnIndexOptions(ctx, index); err != nil {
 		return err
@@ -1109,7 +1113,7 @@ func (p *Parser) parseColumnIndexFullTextKey(ctx *parseCtx, index model.Index) e
 	return nil
 }
 
-func (p *Parser) parseColumnIndexSpatialKey(ctx *parseCtx, index model.Index) error {
+func (p *Parser) parseColumnIndexSpatialKey(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	if t := ctx.next(); t.Type != SPATIAL {
 		return newParseError(ctx, t, "expected SPATIAL")
@@ -1129,12 +1133,12 @@ func (p *Parser) parseColumnIndexSpatialKey(ctx *parseCtx, index model.Index) er
 	if err != nil {
 		return err
 	}
-	index.AddColumns(cols...)
+	index.Columns = append(index.Columns, cols...)
 
 	return nil
 }
 
-func (p *Parser) parseColumnIndexForeignKey(ctx *parseCtx, index model.Index) error {
+func (p *Parser) parseColumnIndexForeignKey(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	if t := ctx.next(); t.Type != FOREIGN {
 		return newParseError(ctx, t, "expected FOREGIN")
@@ -1152,7 +1156,7 @@ func (p *Parser) parseColumnIndexForeignKey(ctx *parseCtx, index model.Index) er
 	if err != nil {
 		return err
 	}
-	index.AddColumns(cols...)
+	index.Columns = append(index.Columns, cols...)
 
 	ctx.skipWhiteSpaces()
 	if t := ctx.peek(); t.Type == REFERENCES {
@@ -1189,7 +1193,7 @@ func (p *Parser) parseReferenceOption(ctx *parseCtx, set func(model.ReferenceOpt
 	return nil
 }
 
-func (p *Parser) parseColumnReference(ctx *parseCtx, index model.Index) error {
+func (p *Parser) parseColumnReference(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	if t := ctx.next(); t.Type != REFERENCES {
 		return newParseError(ctx, t, "expected REFERENCES")
@@ -1254,35 +1258,39 @@ OUTER:
 		}
 	}
 
-	index.SetReference(r)
+	index.Reference = r
 	return nil
 }
 
-func (p *Parser) parseColumnIndexName(ctx *parseCtx, index model.Index) error {
+func (p *Parser) parseColumnIndexName(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	switch t := ctx.peek(); t.Type {
 	case BACKTICK_IDENT, IDENT:
 		ctx.advance()
-		index.SetName(t.Value)
+		index.Name = model.MaybeString{
+			Valid: true,
+			Value: t.Value,
+		}
 	}
 	return nil
 }
 
-func (p *Parser) parseColumnIndexType(ctx *parseCtx, index model.Index) error {
+func (p *Parser) parseColumnIndexType(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	if t := ctx.peek(); t.Type != USING {
 		return nil
 	}
 	ctx.advance()
 
-	if index.HasType() {
+	if index.Type != model.IndexTypeNone {
 		var typ string
-		if index.IsBtree() {
+		switch index.Type {
+		case model.IndexTypeBtree:
 			typ = "BTREE"
-		} else if index.IsHash() {
+		case model.IndexTypeHash:
 			typ = "HASH"
-		} else {
-			typ = "NONE"
+		default:
+			panic(fmt.Sprintf("unexpected index type: %v", index.Type))
 		}
 		return errors.Errorf(`statement already has index type declared (%s)`, typ)
 	}
@@ -1290,9 +1298,9 @@ func (p *Parser) parseColumnIndexType(ctx *parseCtx, index model.Index) error {
 	ctx.skipWhiteSpaces()
 	switch t := ctx.next(); t.Type {
 	case BTREE:
-		index.SetType(model.IndexTypeBtree)
+		index.Type = model.IndexTypeBtree
 	case HASH:
-		index.SetType(model.IndexTypeHash)
+		index.Type = model.IndexTypeHash
 	default:
 		return newParseError(ctx, t, "expected BTREE or HASH")
 	}
@@ -1363,7 +1371,7 @@ OUTER:
 	return cols, nil
 }
 
-func (p *Parser) parseColumnIndexOptions(ctx *parseCtx, index model.Index) error {
+func (p *Parser) parseColumnIndexOptions(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	t := ctx.peek()
 	if t.Type == RPAREN {
@@ -1387,7 +1395,7 @@ func (p *Parser) parseColumnIndexOptions(ctx *parseCtx, index model.Index) error
 	return nil
 }
 
-func (p *Parser) parseColumnIndexOptionValue(ctx *parseCtx, index model.Index, name string, follow ...TokenType) error {
+func (p *Parser) parseColumnIndexOptionValue(ctx *parseCtx, index *model.Index, name string, follow ...TokenType) error {
 	ctx.skipWhiteSpaces()
 	t := ctx.next()
 	for _, typ := range follow {
@@ -1399,7 +1407,7 @@ func (p *Parser) parseColumnIndexOptionValue(ctx *parseCtx, index model.Index, n
 		case IDENT, BACKTICK_IDENT:
 			quotes = true
 		}
-		index.AddOption(model.NewIndexOption(name, t.Value, quotes))
+		index.Options = append(index.Options, model.NewIndexOption(name, t.Value, quotes))
 		return nil
 	}
 	return newParseError(ctx, t, "expected %v", follow)

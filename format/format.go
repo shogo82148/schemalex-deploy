@@ -2,7 +2,6 @@ package format
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 
@@ -63,7 +62,7 @@ func format(ctx *fmtCtx, v interface{}) error {
 		return formatTableColumn(ctx, v)
 	case *model.TableOption:
 		return formatTableOption(ctx, v)
-	case model.Index:
+	case *model.Index:
 		return formatIndex(ctx, v)
 	case *model.Reference:
 		return formatReference(ctx, v)
@@ -312,52 +311,51 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 	return nil
 }
 
-func formatIndex(ctx *fmtCtx, index model.Index) error {
+func formatIndex(ctx *fmtCtx, index *model.Index) error {
 	var buf bytes.Buffer
 
 	buf.WriteString(ctx.curIndent)
-	if index.HasSymbol() {
+	if index.Symbol.Valid {
 		buf.WriteString("CONSTRAINT ")
-		buf.WriteString(util.Backquote(index.Symbol()))
+		buf.WriteString(util.Backquote(index.Symbol.Value))
 		buf.WriteByte(' ')
 	}
 
-	switch {
-	case index.IsPrimaryKey():
+	switch index.Kind {
+	case model.IndexKindPrimaryKey:
 		buf.WriteString("PRIMARY KEY")
-	case index.IsNormal():
+	case model.IndexKindNormal:
 		buf.WriteString("INDEX")
-	case index.IsUnique():
+	case model.IndexKindUnique:
 		buf.WriteString("UNIQUE INDEX")
-	case index.IsFullText():
+	case model.IndexKindFullText:
 		buf.WriteString("FULLTEXT INDEX")
-	case index.IsSpatial():
+	case model.IndexKindSpatial:
 		buf.WriteString("SPATIAL INDEX")
-	case index.IsForeignKey():
+	case model.IndexKindForeignKey:
 		buf.WriteString("FOREIGN KEY")
 	}
 
-	if index.HasName() {
+	if index.Name.Valid {
 		buf.WriteByte(' ')
-		buf.WriteString(util.Backquote(index.Name()))
+		buf.WriteString(util.Backquote(index.Name.Value))
 	}
 
-	switch {
-	case index.IsBtree():
+	switch index.Type {
+	case model.IndexTypeBtree:
 		buf.WriteString(" USING BTREE")
-	case index.IsHash():
+	case model.IndexTypeHash:
 		buf.WriteString(" USING HASH")
 	}
 
 	buf.WriteString(" (")
-	ch := index.Columns()
+	ch := index.Columns
 	lch := len(ch)
 	if lch == 0 {
-		return errors.New(`no columns in index`)
+		return fmt.Errorf("format: no columns in the index %q", index.ID())
 	}
 
-	var i int
-	for col := range ch {
+	for i, col := range ch {
 		buf.WriteString(util.Backquote(col.Name))
 		if col.Length.Valid {
 			buf.WriteByte('(')
@@ -376,13 +374,12 @@ func formatIndex(ctx *fmtCtx, index model.Index) error {
 		if i < lch-1 {
 			buf.WriteString(", ")
 		}
-		i++
 	}
 	buf.WriteByte(')')
 
-	switch {
-	case index.IsFullText():
-		for opt := range index.Options() {
+	switch index.Kind {
+	case model.IndexKindFullText:
+		for _, opt := range index.Options {
 			if opt.Key != "WITH PARSER" {
 				continue
 			}
@@ -397,7 +394,7 @@ func formatIndex(ctx *fmtCtx, index model.Index) error {
 		}
 	}
 
-	if ref := index.Reference(); ref != nil {
+	if ref := index.Reference; ref != nil {
 		newctx := ctx.clone()
 		newctx.dst = &buf
 

@@ -9,7 +9,7 @@ type Table struct {
 	IfNotExists bool
 	LikeTable   MaybeString
 	Columns     []*TableColumn
-	Indexes     []Index
+	Indexes     []*Index
 	Options     []*TableOption
 }
 
@@ -54,7 +54,7 @@ func (t *Table) LookupColumnBefore(id string) (*TableColumn, bool) {
 	return nil, false
 }
 
-func (t *Table) LookupIndex(id string) (Index, bool) {
+func (t *Table) LookupIndex(id string) (*Index, bool) {
 	for _, idx := range t.Indexes {
 		if idx.ID() == id {
 			return idx, true
@@ -65,7 +65,7 @@ func (t *Table) LookupIndex(id string) (Index, bool) {
 
 func (t *Table) Normalize() (*Table, bool) {
 	var clone bool
-	var additionalIndexes []Index
+	var additionalIndexes []*Index
 	var columns []*TableColumn
 	for _, col := range t.Columns {
 		ncol, modified := col.Normalize()
@@ -80,9 +80,9 @@ func (t *Table) Normalize() (*Table, bool) {
 			// we have to move off the index declaration from the
 			// primary key column to an index associated with the table
 			index := NewIndex(IndexKindPrimaryKey, t.ID())
-			index.SetType(IndexTypeNone)
+			index.Type = IndexTypeNone
 			idxCol := NewIndexColumn(ncol.Name)
-			index.AddColumns(idxCol)
+			index.Columns = append(index.Columns, idxCol)
 			additionalIndexes = append(additionalIndexes, index)
 			if !modified {
 				clone = true
@@ -92,10 +92,11 @@ func (t *Table) Normalize() (*Table, bool) {
 		case ncol.Unique:
 			index := NewIndex(IndexKindUnique, t.ID())
 			// if you do not assign a name, the index is assigned the same name as the first indexed column
-			index.SetName(ncol.Name)
-			index.SetType(IndexTypeNone)
+			index.Name.Valid = true
+			index.Name.Value = ncol.Name
+			index.Type = IndexTypeNone
 			idxCol := NewIndexColumn(ncol.Name)
-			index.AddColumns(idxCol)
+			index.Columns = append(index.Columns, idxCol)
 			additionalIndexes = append(additionalIndexes, index)
 			if !modified {
 				clone = true
@@ -107,7 +108,7 @@ func (t *Table) Normalize() (*Table, bool) {
 		columns = append(columns, ncol)
 	}
 
-	var indexes []Index
+	var indexes []*Index
 	var seen = make(map[string]struct{})
 	for _, idx := range t.Indexes {
 		nidx, modified := idx.Normalize()
@@ -119,30 +120,24 @@ func (t *Table) Normalize() (*Table, bool) {
 		// implicitly created INDEX too difficult.
 		// (lestrrat) this comment is confusing. Please add
 		// actual examples somewhere
-		if nidx.IsForeignKey() && nidx.HasSymbol() {
+		if nidx.Kind == IndexKindForeignKey && nidx.Symbol.Valid {
 			// There's a chance the user has already explicitly declared the
 			// index for this constraint. Only add this implicit index if we
 			// haven't seen it before
-			if _, ok := seen[nidx.Symbol()]; !ok {
+			if _, ok := seen[nidx.Symbol.Value]; !ok {
 				clone = true
 				// add implicitly created INDEX
 				index := NewIndex(IndexKindNormal, t.ID())
-				index.SetName(nidx.Symbol())
-				if nidx.IsBtree() {
-					index.SetType(IndexTypeBtree)
-				} else if nidx.IsHash() {
-					index.SetType(IndexTypeHash)
-				}
-				columns := []*IndexColumn{}
-				for c := range nidx.Columns() {
-					columns = append(columns, c)
-				}
-				index.AddColumns(columns...)
+				index.Name.Valid = true
+				index.Name.Value = nidx.Symbol.Value
+				index.Type = nidx.Type
+				index.Columns = make([]*IndexColumn, len(nidx.Columns))
+				copy(index.Columns, nidx.Columns)
 				indexes = append(indexes, index)
 			}
 		}
 		indexes = append(indexes, nidx)
-		seen[nidx.Name()] = struct{}{}
+		seen[nidx.Name.Value] = struct{}{}
 	}
 
 	if !clone {
