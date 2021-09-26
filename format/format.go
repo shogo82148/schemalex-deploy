@@ -358,18 +358,19 @@ func formatIndex(ctx *fmtCtx, index model.Index) error {
 
 	var i int
 	for col := range ch {
-		buf.WriteString(util.Backquote(col.Name()))
-		if col.HasLength() {
+		buf.WriteString(util.Backquote(col.Name))
+		if col.Length.Valid {
 			buf.WriteByte('(')
-			buf.WriteString(col.Length())
+			buf.WriteString(col.Length.Value)
 			buf.WriteByte(')')
 		}
-		if col.HasSortDirection() {
-			if col.IsAscending() {
-				buf.WriteString(" ASC")
-			} else {
-				buf.WriteString(" DESC")
-			}
+		switch col.SortDirection {
+		case model.SortDirectionNone:
+			// nothing to do
+		case model.SortDirectionAscending:
+			buf.WriteString(" ASC")
+		case model.SortDirectionDescending:
+			buf.WriteString(" DESC")
 		}
 
 		if i < lch-1 {
@@ -423,16 +424,15 @@ func formatReference(ctx *fmtCtx, r *model.Reference) error {
 	ch := r.Columns
 	lch := len(ch)
 	for i, col := range ch {
-		buf.WriteString(util.Backquote(col.Name()))
-		if col.HasLength() {
+		buf.WriteString(util.Backquote(col.Name))
+		if col.Length.Valid {
 			buf.WriteByte('(')
-			buf.WriteString(col.Length())
+			buf.WriteString(col.Length.Value)
 			buf.WriteByte(')')
 		}
 		if i < lch-1 {
 			buf.WriteString(", ")
 		}
-		i++
 	}
 	buf.WriteByte(')')
 

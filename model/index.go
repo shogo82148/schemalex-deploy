@@ -50,12 +50,12 @@ func (stmt *index) ID() string {
 	return fmt.Sprintf("%s#%x", name, h.Sum(nil))
 }
 
-func (stmt *index) AddColumns(l ...IndexColumn) {
+func (stmt *index) AddColumns(l ...*IndexColumn) {
 	stmt.columns = append(stmt.columns, l...)
 }
 
-func (stmt *index) Columns() chan IndexColumn {
-	c := make(chan IndexColumn, len(stmt.columns))
+func (stmt *index) Columns() chan *IndexColumn {
+	c := make(chan *IndexColumn, len(stmt.columns))
 	for _, col := range stmt.columns {
 		c <- col
 	}
@@ -165,51 +165,24 @@ func (stmt *index) Clone() Index {
 	return newindex
 }
 
-func NewIndexColumn(name string) IndexColumn {
-	return &indexColumn{
-		name: name,
+// IndexColumn is a column name/length specification used in indexes
+type IndexColumn struct {
+	Name          string
+	Length        MaybeString
+	SortDirection IndexColumnSortDirection
+}
+
+func NewIndexColumn(name string) *IndexColumn {
+	return &IndexColumn{
+		Name: name,
 	}
 }
 
-func (col *indexColumn) ID() string {
-	if col.HasLength() {
-		return "index_column#" + col.Name() + "-" + col.Length()
+func (col *IndexColumn) ID() string {
+	if col.Length.Valid {
+		return "index_column#" + col.Name + "-" + col.Length.Value
 	}
-	return "index_column#" + col.Name()
-}
-
-func (col *indexColumn) Name() string {
-	return col.name
-}
-
-func (col *indexColumn) HasLength() bool {
-	return col.length.Valid
-}
-
-func (col *indexColumn) Length() string {
-	return col.length.Value
-}
-
-func (col *indexColumn) SetLength(s string) IndexColumn {
-	col.length.Valid = true
-	col.length.Value = s
-	return col
-}
-
-func (col *indexColumn) SetSortDirection(v IndexColumnSortDirection) {
-	col.sortDirection = v
-}
-
-func (col *indexColumn) HasSortDirection() bool {
-	return col.sortDirection != SortDirectionNone
-}
-
-func (col *indexColumn) IsAscending() bool {
-	return col.sortDirection == SortDirectionAscending
-}
-
-func (col *indexColumn) IsDescending() bool {
-	return col.sortDirection == SortDirectionDescending
+	return "index_column#" + col.Name
 }
 
 // IndexOption describes a possible index option, such as `WITH PARSER ngram`

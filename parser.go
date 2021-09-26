@@ -1300,9 +1300,9 @@ func (p *Parser) parseColumnIndexType(ctx *parseCtx, index model.Index) error {
 }
 
 // TODO rename method name
-func (p *Parser) parseColumnIndexColumns(ctx *parseCtx) ([]model.IndexColumn, error) {
+func (p *Parser) parseColumnIndexColumns(ctx *parseCtx) ([]*model.IndexColumn, error) {
 
-	var cols []model.IndexColumn
+	var cols []*model.IndexColumn
 
 	ctx.skipWhiteSpaces()
 	if t := ctx.next(); t.Type != LPAREN {
@@ -1332,7 +1332,8 @@ OUTER:
 			if t = ctx.next(); t.Type != RPAREN {
 				return nil, newParseError(ctx, t, "expected RPAREN")
 			}
-			col.SetLength(tlen)
+			col.Length.Valid = true
+			col.Length.Value = tlen
 		default:
 			ctx.rewind()
 		}
@@ -1341,10 +1342,10 @@ OUTER:
 		switch t = ctx.peek(); t.Type {
 		case ASC:
 			ctx.advance()
-			col.SetSortDirection(model.SortDirectionAscending)
+			col.SortDirection = model.SortDirectionAscending
 		case DESC:
 			ctx.advance()
-			col.SetSortDirection(model.SortDirectionDescending)
+			col.SortDirection = model.SortDirectionDescending
 		}
 
 		ctx.skipWhiteSpaces()

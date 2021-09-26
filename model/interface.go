@@ -19,8 +19,8 @@ type MaybeString struct {
 // ColumnContainer is the interface for objects that can contain
 // column names
 type ColumnContainer interface {
-	AddColumns(...IndexColumn)
-	Columns() chan IndexColumn
+	AddColumns(...*IndexColumn)
+	Columns() chan *IndexColumn
 }
 
 type IndexColumnSortDirection int
@@ -30,19 +30,6 @@ const (
 	SortDirectionAscending
 	SortDirectionDescending
 )
-
-// IndexColumn is a column name/length specification used in indexes
-type IndexColumn interface {
-	ID() string
-	Name() string
-	SetLength(string) IndexColumn
-	HasLength() bool
-	Length() string
-	SetSortDirection(IndexColumnSortDirection)
-	HasSortDirection() bool
-	IsAscending() bool
-	IsDescending() bool
-}
 
 // Index describes an index on a table.
 type Index interface {
@@ -105,21 +92,13 @@ const (
 	IndexTypeHash
 )
 
-// and index column specification may be
-// name or name(length)
-type indexColumn struct {
-	name          string
-	length        MaybeString
-	sortDirection IndexColumnSortDirection
-}
-
 type index struct {
 	symbol    MaybeString
 	kind      IndexKind
 	name      MaybeString
 	typ       IndexType
 	table     string
-	columns   []IndexColumn
+	columns   []*IndexColumn
 	reference *Reference
 	options   []*IndexOption
 }

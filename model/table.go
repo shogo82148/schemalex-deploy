@@ -133,7 +133,7 @@ func (t *Table) Normalize() (*Table, bool) {
 				} else if nidx.IsHash() {
 					index.SetType(IndexTypeHash)
 				}
-				columns := []IndexColumn{}
+				columns := []*IndexColumn{}
 				for c := range nidx.Columns() {
 					columns = append(columns, c)
 				}

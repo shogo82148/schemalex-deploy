@@ -38,7 +38,7 @@ const (
 // Reference describes a possible reference from one table to another
 type Reference struct {
 	TableName string
-	Columns   []IndexColumn
+	Columns   []*IndexColumn
 	Match     ReferenceMatch
 	OnDelete  ReferenceOption
 	OnUpdate  ReferenceOption
@@ -75,7 +75,7 @@ func (r *Reference) String() string {
 	ch := r.Columns
 	lch := len(ch)
 	for i, col := range ch {
-		buf.WriteString(util.Backquote(col.Name()))
+		buf.WriteString(util.Backquote(col.Name))
 		if i < lch-1 {
 			buf.WriteString(", ")
 		}
