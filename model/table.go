@@ -4,7 +4,7 @@ import "strings"
 
 // Table describes a table model
 type Table struct {
-	Name        string
+	Name        Ident
 	Temporary   bool
 	IfNotExists bool
 	LikeTable   MaybeString
@@ -16,12 +16,12 @@ type Table struct {
 // NewTable create a new table with the given name
 func NewTable(name string) *Table {
 	return &Table{
-		Name: name,
+		Name: Ident(name),
 	}
 }
 
 func (t *Table) ID() string {
-	return "table#" + strings.ToLower(t.Name)
+	return "table#" + strings.ToLower(string(t.Name))
 }
 
 func (t *Table) LookupColumn(id string) (*TableColumn, bool) {
@@ -124,15 +124,14 @@ func (t *Table) Normalize() *Table {
 		seen[nidx.Name.Value] = struct{}{}
 	}
 
-	tbl := NewTable(t.Name)
+	tbl := *t
 	tbl.IfNotExists = t.IfNotExists
 	tbl.Temporary = t.Temporary
 	tbl.Indexes = append(additionalIndexes, indexes...)
 	tbl.Columns = columns
 	tbl.Options = make([]*TableOption, len(t.Options))
 	copy(tbl.Options, t.Options)
-
-	return tbl
+	return &tbl
 }
 
 // TableOption describes a possible table option, such as `ENGINE=InnoDB`

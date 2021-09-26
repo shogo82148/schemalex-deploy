@@ -119,7 +119,7 @@ func formatTable(ctx *fmtCtx, table *model.Table) error {
 	}
 
 	buf.WriteByte(' ')
-	buf.WriteString(util.Backquote(table.Name))
+	buf.WriteString(table.Name.Quoted())
 
 	if table.LikeTable.Valid {
 		buf.WriteString(" LIKE ")
