@@ -9,28 +9,27 @@ import (
 	"reflect"
 	"sort"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/shogo82148/schemalex-deploy"
 	"github.com/shogo82148/schemalex-deploy/format"
 	"github.com/shogo82148/schemalex-deploy/model"
 )
 
 type diffCtx struct {
-	fromSet mapset.Set
-	toSet   mapset.Set
+	fromSet set
+	toSet   set
 	from    model.Stmts
 	to      model.Stmts
 	result  Stmts
 }
 
 func newDiffCtx(from, to model.Stmts) *diffCtx {
-	fromSet := mapset.NewSet()
+	fromSet := newSet()
 	for _, stmt := range from {
 		if cs, ok := stmt.(*model.Table); ok {
 			fromSet.Add(cs.ID())
 		}
 	}
-	toSet := mapset.NewSet()
+	toSet := newSet()
 	for _, stmt := range to {
 		if cs, ok := stmt.(*model.Table); ok {
 			toSet.Add(cs.ID())
@@ -133,7 +132,7 @@ func Strings(dst io.Writer, from, to string, options ...Option) error {
 func (ctx *diffCtx) dropTables() error {
 	ids := ctx.fromSet.Difference(ctx.toSet)
 	for _, id := range ids.ToSlice() {
-		stmt, ok := ctx.from.Lookup(id.(string))
+		stmt, ok := ctx.from.Lookup(id)
 		if !ok {
 			return fmt.Errorf("failed to lookup table: %q", id)
 		}
@@ -153,7 +152,7 @@ func (ctx *diffCtx) createTables() error {
 	ids := ctx.toSet.Difference(ctx.fromSet)
 	for _, id := range ids.ToSlice() {
 		// Lookup the corresponding statement, and add its SQL
-		stmt, ok := ctx.to.Lookup(id.(string))
+		stmt, ok := ctx.to.Lookup(id)
 		if !ok {
 			return fmt.Errorf("failed to lookup table: %q", id)
 		}
@@ -168,32 +167,32 @@ func (ctx *diffCtx) createTables() error {
 }
 
 type alterCtx struct {
-	fromColumns mapset.Set
-	toColumns   mapset.Set
-	fromIndexes mapset.Set
-	toIndexes   mapset.Set
+	fromColumns set
+	toColumns   set
+	fromIndexes set
+	toIndexes   set
 	from        *model.Table
 	to          *model.Table
 	result      Stmts
 }
 
 func newAlterCtx(ctx *diffCtx, from, to *model.Table) *alterCtx {
-	fromColumns := mapset.NewSet()
+	fromColumns := newSet()
 	for _, col := range from.Columns {
 		fromColumns.Add(col.ID())
 	}
 
-	toColumns := mapset.NewSet()
+	toColumns := newSet()
 	for _, col := range to.Columns {
 		toColumns.Add(col.ID())
 	}
 
-	fromIndexes := mapset.NewSet()
+	fromIndexes := newSet()
 	for _, idx := range from.Indexes {
 		fromIndexes.Add(idx.ID())
 	}
 
-	toIndexes := mapset.NewSet()
+	toIndexes := newSet()
 	for _, idx := range to.Indexes {
 		toIndexes.Add(idx.ID())
 	}
@@ -227,13 +226,13 @@ func (ctx *diffCtx) alterTables() error {
 		var stmt model.Stmt
 		var ok bool
 
-		stmt, ok = ctx.from.Lookup(id.(string))
+		stmt, ok = ctx.from.Lookup(id)
 		if !ok {
 			return fmt.Errorf("table not found in old schema (alter table): %q", id)
 		}
 		beforeStmt := stmt.(*model.Table)
 
-		stmt, ok = ctx.to.Lookup(id.(string))
+		stmt, ok = ctx.to.Lookup(id)
 		if !ok {
 			return fmt.Errorf("table not found in new schema (alter table): %q", id)
 		}
@@ -260,7 +259,7 @@ func (ctx *alterCtx) dropTableColumns() error {
 		buf.WriteString("ALTER TABLE ")
 		buf.WriteString(ctx.from.Name.Quoted())
 		buf.WriteString(" DROP COLUMN ")
-		col, ok := ctx.from.LookupColumn(columnName.(string))
+		col, ok := ctx.from.LookupColumn(columnName)
 		if !ok {
 			return fmt.Errorf("failed to lookup column %q", columnName)
 		}
@@ -278,8 +277,7 @@ func (ctx *alterCtx) addTableColumns() error {
 	// we always start adding with a column that has a either no before
 	// columns, or one that already exists in the database
 	var firstColumn *model.TableColumn
-	for _, v := range ctx.toColumns.Difference(ctx.fromColumns).ToSlice() {
-		columnName := v.(string)
+	for _, columnName := range ctx.toColumns.Difference(ctx.fromColumns).ToSlice() {
 		// find the before-column for each.
 		col, ok := ctx.to.LookupColumn(columnName)
 		if !ok {
@@ -307,8 +305,7 @@ func (ctx *alterCtx) addTableColumns() error {
 	var columnNames []string
 	// Find columns that have before columns which existed in both
 	// from and to tables
-	for _, v := range ctx.toColumns.Intersect(ctx.fromColumns).ToSlice() {
-		columnName := v.(string)
+	for _, columnName := range ctx.toColumns.Intersect(ctx.fromColumns).ToSlice() {
 		if nextColumnName, ok := beforeToNext[columnName]; ok {
 			delete(beforeToNext, columnName)
 			delete(nextToBefore, nextColumnName)
@@ -373,12 +370,12 @@ func (ctx *alterCtx) alterTableColumns() error {
 	var buf bytes.Buffer
 	columnNames := ctx.toColumns.Intersect(ctx.fromColumns)
 	for _, columnName := range columnNames.ToSlice() {
-		beforeColumnStmt, ok := ctx.from.LookupColumn(columnName.(string))
+		beforeColumnStmt, ok := ctx.from.LookupColumn(columnName)
 		if !ok {
 			return fmt.Errorf("column not found in old schema: %q", columnName)
 		}
 
-		afterColumnStmt, ok := ctx.to.LookupColumn(columnName.(string))
+		afterColumnStmt, ok := ctx.to.LookupColumn(columnName)
 		if !ok {
 			return fmt.Errorf("column not found in new schema: %q", columnName)
 		}
@@ -408,7 +405,7 @@ func (ctx *alterCtx) dropTableIndexes() error {
 	// because cannot drop index if needed in a foreign key constraint
 	lazy := make([]*model.Index, 0, indexes.Cardinality())
 	for _, index := range indexes.ToSlice() {
-		indexStmt, ok := ctx.from.LookupIndex(index.(string))
+		indexStmt, ok := ctx.from.LookupIndex(index)
 		if !ok {
 			return fmt.Errorf("index not found in old schema: %q", index)
 		}
@@ -466,7 +463,7 @@ func (ctx *alterCtx) addTableIndexes() error {
 	// because cannot add index if create implicitly index by foreign key.
 	lazy := make([]*model.Index, 0, indexes.Cardinality())
 	for _, index := range indexes.ToSlice() {
-		indexStmt, ok := ctx.to.LookupIndex(index.(string))
+		indexStmt, ok := ctx.to.LookupIndex(index)
 		if !ok {
 			return fmt.Errorf("index not found in old schema: %q", index)
 		}
