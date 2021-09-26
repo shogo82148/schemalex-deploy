@@ -200,7 +200,7 @@ func (p *Parser) parseCreateDatabase(ctx *parseCtx) (*model.Database, error) {
 	var database *model.Database
 	switch t := ctx.next(); t.Type {
 	case IDENT, BACKTICK_IDENT:
-		database = model.NewDatabase(t.Value)
+		database = model.NewDatabase(t.Ident())
 	default:
 		return nil, newParseError(ctx, t, "expected IDENT, BACKTICK_IDENT")
 	}
@@ -239,7 +239,7 @@ func (p *Parser) parseCreateTable(ctx *parseCtx) (*model.Table, error) {
 
 	switch t := ctx.next(); t.Type {
 	case IDENT, BACKTICK_IDENT:
-		table = model.NewTable(t.Value)
+		table = model.NewTable(t.Ident())
 	default:
 		return nil, newParseError(ctx, t, "expected IDENT or BACKTICK_IDENT")
 	}

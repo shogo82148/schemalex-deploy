@@ -9,9 +9,9 @@ type Database struct {
 }
 
 // NewDatabase creates a new database mode with th given name
-func NewDatabase(name string) *Database {
+func NewDatabase(name Ident) *Database {
 	return &Database{
-		Name: Ident(name),
+		Name: name,
 	}
 }
 

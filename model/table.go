@@ -14,9 +14,9 @@ type Table struct {
 }
 
 // NewTable create a new table with the given name
-func NewTable(name string) *Table {
+func NewTable(name Ident) *Table {
 	return &Table{
-		Name: Ident(name),
+		Name: name,
 	}
 }
 

@@ -37,6 +37,12 @@ func _main() error {
 		"",
 		"package "+*packageName,
 		"",
+		"import (",
+		`"fmt"`,
+		"",
+		`"github.com/shogo82148/schemalex-deploy/model"`,
+		")",
+		"",
 		"// TokenType describes the possible types of tokens that schemalex understands",
 		"type TokenType int",
 		"",
@@ -50,6 +56,15 @@ func _main() error {
 		"EOF bool",
 		"}",
 		"",
+		"// Ident returns an identifier.",
+		"// It is only meaningful if the Type is IDENT or BACKTICK_IDENT.",
+		"// The caller must check it.",
+		"func (t Token) Ident() model.Ident {",
+		"if t.Type != IDENT && t.Type != BACKTICK_IDENT {",
+		`panic(fmt.Sprintf("unexpected type: %s", t.Type))`,
+		"}",
+		"return model.Ident(t.Value)",
+		"}",
 	)
 
 	println(

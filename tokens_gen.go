@@ -2,6 +2,12 @@
 
 package schemalex
 
+import (
+	"fmt"
+
+	"github.com/shogo82148/schemalex-deploy/model"
+)
+
 // TokenType describes the possible types of tokens that schemalex understands
 type TokenType int
 
@@ -13,6 +19,16 @@ type Token struct {
 	Line  int
 	Col   int
 	EOF   bool
+}
+
+// Ident returns an identifier.
+// It is only meaningful if the Type is IDENT or BACKTICK_IDENT.
+// The caller must check it.
+func (t Token) Ident() model.Ident {
+	if t.Type != IDENT && t.Type != BACKTICK_IDENT {
+		panic(fmt.Sprintf("unexpected type: %s", t.Type))
+	}
+	return model.Ident(t.Value)
 }
 
 // NewToken creates a new token of type `t`, with value `v`
