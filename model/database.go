@@ -1,29 +1,20 @@
 package model
 
+import "strings"
+
+// Database represents a database definition
+type Database struct {
+	Name        string
+	IfNotExists bool
+}
+
 // NewDatabase creates a new database mode with th given name
-func NewDatabase(n string) Database {
-	return &database{
-		name: n,
+func NewDatabase(name string) *Database {
+	return &Database{
+		Name: name,
 	}
 }
 
-func (d *database) isDatabase() bool {
-	return true
-}
-
-func (d *database) ID() string {
-	return "database#" + d.name
-}
-
-func (d *database) Name() string {
-	return d.name
-}
-
-func (d *database) IsIfNotExists() bool {
-	return d.ifnotexists
-}
-
-func (d *database) SetIfNotExists(v bool) Database {
-	d.ifnotexists = v
-	return d
+func (d *Database) ID() string {
+	return "database#" + strings.ToLower(d.Name)
 }

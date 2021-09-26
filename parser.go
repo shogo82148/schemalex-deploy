@@ -177,7 +177,7 @@ func (p *Parser) parseCreate(ctx *parseCtx) (model.Stmt, error) {
 
 // https://dev.mysql.com/doc/refman/5.5/en/create-database.html
 // TODO: charset, collation
-func (p *Parser) parseCreateDatabase(ctx *parseCtx) (model.Database, error) {
+func (p *Parser) parseCreateDatabase(ctx *parseCtx) (*model.Database, error) {
 	if t := ctx.next(); t.Type != DATABASE {
 		return nil, errors.New(`expected DATABASE`)
 	}
@@ -195,7 +195,7 @@ func (p *Parser) parseCreateDatabase(ctx *parseCtx) (model.Database, error) {
 
 	ctx.skipWhiteSpaces()
 
-	var database model.Database
+	var database *model.Database
 	switch t := ctx.next(); t.Type {
 	case IDENT, BACKTICK_IDENT:
 		database = model.NewDatabase(t.Value)
@@ -203,7 +203,7 @@ func (p *Parser) parseCreateDatabase(ctx *parseCtx) (model.Database, error) {
 		return nil, newParseError(ctx, t, "expected IDENT, BACKTICK_IDENT")
 	}
 
-	database.SetIfNotExists(notexists)
+	database.IfNotExists = notexists
 	p.eol(ctx)
 	return database, nil
 }
