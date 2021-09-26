@@ -1,19 +1,67 @@
+//go:generate stringer -type=IndexType -output=index_type_string_gen.go
+//go:generate stringer -type=IndexKind -output=index_kind_string_gen.go
+
 package model
 
 import (
 	"crypto/sha256"
 	"fmt"
+	"strings"
 )
 
+type IndexColumnSortDirection int
+
+const (
+	SortDirectionNone IndexColumnSortDirection = iota
+	SortDirectionAscending
+	SortDirectionDescending
+)
+
+// IndexKind describes the kind (purpose) of an index
+type IndexKind int
+
+// List of possible IndexKind.
+const (
+	IndexKindInvalid IndexKind = iota
+	IndexKindPrimaryKey
+	IndexKindNormal
+	IndexKindUnique
+	IndexKindFullText
+	IndexKindSpatial
+	IndexKindForeignKey
+)
+
+// IndexType describes the type (algorithm) used by the index.
+type IndexType int
+
+// List of possible index types
+const (
+	IndexTypeNone IndexType = iota
+	IndexTypeBtree
+	IndexTypeHash
+)
+
+// Index describes an index on a table.
+type Index struct {
+	Symbol    MaybeString
+	Kind      IndexKind
+	Name      MaybeString
+	Type      IndexType
+	Table     string
+	Columns   []*IndexColumn
+	Reference *Reference
+	Options   []*IndexOption
+}
+
 // NewIndex creates a new index with the given index kind.
-func NewIndex(kind IndexKind, table string) Index {
-	return &index{
-		kind:  kind,
-		table: table,
+func NewIndex(kind IndexKind, table string) *Index {
+	return &Index{
+		Kind:  kind,
+		Table: table,
 	}
 }
 
-func (stmt *index) ID() string {
+func (stmt *Index) ID() string {
 	// This is tricky. and index may or may not have a name. It would
 	// have been so much easier if we did, but we don't, so we'll fake
 	// something.
@@ -21,205 +69,76 @@ func (stmt *index) ID() string {
 	// In case we don't have a name, we need to know the table, the kind,
 	// the type, // the column(s), and the reference(s).
 	name := "index"
-	if stmt.HasName() {
-		name = name + "#" + stmt.Name()
+	if stmt.Name.Valid {
+		name = name + "#" + stmt.Name.Value
 	}
 	h := sha256.New()
 
 	sym := "none"
-	if stmt.HasSymbol() {
-		sym = stmt.Symbol()
+	if stmt.Symbol.Valid {
+		sym = stmt.Symbol.Value
 	}
 
 	fmt.Fprintf(h,
 		"%s.%s.%s.%s",
-		stmt.table,
+		stmt.Table,
 		sym,
-		stmt.kind,
-		stmt.typ,
+		stmt.Kind,
+		stmt.Type,
 	)
-	for col := range stmt.Columns() {
+	for _, col := range stmt.Columns {
 		fmt.Fprintf(h, ".")
 		fmt.Fprintf(h, "%s", col.ID())
 	}
-	if stmt.reference != nil {
+	if stmt.Reference != nil {
 		fmt.Fprintf(h, ".")
-		fmt.Fprintf(h, "%s", stmt.reference.ID())
+		fmt.Fprintf(h, "%s", stmt.Reference.ID())
 	}
 	return fmt.Sprintf("%s#%x", name, h.Sum(nil))
 }
 
-func (stmt *index) AddColumns(l ...IndexColumn) {
-	stmt.columns = append(stmt.columns, l...)
-}
-
-func (stmt *index) Columns() chan IndexColumn {
-	c := make(chan IndexColumn, len(stmt.columns))
-	for _, col := range stmt.columns {
-		c <- col
-	}
-	close(c)
-	return c
-}
-
-func (stmt *index) Reference() Reference {
-	return stmt.reference
-}
-
-func (stmt *index) Name() string {
-	return stmt.name.Value
-}
-
-func (stmt *index) Symbol() string {
-	return stmt.symbol.Value
-}
-
-func (stmt *index) HasName() bool {
-	return stmt.name.Valid
-}
-
-func (stmt *index) HasSymbol() bool {
-	return stmt.symbol.Valid
-}
-
-func (stmt *index) SetReference(r Reference) Index {
-	stmt.reference = r
-	return stmt
-}
-
-func (stmt *index) SetName(s string) Index {
-	stmt.name.Valid = true
-	stmt.name.Value = s
-	return stmt
-}
-
-func (stmt *index) SetSymbol(s string) Index {
-	stmt.symbol.Valid = true
-	stmt.symbol.Value = s
-	return stmt
-}
-
-func (stmt *index) HasType() bool {
-	return stmt.typ != IndexTypeNone
-}
-
-func (stmt *index) SetType(typ IndexType) Index {
-	stmt.typ = typ
-	return stmt
-}
-
-func (stmt *index) IsBtree() bool {
-	return stmt.typ == IndexTypeBtree
-}
-
-func (stmt *index) IsHash() bool {
-	return stmt.typ == IndexTypeHash
-}
-
-func (stmt *index) IsPrimaryKey() bool {
-	return stmt.kind == IndexKindPrimaryKey
-}
-
-func (stmt *index) IsNormal() bool {
-	return stmt.kind == IndexKindNormal
-}
-
-func (stmt *index) IsUnique() bool {
-	return stmt.kind == IndexKindUnique
-}
-
-func (stmt *index) IsFullText() bool {
-	return stmt.kind == IndexKindFullText
-}
-
-func (stmt *index) IsSpatial() bool {
-	return stmt.kind == IndexKindSpatial
-}
-
-func (stmt *index) IsForeignKey() bool {
-	return stmt.kind == IndexKindForeignKey
-}
-
-func (stmt *index) AddOption(v IndexOption) Index {
-	stmt.options = append(stmt.options, v)
-	return stmt
-}
-
-func (stmt *index) Options() chan IndexOption {
-	ch := make(chan IndexOption, len(stmt.options))
-	for _, idx := range stmt.options {
-		ch <- idx
-	}
-	close(ch)
-	return ch
-}
-
-func (stmt *index) Normalize() (Index, bool) {
+func (stmt *Index) Normalize() (*Index, bool) {
 	return stmt, false
 }
 
-func (stmt *index) Clone() Index {
-	newindex := &index{}
-	*newindex = *stmt
-	return newindex
+func (stmt *Index) Clone() *Index {
+	newindex := *stmt
+	return &newindex
 }
 
-func NewIndexColumn(name string) IndexColumn {
-	return &indexColumn{
-		name: name,
+// IndexColumn is a column name/length specification used in indexes
+type IndexColumn struct {
+	Name          string
+	Length        MaybeString
+	SortDirection IndexColumnSortDirection
+}
+
+func NewIndexColumn(name string) *IndexColumn {
+	return &IndexColumn{
+		Name: name,
 	}
 }
 
-func (col *indexColumn) ID() string {
-	if col.HasLength() {
-		return "index_column#" + col.Name() + "-" + col.Length()
+func (col *IndexColumn) ID() string {
+	if col.Length.Valid {
+		return "index_column#" + col.Name + "-" + col.Length.Value
 	}
-	return "index_column#" + col.Name()
+	return "index_column#" + col.Name
 }
 
-func (col *indexColumn) Name() string {
-	return col.name
+// IndexOption describes a possible index option, such as `WITH PARSER ngram`
+type IndexOption struct {
+	Key        string
+	Value      string
+	NeedQuotes bool
 }
 
-func (col *indexColumn) HasLength() bool {
-	return col.length.Valid
-}
-
-func (col *indexColumn) Length() string {
-	return col.length.Value
-}
-
-func (col *indexColumn) SetLength(s string) IndexColumn {
-	col.length.Valid = true
-	col.length.Value = s
-	return col
-}
-
-func (col *indexColumn) SetSortDirection(v IndexColumnSortDirection) {
-	col.sortDirection = v
-}
-
-func (col *indexColumn) HasSortDirection() bool {
-	return col.sortDirection != SortDirectionNone
-}
-
-func (col *indexColumn) IsAscending() bool {
-	return col.sortDirection == SortDirectionAscending
-}
-
-func (col *indexColumn) IsDescending() bool {
-	return col.sortDirection == SortDirectionDescending
-}
-
-func NewIndexOption(k, v string, q bool) IndexOption {
-	return &indexopt{
-		key:        k,
-		value:      v,
-		needQuotes: q,
+func NewIndexOption(k, v string, q bool) *IndexOption {
+	return &IndexOption{
+		Key:        k,
+		Value:      v,
+		NeedQuotes: q,
 	}
 }
 
-func (i *indexopt) ID() string       { return "indexopt#" + i.key }
-func (i *indexopt) Key() string      { return i.key }
-func (i *indexopt) Value() string    { return i.value }
-func (i *indexopt) NeedQuotes() bool { return i.needQuotes }
+func (opt *IndexOption) ID() string { return "indexopt#" + strings.ToLower(opt.Key) }

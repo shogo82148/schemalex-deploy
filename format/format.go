@@ -2,7 +2,6 @@ package format
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 
@@ -48,7 +47,7 @@ func format(ctx *fmtCtx, v interface{}) error {
 	switch v := v.(type) {
 	case model.ColumnType:
 		return formatColumnType(ctx, v)
-	case model.Database:
+	case *model.Database:
 		return formatDatabase(ctx, v)
 	case model.Stmts:
 		for _, s := range v {
@@ -57,29 +56,29 @@ func format(ctx *fmtCtx, v interface{}) error {
 			}
 		}
 		return nil
-	case model.Table:
+	case *model.Table:
 		return formatTable(ctx, v)
-	case model.TableColumn:
+	case *model.TableColumn:
 		return formatTableColumn(ctx, v)
-	case model.TableOption:
+	case *model.TableOption:
 		return formatTableOption(ctx, v)
-	case model.Index:
+	case *model.Index:
 		return formatIndex(ctx, v)
-	case model.Reference:
+	case *model.Reference:
 		return formatReference(ctx, v)
 	default:
 		return fmt.Errorf("unsupported model type: %T", v)
 	}
 }
 
-func formatDatabase(ctx *fmtCtx, d model.Database) error {
+func formatDatabase(ctx *fmtCtx, d *model.Database) error {
 	var buf bytes.Buffer
 	buf.WriteString("CREATE DATABASE")
-	if d.IsIfNotExists() {
+	if d.IfNotExists {
 		buf.WriteString(" IF NOT EXISTS")
 	}
 	buf.WriteByte(' ')
-	buf.WriteString(util.Backquote(d.Name()))
+	buf.WriteString(util.Backquote(d.Name))
 	buf.WriteByte(';')
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {
@@ -88,16 +87,16 @@ func formatDatabase(ctx *fmtCtx, d model.Database) error {
 	return nil
 }
 
-func formatTableOption(ctx *fmtCtx, option model.TableOption) error {
+func formatTableOption(ctx *fmtCtx, option *model.TableOption) error {
 	var buf bytes.Buffer
-	buf.WriteString(option.Key())
+	buf.WriteString(option.Key)
 	buf.WriteString(" = ")
-	if option.NeedQuotes() {
+	if option.NeedQuotes {
 		buf.WriteByte('\'')
-		buf.WriteString(option.Value())
+		buf.WriteString(option.Value)
 		buf.WriteByte('\'')
 	} else {
-		buf.WriteString(option.Value())
+		buf.WriteString(option.Value)
 	}
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {
@@ -106,25 +105,25 @@ func formatTableOption(ctx *fmtCtx, option model.TableOption) error {
 	return nil
 }
 
-func formatTable(ctx *fmtCtx, table model.Table) error {
+func formatTable(ctx *fmtCtx, table *model.Table) error {
 	var buf bytes.Buffer
 
 	buf.WriteString("CREATE")
-	if table.IsTemporary() {
+	if table.Temporary {
 		buf.WriteString(" TEMPORARY")
 	}
 
 	buf.WriteString(" TABLE")
-	if table.IsIfNotExists() {
+	if table.IfNotExists {
 		buf.WriteString(" IF NOT EXISTS")
 	}
 
 	buf.WriteByte(' ')
-	buf.WriteString(util.Backquote(table.Name()))
+	buf.WriteString(util.Backquote(table.Name))
 
-	if table.HasLikeTable() {
+	if table.LikeTable.Valid {
 		buf.WriteString(" LIKE ")
-		buf.WriteString(util.Backquote(table.LikeTable()))
+		buf.WriteString(util.Backquote(table.LikeTable.Value))
 	} else {
 
 		newctx := ctx.clone()
@@ -133,30 +132,23 @@ func formatTable(ctx *fmtCtx, table model.Table) error {
 
 		buf.WriteString(" (")
 
-		colch := table.Columns()
-		idxch := table.Indexes()
-		colchmax := len(colch)
-		idxchmax := len(idxch)
-
-		var i int
-		for col := range colch {
+		for i, col := range table.Columns {
 			buf.WriteByte('\n')
 			if err := formatTableColumn(newctx, col); err != nil {
 				return err
 			}
-			if i < colchmax-1 || idxchmax > 0 {
+			if i < len(table.Columns)-1 || len(table.Indexes) > 0 {
 				buf.WriteByte(',')
 			}
 			i++
 		}
 
-		i = 0
-		for idx := range idxch {
+		for i, idx := range table.Indexes {
 			buf.WriteByte('\n')
 			if err := formatIndex(newctx, idx); err != nil {
 				return err
 			}
-			if i < idxchmax-1 {
+			if i < len(table.Indexes)-1 {
 				buf.WriteByte(',')
 			}
 			i++
@@ -164,11 +156,9 @@ func formatTable(ctx *fmtCtx, table model.Table) error {
 
 		buf.WriteString("\n)")
 
-		optch := table.Options()
-		if l := len(optch); l > 0 {
+		if l := len(table.Options); l > 0 {
 			buf.WriteByte(' ')
-			var i int
-			for option := range optch {
+			for i, option := range table.Options {
 				if err := formatTableOption(newctx, option); err != nil {
 					return err
 				}
@@ -199,24 +189,24 @@ func formatColumnType(ctx *fmtCtx, col model.ColumnType) error {
 	return nil
 }
 
-func formatTableColumn(ctx *fmtCtx, col model.TableColumn) error {
+func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 	var buf bytes.Buffer
 
 	buf.WriteString(ctx.curIndent)
-	buf.WriteString(util.Backquote(col.Name()))
+	buf.WriteString(util.Backquote(col.Name))
 	buf.WriteByte(' ')
 
 	newctx := ctx.clone()
 	newctx.curIndent = ""
 	newctx.dst = &buf
-	if err := formatColumnType(newctx, col.Type()); err != nil {
+	if err := formatColumnType(newctx, col.Type); err != nil {
 		return err
 	}
 
-	switch col.Type() {
+	switch col.Type {
 	case model.ColumnTypeEnum:
 		buf.WriteString(" (")
-		for enumValue := range col.EnumValues() {
+		for _, enumValue := range col.EnumValues {
 			buf.WriteByte('\'')
 			buf.WriteString(enumValue)
 			buf.WriteByte('\'')
@@ -226,7 +216,7 @@ func formatTableColumn(ctx *fmtCtx, col model.TableColumn) error {
 		buf.WriteByte(')')
 	case model.ColumnTypeSet:
 		buf.WriteString(" (")
-		for setValue := range col.SetValues() {
+		for _, setValue := range col.SetValues {
 			buf.WriteByte('\'')
 			buf.WriteString(setValue)
 			buf.WriteByte('\'')
@@ -235,46 +225,46 @@ func formatTableColumn(ctx *fmtCtx, col model.TableColumn) error {
 		buf.Truncate(buf.Len() - 1)
 		buf.WriteByte(')')
 	default:
-		if col.HasLength() {
-			l := col.Length()
+		if col.Length != nil {
+			l := col.Length
 			buf.WriteString(" (")
-			buf.WriteString(l.Length())
-			if l.HasDecimal() {
+			buf.WriteString(l.Length)
+			if l.Decimals.Valid {
 				buf.WriteByte(',')
-				buf.WriteString(l.Decimal())
+				buf.WriteString(l.Decimals.Value)
 			}
 			buf.WriteByte(')')
 		}
 	}
 
-	if col.IsUnsigned() {
+	if col.Unsigned {
 		buf.WriteString(" UNSIGNED")
 	}
 
-	if col.IsZeroFill() {
+	if col.ZeroFill {
 		buf.WriteString(" ZEROFILL")
 	}
 
-	if col.IsBinary() {
+	if col.Binary {
 		buf.WriteString(" BINARY")
 	}
 
-	if col.HasCharacterSet() {
+	if col.CharacterSet.Valid {
 		buf.WriteString(" CHARACTER SET ")
-		buf.WriteString(util.Backquote(col.CharacterSet()))
+		buf.WriteString(util.Backquote(col.CharacterSet.Value))
 	}
 
-	if col.HasCollation() {
+	if col.Collation.Valid {
 		buf.WriteString(" COLLATE ")
-		buf.WriteString(util.Backquote(col.Collation()))
+		buf.WriteString(util.Backquote(col.Collation.Value))
 	}
 
-	if col.HasAutoUpdate() {
+	if col.AutoUpdate.Valid {
 		buf.WriteString(" ON UPDATE ")
-		buf.WriteString(col.AutoUpdate())
+		buf.WriteString(col.AutoUpdate.Value)
 	}
 
-	if n := col.NullState(); n != model.NullStateNone {
+	if n := col.NullState; n != model.NullStateNone {
 		buf.WriteByte(' ')
 		switch n {
 		case model.NullStateNull:
@@ -284,34 +274,34 @@ func formatTableColumn(ctx *fmtCtx, col model.TableColumn) error {
 		}
 	}
 
-	if col.HasDefault() {
+	if col.Default.Valid {
 		buf.WriteString(" DEFAULT ")
-		if col.IsQuotedDefault() {
+		if col.Default.Quoted {
 			buf.WriteByte('\'')
-			buf.WriteString(col.Default())
+			buf.WriteString(col.Default.Value)
 			buf.WriteByte('\'')
 		} else {
-			buf.WriteString(col.Default())
+			buf.WriteString(col.Default.Value)
 		}
 	}
 
-	if col.IsAutoIncrement() {
+	if col.AutoIncrement {
 		buf.WriteString(" AUTO_INCREMENT")
 	}
 
-	if col.IsUnique() {
+	if col.Unique {
 		buf.WriteString(" UNIQUE KEY")
 	}
 
-	if col.IsPrimary() {
+	if col.Primary {
 		buf.WriteString(" PRIMARY KEY")
-	} else if col.IsKey() {
+	} else if col.Key {
 		buf.WriteString(" KEY")
 	}
 
-	if col.HasComment() {
+	if col.Comment.Valid {
 		buf.WriteString(" COMMENT '")
-		buf.WriteString(col.Comment())
+		buf.WriteString(col.Comment.Value)
 		buf.WriteByte('\'')
 	}
 
@@ -321,91 +311,90 @@ func formatTableColumn(ctx *fmtCtx, col model.TableColumn) error {
 	return nil
 }
 
-func formatIndex(ctx *fmtCtx, index model.Index) error {
+func formatIndex(ctx *fmtCtx, index *model.Index) error {
 	var buf bytes.Buffer
 
 	buf.WriteString(ctx.curIndent)
-	if index.HasSymbol() {
+	if index.Symbol.Valid {
 		buf.WriteString("CONSTRAINT ")
-		buf.WriteString(util.Backquote(index.Symbol()))
+		buf.WriteString(util.Backquote(index.Symbol.Value))
 		buf.WriteByte(' ')
 	}
 
-	switch {
-	case index.IsPrimaryKey():
+	switch index.Kind {
+	case model.IndexKindPrimaryKey:
 		buf.WriteString("PRIMARY KEY")
-	case index.IsNormal():
+	case model.IndexKindNormal:
 		buf.WriteString("INDEX")
-	case index.IsUnique():
+	case model.IndexKindUnique:
 		buf.WriteString("UNIQUE INDEX")
-	case index.IsFullText():
+	case model.IndexKindFullText:
 		buf.WriteString("FULLTEXT INDEX")
-	case index.IsSpatial():
+	case model.IndexKindSpatial:
 		buf.WriteString("SPATIAL INDEX")
-	case index.IsForeignKey():
+	case model.IndexKindForeignKey:
 		buf.WriteString("FOREIGN KEY")
 	}
 
-	if index.HasName() {
+	if index.Name.Valid {
 		buf.WriteByte(' ')
-		buf.WriteString(util.Backquote(index.Name()))
+		buf.WriteString(util.Backquote(index.Name.Value))
 	}
 
-	switch {
-	case index.IsBtree():
+	switch index.Type {
+	case model.IndexTypeBtree:
 		buf.WriteString(" USING BTREE")
-	case index.IsHash():
+	case model.IndexTypeHash:
 		buf.WriteString(" USING HASH")
 	}
 
 	buf.WriteString(" (")
-	ch := index.Columns()
+	ch := index.Columns
 	lch := len(ch)
 	if lch == 0 {
-		return errors.New(`no columns in index`)
+		return fmt.Errorf("format: no columns in the index %q", index.ID())
 	}
 
-	var i int
-	for col := range ch {
-		buf.WriteString(util.Backquote(col.Name()))
-		if col.HasLength() {
+	for i, col := range ch {
+		buf.WriteString(util.Backquote(col.Name))
+		if col.Length.Valid {
 			buf.WriteByte('(')
-			buf.WriteString(col.Length())
+			buf.WriteString(col.Length.Value)
 			buf.WriteByte(')')
 		}
-		if col.HasSortDirection() {
-			if col.IsAscending() {
-				buf.WriteString(" ASC")
-			} else {
-				buf.WriteString(" DESC")
-			}
+		switch col.SortDirection {
+		case model.SortDirectionNone:
+			// nothing to do
+		case model.SortDirectionAscending:
+			buf.WriteString(" ASC")
+		case model.SortDirectionDescending:
+			buf.WriteString(" DESC")
 		}
 
 		if i < lch-1 {
 			buf.WriteString(", ")
 		}
-		i++
 	}
 	buf.WriteByte(')')
 
-	switch {
-	case index.IsFullText():
-		for opt := range index.Options() {
-			if opt.Key() != "WITH PARSER" {
+	switch index.Kind {
+	case model.IndexKindFullText:
+		for _, opt := range index.Options {
+			if opt.Key != "WITH PARSER" {
 				continue
 			}
 			buf.WriteByte(' ')
 			buf.WriteString("WITH PARSER")
 			buf.WriteByte(' ')
-			if opt.NeedQuotes() {
-				buf.WriteString(util.Backquote(opt.Value()))
+			if opt.NeedQuotes {
+				buf.WriteString(util.Backquote(opt.Value))
 			} else {
-				buf.WriteString(opt.Value())
+				buf.WriteString(opt.Value)
 			}
 		}
 	}
 
-	if ref := index.Reference(); ref != nil {
+	if ref := index.Reference; ref != nil {
 		newctx := ctx.clone()
 		newctx.dst = &buf
 
@@ -421,43 +410,41 @@ func formatIndex(ctx *fmtCtx, index model.Index) error {
 	return nil
 }
 
-func formatReference(ctx *fmtCtx, r model.Reference) error {
+func formatReference(ctx *fmtCtx, r *model.Reference) error {
 	var buf bytes.Buffer
 
 	buf.WriteString(ctx.curIndent)
 	buf.WriteString("REFERENCES ")
-	buf.WriteString(util.Backquote(r.TableName()))
+	buf.WriteString(util.Backquote(r.TableName))
 	buf.WriteString(" (")
 
-	ch := r.Columns()
+	ch := r.Columns
 	lch := len(ch)
-	var i int
-	for col := range ch {
-		buf.WriteString(util.Backquote(col.Name()))
-		if col.HasLength() {
+	for i, col := range ch {
+		buf.WriteString(util.Backquote(col.Name))
+		if col.Length.Valid {
 			buf.WriteByte('(')
-			buf.WriteString(col.Length())
+			buf.WriteString(col.Length.Value)
 			buf.WriteByte(')')
 		}
 		if i < lch-1 {
 			buf.WriteString(", ")
 		}
-		i++
 	}
 	buf.WriteByte(')')
 
-	switch {
-	case r.MatchFull():
+	switch r.Match {
+	case model.ReferenceMatchFull:
 		buf.WriteString(" MATCH FULL")
-	case r.MatchPartial():
+	case model.ReferenceMatchPartial:
 		buf.WriteString(" MATCH PARTIAL")
-	case r.MatchSimple():
+	case model.ReferenceMatchSimple:
 		buf.WriteString(" MATCH SIMPLE")
 	}
 
-	// we don't need to check the errors, because bytes.Buffer doesn't return any error.
-	writeReferenceOption(&buf, "ON DELETE", r.OnDelete())
-	writeReferenceOption(&buf, "ON UPDATE", r.OnUpdate())
+	// we don't need to check the errors, because strings.Builder doesn't return any error.
+	writeReferenceOption(&buf, "ON DELETE", r.OnDelete)
+	writeReferenceOption(&buf, "ON UPDATE", r.OnUpdate)
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {
 		return err

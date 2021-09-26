@@ -13,6 +13,7 @@ import (
 	"github.com/shogo82148/schemalex-deploy"
 	"github.com/shogo82148/schemalex-deploy/format"
 	"github.com/shogo82148/schemalex-deploy/internal/errors"
+	"github.com/shogo82148/schemalex-deploy/internal/util"
 	"github.com/shogo82148/schemalex-deploy/model"
 )
 
@@ -27,13 +28,13 @@ type diffCtx struct {
 func newDiffCtx(from, to model.Stmts) *diffCtx {
 	fromSet := mapset.NewSet()
 	for _, stmt := range from {
-		if cs, ok := stmt.(model.Table); ok {
+		if cs, ok := stmt.(*model.Table); ok {
 			fromSet.Add(cs.ID())
 		}
 	}
 	toSet := mapset.NewSet()
 	for _, stmt := range to {
-		if cs, ok := stmt.(model.Table); ok {
+		if cs, ok := stmt.(*model.Table); ok {
 			toSet.Add(cs.ID())
 		}
 	}
@@ -139,11 +140,11 @@ func (ctx *diffCtx) dropTables() error {
 			return fmt.Errorf("failed to lookup table: %q", id)
 		}
 
-		table, ok := stmt.(model.Table)
+		table, ok := stmt.(*model.Table)
 		if !ok {
 			return fmt.Errorf(`lookup failed: %q is not a model.Table`, id)
 		}
-		ctx.append("DROP TABLE `" + table.Name() + "`")
+		ctx.append("DROP TABLE " + util.Backquote(table.Name))
 	}
 	return nil
 }
@@ -173,29 +174,29 @@ type alterCtx struct {
 	toColumns   mapset.Set
 	fromIndexes mapset.Set
 	toIndexes   mapset.Set
-	from        model.Table
-	to          model.Table
+	from        *model.Table
+	to          *model.Table
 	result      Stmts
 }
 
-func newAlterCtx(ctx *diffCtx, from, to model.Table) *alterCtx {
+func newAlterCtx(ctx *diffCtx, from, to *model.Table) *alterCtx {
 	fromColumns := mapset.NewSet()
-	for col := range from.Columns() {
+	for _, col := range from.Columns {
 		fromColumns.Add(col.ID())
 	}
 
 	toColumns := mapset.NewSet()
-	for col := range to.Columns() {
+	for _, col := range to.Columns {
 		toColumns.Add(col.ID())
 	}
 
 	fromIndexes := mapset.NewSet()
-	for idx := range from.Indexes() {
+	for _, idx := range from.Indexes {
 		fromIndexes.Add(idx.ID())
 	}
 
 	toIndexes := mapset.NewSet()
-	for idx := range to.Indexes() {
+	for _, idx := range to.Indexes {
 		toIndexes.Add(idx.ID())
 	}
 
@@ -232,13 +233,13 @@ func (ctx *diffCtx) alterTables() error {
 		if !ok {
 			return fmt.Errorf("table not found in old schema (alter table): %q", id)
 		}
-		beforeStmt := stmt.(model.Table)
+		beforeStmt := stmt.(*model.Table)
 
 		stmt, ok = ctx.to.Lookup(id.(string))
 		if !ok {
 			return fmt.Errorf("table not found in new schema (alter table): %q", id)
 		}
-		afterStmt := stmt.(model.Table)
+		afterStmt := stmt.(*model.Table)
 
 		alterCtx := newAlterCtx(ctx, beforeStmt, afterStmt)
 		for _, p := range procs {
@@ -259,13 +260,13 @@ func (ctx *alterCtx) dropTableColumns() error {
 	for _, columnName := range columnNames.ToSlice() {
 		buf.Reset()
 		buf.WriteString("ALTER TABLE `")
-		buf.WriteString(ctx.from.Name())
+		buf.WriteString(ctx.from.Name)
 		buf.WriteString("` DROP COLUMN `")
 		col, ok := ctx.from.LookupColumn(columnName.(string))
 		if !ok {
 			return fmt.Errorf("failed to lookup column %q", columnName)
 		}
-		buf.WriteString(col.Name())
+		buf.WriteString(col.Name)
 		buf.WriteString("`")
 		ctx.append(buf.String())
 	}
@@ -279,7 +280,7 @@ func (ctx *alterCtx) addTableColumns() error {
 	// In order to do this correctly, we need to create a graph so that
 	// we always start adding with a column that has a either no before
 	// columns, or one that already exists in the database
-	var firstColumn model.TableColumn
+	var firstColumn *model.TableColumn
 	for _, v := range ctx.toColumns.Difference(ctx.fromColumns).ToSlice() {
 		columnName := v.(string)
 		// find the before-column for each.
@@ -353,16 +354,16 @@ func (ctx *alterCtx) writeAddColumn(columnNames ...string) error {
 
 		beforeCol, hasBeforeCol := ctx.to.LookupColumnBefore(stmt.ID())
 		buf.Reset()
-		buf.WriteString("ALTER TABLE `")
-		buf.WriteString(ctx.from.Name())
-		buf.WriteString("` ADD COLUMN ")
+		buf.WriteString("ALTER TABLE ")
+		buf.WriteString(util.Backquote(ctx.from.Name))
+		buf.WriteString(" ADD COLUMN ")
 		if err := format.SQL(&buf, stmt); err != nil {
 			return err
 		}
 		if hasBeforeCol {
-			buf.WriteString(" AFTER `")
-			buf.WriteString(beforeCol.Name())
-			buf.WriteString("`")
+			buf.WriteString(" AFTER ")
+			buf.WriteString(util.Backquote(beforeCol.Name))
+			buf.WriteString("")
 		} else {
 			buf.WriteString(" FIRST")
 		}
@@ -390,10 +391,10 @@ func (ctx *alterCtx) alterTableColumns() error {
 		}
 
 		buf.Reset()
-		buf.WriteString("ALTER TABLE `")
-		buf.WriteString(ctx.from.Name())
-		buf.WriteString("` CHANGE COLUMN `")
-		buf.WriteString(afterColumnStmt.Name())
+		buf.WriteString("ALTER TABLE ")
+		buf.WriteString(util.Backquote(ctx.from.Name))
+		buf.WriteString(" CHANGE COLUMN `")
+		buf.WriteString(afterColumnStmt.Name)
 		buf.WriteString("` ")
 		if err := format.SQL(&buf, afterColumnStmt); err != nil {
 			return err
@@ -408,38 +409,38 @@ func (ctx *alterCtx) dropTableIndexes() error {
 	indexes := ctx.fromIndexes.Difference(ctx.toIndexes)
 	// drop index after drop constraint.
 	// because cannot drop index if needed in a foreign key constraint
-	lazy := make([]model.Index, 0, indexes.Cardinality())
+	lazy := make([]*model.Index, 0, indexes.Cardinality())
 	for _, index := range indexes.ToSlice() {
 		indexStmt, ok := ctx.from.LookupIndex(index.(string))
 		if !ok {
 			return fmt.Errorf("index not found in old schema: %q", index)
 		}
 
-		if indexStmt.IsPrimaryKey() {
+		if indexStmt.Kind == model.IndexKindPrimaryKey {
 			buf.Reset()
-			buf.WriteString("ALTER TABLE `")
-			buf.WriteString(ctx.from.Name())
-			buf.WriteString("` DROP PRIMARY KEY")
+			buf.WriteString("ALTER TABLE ")
+			buf.WriteString(util.Backquote(ctx.from.Name))
+			buf.WriteString(" DROP PRIMARY KEY")
 			ctx.append(buf.String())
 			continue
 		}
 
-		if !indexStmt.HasName() && !indexStmt.HasSymbol() {
+		if !indexStmt.Name.Valid && !indexStmt.Symbol.Valid {
 			return fmt.Errorf("can not drop index without name: %q", indexStmt.ID())
 		}
-		if !indexStmt.IsForeignKey() {
+		if indexStmt.Kind != model.IndexKindForeignKey {
 			lazy = append(lazy, indexStmt)
 			continue
 		}
 
 		buf.Reset()
-		buf.WriteString("ALTER TABLE `")
-		buf.WriteString(ctx.from.Name())
-		buf.WriteString("` DROP FOREIGN KEY `")
-		if indexStmt.HasSymbol() {
-			buf.WriteString(indexStmt.Symbol())
+		buf.WriteString("ALTER TABLE ")
+		buf.WriteString(util.Backquote(ctx.from.Name))
+		buf.WriteString(" DROP FOREIGN KEY `")
+		if indexStmt.Symbol.Valid {
+			buf.WriteString(indexStmt.Symbol.Value)
 		} else {
-			buf.WriteString(indexStmt.Name())
+			buf.WriteString(indexStmt.Name.Value)
 		}
 		buf.WriteString("`")
 		ctx.append(buf.String())
@@ -448,13 +449,13 @@ func (ctx *alterCtx) dropTableIndexes() error {
 	// drop index after drop CONSTRAINT
 	for _, indexStmt := range lazy {
 		buf.Reset()
-		buf.WriteString("ALTER TABLE `")
-		buf.WriteString(ctx.from.Name())
-		buf.WriteString("` DROP INDEX `")
-		if !indexStmt.HasName() {
-			buf.WriteString(indexStmt.Symbol())
+		buf.WriteString("ALTER TABLE ")
+		buf.WriteString(util.Backquote(ctx.from.Name))
+		buf.WriteString(" DROP INDEX `")
+		if !indexStmt.Name.Valid {
+			buf.WriteString(indexStmt.Symbol.Value)
 		} else {
-			buf.WriteString(indexStmt.Name())
+			buf.WriteString(indexStmt.Name.Value)
 		}
 		buf.WriteString("`")
 		ctx.append(buf.String())
@@ -468,21 +469,21 @@ func (ctx *alterCtx) addTableIndexes() error {
 	indexes := ctx.toIndexes.Difference(ctx.fromIndexes)
 	// add index before add foreign key.
 	// because cannot add index if create implicitly index by foreign key.
-	lazy := make([]model.Index, 0, indexes.Cardinality())
+	lazy := make([]*model.Index, 0, indexes.Cardinality())
 	for _, index := range indexes.ToSlice() {
 		indexStmt, ok := ctx.to.LookupIndex(index.(string))
 		if !ok {
 			return fmt.Errorf("index not found in old schema: %q", index)
 		}
-		if indexStmt.IsForeignKey() {
+		if indexStmt.Kind == model.IndexKindForeignKey {
 			lazy = append(lazy, indexStmt)
 			continue
 		}
 
 		buf.Reset()
-		buf.WriteString("ALTER TABLE `")
-		buf.WriteString(ctx.from.Name())
-		buf.WriteString("` ADD ")
+		buf.WriteString("ALTER TABLE ")
+		buf.WriteString(util.Backquote(ctx.from.Name))
+		buf.WriteString(" ADD ")
 		if err := format.SQL(&buf, indexStmt); err != nil {
 			return err
 		}
@@ -491,9 +492,9 @@ func (ctx *alterCtx) addTableIndexes() error {
 
 	for _, indexStmt := range lazy {
 		buf.Reset()
-		buf.WriteString("ALTER TABLE `")
-		buf.WriteString(ctx.from.Name())
-		buf.WriteString("` ADD ")
+		buf.WriteString("ALTER TABLE ")
+		buf.WriteString(util.Backquote(ctx.from.Name))
+		buf.WriteString(" ADD ")
 		if err := format.SQL(&buf, indexStmt); err != nil {
 			return err
 		}
