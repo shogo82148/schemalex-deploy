@@ -255,7 +255,7 @@ func (p *Parser) parseCreateTable(ctx *parseCtx) (*model.Table, error) {
 		switch t := ctx.next(); t.Type {
 		case IDENT, BACKTICK_IDENT:
 			table.LikeTable.Valid = true
-			table.LikeTable.Value = t.Value
+			table.LikeTable.Ident = t.Ident()
 		default:
 			return nil, newParseError(ctx, t, "expected table name after LIKE")
 		}
