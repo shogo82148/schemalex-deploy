@@ -5,8 +5,6 @@
 
 package model
 
-import "sync"
-
 // Stmt is the interface to define a statement
 type Stmt interface {
 	ID() string
@@ -192,62 +190,12 @@ const (
 	ReferenceOptionNoAction
 )
 
-// Table describes a table model
-type Table interface {
-	Stmt
-
-	Name() string
-	IsTemporary() bool
-	SetTemporary(bool) Table
-	IsIfNotExists() bool
-	SetIfNotExists(bool) Table
-
-	HasLikeTable() bool
-	LikeTable() string
-	SetLikeTable(string) Table
-
-	AddColumn(TableColumn) Table
-	Columns() chan TableColumn
-	AddIndex(Index) Table
-	Indexes() chan Index
-	AddOption(TableOption) Table
-	Options() chan TableOption
-
-	LookupColumn(string) (TableColumn, bool)
-	LookupColumnOrder(string) (int, bool)
-	// LookupColumnBefore returns the table column before given column.
-	// If the named column does not exist, or if the named column is
-	// the first one, `(nil, false)` is returned
-	LookupColumnBefore(string) (TableColumn, bool)
-
-	LookupIndex(string) (Index, bool)
-
-	// Normalize returns normalized table. If a normalization was performed
-	// and the table is modified, returns a new instance of the Table object
-	// along with a true value as the second return value.
-	// Otherwise, Normalize() returns the receiver unchanged, with a false
-	// as the second return value.
-	Normalize() (Table, bool)
-}
-
 // TableOption describes a possible table option, such as `ENGINE=InnoDB`
 type TableOption interface {
 	Stmt
 	Key() string
 	Value() string
 	NeedQuotes() bool
-}
-
-type table struct {
-	mu                sync.RWMutex
-	name              string
-	temporary         bool
-	ifnotexists       bool
-	likeTable         maybeString
-	columns           []TableColumn
-	columnNameToIndex map[string]int
-	indexes           []Index
-	options           []TableOption
 }
 
 type tableopt struct {

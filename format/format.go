@@ -57,7 +57,7 @@ func format(ctx *fmtCtx, v interface{}) error {
 			}
 		}
 		return nil
-	case model.Table:
+	case *model.Table:
 		return formatTable(ctx, v)
 	case model.TableColumn:
 		return formatTableColumn(ctx, v)
@@ -106,25 +106,25 @@ func formatTableOption(ctx *fmtCtx, option model.TableOption) error {
 	return nil
 }
 
-func formatTable(ctx *fmtCtx, table model.Table) error {
+func formatTable(ctx *fmtCtx, table *model.Table) error {
 	var buf bytes.Buffer
 
 	buf.WriteString("CREATE")
-	if table.IsTemporary() {
+	if table.Temporary {
 		buf.WriteString(" TEMPORARY")
 	}
 
 	buf.WriteString(" TABLE")
-	if table.IsIfNotExists() {
+	if table.IfNotExists {
 		buf.WriteString(" IF NOT EXISTS")
 	}
 
 	buf.WriteByte(' ')
-	buf.WriteString(util.Backquote(table.Name()))
+	buf.WriteString(util.Backquote(table.Name))
 
-	if table.HasLikeTable() {
+	if table.LikeTable.Valid {
 		buf.WriteString(" LIKE ")
-		buf.WriteString(util.Backquote(table.LikeTable()))
+		buf.WriteString(util.Backquote(table.LikeTable.Value))
 	} else {
 
 		newctx := ctx.clone()
@@ -133,30 +133,23 @@ func formatTable(ctx *fmtCtx, table model.Table) error {
 
 		buf.WriteString(" (")
 
-		colch := table.Columns()
-		idxch := table.Indexes()
-		colchmax := len(colch)
-		idxchmax := len(idxch)
-
-		var i int
-		for col := range colch {
+		for i, col := range table.Columns {
 			buf.WriteByte('\n')
 			if err := formatTableColumn(newctx, col); err != nil {
 				return err
 			}
-			if i < colchmax-1 || idxchmax > 0 {
+			if i < len(table.Columns)-1 || len(table.Indexes) > 0 {
 				buf.WriteByte(',')
 			}
 			i++
 		}
 
-		i = 0
-		for idx := range idxch {
+		for i, idx := range table.Indexes {
 			buf.WriteByte('\n')
 			if err := formatIndex(newctx, idx); err != nil {
 				return err
 			}
-			if i < idxchmax-1 {
+			if i < len(table.Indexes)-1 {
 				buf.WriteByte(',')
 			}
 			i++
@@ -164,11 +157,9 @@ func formatTable(ctx *fmtCtx, table model.Table) error {
 
 		buf.WriteString("\n)")
 
-		optch := table.Options()
-		if l := len(optch); l > 0 {
+		if l := len(table.Options); l > 0 {
 			buf.WriteByte(' ')
-			var i int
-			for option := range optch {
+			for i, option := range table.Options {
 				if err := formatTableOption(newctx, option); err != nil {
 					return err
 				}

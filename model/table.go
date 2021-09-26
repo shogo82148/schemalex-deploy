@@ -1,56 +1,61 @@
 package model
 
+import "strings"
+
+// Table describes a table model
+type Table struct {
+	Name        string
+	Temporary   bool
+	IfNotExists bool
+	LikeTable   maybeString
+	Columns     []TableColumn
+	Indexes     []Index
+	Options     []TableOption
+}
+
 // NewTable create a new table with the given name
-func NewTable(name string) Table {
-	return &table{
-		name:              name,
-		columnNameToIndex: make(map[string]int),
+func NewTable(name string) *Table {
+	return &Table{
+		Name: name,
 	}
 }
 
-func (t *table) ID() string {
-	return "table#" + t.name
+func (t *Table) ID() string {
+	return "table#" + strings.ToLower(t.Name)
 }
 
-func (t *table) lookupColumnOrderNoLock(id string) (int, bool) {
-	idx, ok := t.columnNameToIndex[id]
-	return idx, ok
-}
-
-func (t *table) LookupColumn(id string) (TableColumn, bool) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	idx, ok := t.lookupColumnOrderNoLock(id)
-	if !ok {
-		return nil, false
+func (t *Table) LookupColumn(id string) (TableColumn, bool) {
+	for _, col := range t.Columns {
+		if col.ID() == id {
+			return col, true
+		}
 	}
-
-	return t.columns[idx], true
+	return nil, false
 }
 
-func (t *table) LookupColumnOrder(id string) (int, bool) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	idx, ok := t.lookupColumnOrderNoLock(id)
-	return idx, ok
-}
-
-func (t *table) LookupColumnBefore(id string) (TableColumn, bool) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	idx, ok := t.columnNameToIndex[id]
-	if !ok || idx == 0 {
-		return nil, false
+func (t *Table) LookupColumnOrder(id string) (int, bool) {
+	for i, col := range t.Columns {
+		if col.ID() == id {
+			return i, true
+		}
 	}
-
-	return t.columns[idx-1], true
+	return 0, false
 }
 
-func (t *table) LookupIndex(id string) (Index, bool) {
-	for idx := range t.Indexes() {
+func (t *Table) LookupColumnBefore(id string) (TableColumn, bool) {
+	for i, col := range t.Columns {
+		if col.ID() == id {
+			if i > 0 {
+				return t.Columns[i-1], true
+			}
+			return nil, false
+		}
+	}
+	return nil, false
+}
+
+func (t *Table) LookupIndex(id string) (Index, bool) {
+	for _, idx := range t.Indexes {
 		if idx.ID() == id {
 			return idx, true
 		}
@@ -58,98 +63,11 @@ func (t *table) LookupIndex(id string) (Index, bool) {
 	return nil, false
 }
 
-func (t *table) AddColumn(v TableColumn) Table {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	// Avoid adding the same TableColumn to multiple tables
-	if tblID := v.TableID(); tblID != "" {
-		v = v.Clone()
-	}
-	v.SetTableID(t.ID())
-	t.columns = append(t.columns, v)
-	t.columnNameToIndex[v.ID()] = len(t.columns) - 1
-	return t
-}
-
-func (t *table) AddIndex(v Index) Table {
-	t.indexes = append(t.indexes, v)
-	return t
-}
-
-func (t *table) AddOption(v TableOption) Table {
-	t.options = append(t.options, v)
-	return t
-}
-
-func (t *table) Name() string {
-	return t.name
-}
-
-func (t *table) IsIfNotExists() bool {
-	return t.ifnotexists
-}
-
-func (t *table) IsTemporary() bool {
-	return t.temporary
-}
-
-func (t *table) SetIfNotExists(v bool) Table {
-	t.ifnotexists = v
-	return t
-}
-
-func (t *table) HasLikeTable() bool {
-	return t.likeTable.Valid
-}
-
-func (t *table) SetLikeTable(s string) Table {
-	t.likeTable.Valid = true
-	t.likeTable.Value = s
-	return t
-}
-
-func (t *table) LikeTable() string {
-	return t.likeTable.Value
-}
-
-func (t *table) SetTemporary(v bool) Table {
-	t.temporary = v
-	return t
-}
-
-func (t *table) Columns() chan TableColumn {
-	ch := make(chan TableColumn, len(t.columns))
-	for _, col := range t.columns {
-		ch <- col
-	}
-	close(ch)
-	return ch
-}
-
-func (t *table) Indexes() chan Index {
-	ch := make(chan Index, len(t.indexes))
-	for _, idx := range t.indexes {
-		ch <- idx
-	}
-	close(ch)
-	return ch
-}
-
-func (t *table) Options() chan TableOption {
-	ch := make(chan TableOption, len(t.options))
-	for _, idx := range t.options {
-		ch <- idx
-	}
-	close(ch)
-	return ch
-}
-
-func (t *table) Normalize() (Table, bool) {
+func (t *Table) Normalize() (*Table, bool) {
 	var clone bool
 	var additionalIndexes []Index
 	var columns []TableColumn
-	for col := range t.Columns() {
+	for _, col := range t.Columns {
 		ncol, modified := col.Normalize()
 		if modified {
 			clone = true
@@ -191,7 +109,7 @@ func (t *table) Normalize() (Table, bool) {
 
 	var indexes []Index
 	var seen = make(map[string]struct{})
-	for idx := range t.Indexes() {
+	for _, idx := range t.Indexes {
 		nidx, modified := idx.Normalize()
 		if modified {
 			clone = true
@@ -231,25 +149,14 @@ func (t *table) Normalize() (Table, bool) {
 		return t, false
 	}
 
-	tbl := NewTable(t.Name())
-	tbl.SetIfNotExists(t.IsIfNotExists())
-	tbl.SetTemporary(t.IsTemporary())
+	tbl := NewTable(t.Name)
+	tbl.IfNotExists = t.IfNotExists
+	tbl.Temporary = t.Temporary
+	tbl.Indexes = append(additionalIndexes, indexes...)
+	tbl.Columns = columns
+	tbl.Options = make([]TableOption, len(t.Options))
+	copy(tbl.Options, t.Options)
 
-	for _, index := range additionalIndexes {
-		tbl.AddIndex(index)
-	}
-
-	for _, col := range columns {
-		tbl.AddColumn(col)
-	}
-
-	for _, idx := range indexes {
-		tbl.AddIndex(idx)
-	}
-
-	for opt := range t.Options() {
-		tbl.AddOption(opt)
-	}
 	return tbl, true
 }
 
