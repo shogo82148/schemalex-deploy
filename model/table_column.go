@@ -108,7 +108,7 @@ func (t *TableColumn) Normalize() (*TableColumn, bool) {
 	var removeQuotes bool
 	var setDefaultNull bool
 
-	if t.Length != nil {
+	if t.Length == nil {
 		if l := t.NativeLength(); l != nil {
 			clone = true
 			length = l
@@ -191,7 +191,7 @@ func (t *TableColumn) Normalize() (*TableColumn, bool) {
 	if setDefaultNull {
 		col.Default.Valid = true
 		col.Default.Value = "NULL"
-		col.Default.Quoted = true
+		col.Default.Quoted = false
 	}
 	return col, true
 }
