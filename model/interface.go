@@ -1,7 +1,5 @@
 //go:generate stringer -type=IndexType -output=index_type_string_gen.go
 //go:generate stringer -type=IndexKind -output=index_kind_string_gen.go
-//go:generate stringer -type=ReferenceMatch -output=reference_match_string_gen.go
-//go:generate stringer -type=ReferenceOption -output=reference_option_string_gen.go
 
 package model
 
@@ -124,46 +122,4 @@ type index struct {
 	columns   []IndexColumn
 	reference *Reference
 	options   []*IndexOption
-}
-
-// ReferenceMatch describes the mathing method of a reference
-type ReferenceMatch int
-
-// List of possible ReferenceMatch values
-const (
-	ReferenceMatchNone ReferenceMatch = iota
-	ReferenceMatchFull
-	ReferenceMatchPartial
-	ReferenceMatchSimple
-)
-
-// ReferenceOption describes the actions that could be taken when
-// a table/column referered by the reference has been deleted
-type ReferenceOption int
-
-// List of possible ReferenceOption values
-const (
-	ReferenceOptionNone ReferenceOption = iota
-	ReferenceOptionRestrict
-	ReferenceOptionCascade
-	ReferenceOptionSetNull
-	ReferenceOptionNoAction
-)
-
-// NullState describes the possible NULL constraint of a column
-type NullState int
-
-// List of possible NullStates. NullStateNone specifies that there is
-// no NULL constraint. NullStateNull explicitly specifies that the column
-// may be NULL. NullStateNotNull specifies that the column may not be NULL
-const (
-	NullStateNone NullState = iota
-	NullStateNull
-	NullStateNotNull
-)
-
-type DefaultValue struct {
-	Valid  bool
-	Value  string
-	Quoted bool
 }

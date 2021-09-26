@@ -5,6 +5,24 @@ import (
 	"strings"
 )
 
+// NullState describes the possible NULL constraint of a column
+type NullState int
+
+// List of possible NullStates. NullStateNone specifies that there is
+// no NULL constraint. NullStateNull explicitly specifies that the column
+// may be NULL. NullStateNotNull specifies that the column may not be NULL
+const (
+	NullStateNone NullState = iota
+	NullStateNull
+	NullStateNotNull
+)
+
+type DefaultValue struct {
+	Valid  bool
+	Value  string
+	Quoted bool
+}
+
 type Length struct {
 	Decimals MaybeString
 	Length   string
