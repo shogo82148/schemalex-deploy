@@ -61,7 +61,7 @@ func format(ctx *fmtCtx, v interface{}) error {
 		return formatTable(ctx, v)
 	case *model.TableColumn:
 		return formatTableColumn(ctx, v)
-	case model.TableOption:
+	case *model.TableOption:
 		return formatTableOption(ctx, v)
 	case model.Index:
 		return formatIndex(ctx, v)
@@ -88,16 +88,16 @@ func formatDatabase(ctx *fmtCtx, d *model.Database) error {
 	return nil
 }
 
-func formatTableOption(ctx *fmtCtx, option model.TableOption) error {
+func formatTableOption(ctx *fmtCtx, option *model.TableOption) error {
 	var buf bytes.Buffer
-	buf.WriteString(option.Key())
+	buf.WriteString(option.Key)
 	buf.WriteString(" = ")
-	if option.NeedQuotes() {
+	if option.NeedQuotes {
 		buf.WriteByte('\'')
-		buf.WriteString(option.Value())
+		buf.WriteString(option.Value)
 		buf.WriteByte('\'')
 	} else {
-		buf.WriteString(option.Value())
+		buf.WriteString(option.Value)
 	}
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {

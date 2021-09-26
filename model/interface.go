@@ -190,20 +190,6 @@ const (
 	ReferenceOptionNoAction
 )
 
-// TableOption describes a possible table option, such as `ENGINE=InnoDB`
-type TableOption interface {
-	Stmt
-	Key() string
-	Value() string
-	NeedQuotes() bool
-}
-
-type tableopt struct {
-	key        string
-	value      string
-	needQuotes bool
-}
-
 // NullState describes the possible NULL constraint of a column
 type NullState int
 

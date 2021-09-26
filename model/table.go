@@ -10,7 +10,7 @@ type Table struct {
 	LikeTable   MaybeString
 	Columns     []*TableColumn
 	Indexes     []Index
-	Options     []TableOption
+	Options     []*TableOption
 }
 
 // NewTable create a new table with the given name
@@ -154,22 +154,26 @@ func (t *Table) Normalize() (*Table, bool) {
 	tbl.Temporary = t.Temporary
 	tbl.Indexes = append(additionalIndexes, indexes...)
 	tbl.Columns = columns
-	tbl.Options = make([]TableOption, len(t.Options))
+	tbl.Options = make([]*TableOption, len(t.Options))
 	copy(tbl.Options, t.Options)
 
 	return tbl, true
 }
 
+// TableOption describes a possible table option, such as `ENGINE=InnoDB`
+type TableOption struct {
+	Key        string
+	Value      string
+	NeedQuotes bool
+}
+
 // NewTableOption creates a new table option with the given name, value, and a flag indicating if quoting is necessary
-func NewTableOption(k, v string, q bool) TableOption {
-	return &tableopt{
-		key:        k,
-		value:      v,
-		needQuotes: q,
+func NewTableOption(k, v string, q bool) *TableOption {
+	return &TableOption{
+		Key:        k,
+		Value:      v,
+		NeedQuotes: q,
 	}
 }
 
-func (t *tableopt) ID() string       { return "tableopt#" + t.key }
-func (t *tableopt) Key() string      { return t.key }
-func (t *tableopt) Value() string    { return t.value }
-func (t *tableopt) NeedQuotes() bool { return t.needQuotes }
+func (opt *TableOption) ID() string { return "tableopt#" + strings.ToLower(opt.Key) }
