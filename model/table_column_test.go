@@ -203,7 +203,7 @@ func TestTableColumnNormalize(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("from %q to %q", tc.beforeStr, tc.afterStr), func(t *testing.T) {
-			norm, _ := tc.before.Normalize()
+			norm := tc.before.Normalize()
 			if diff := cmp.Diff(tc.after, norm); diff != "" {
 				t.Errorf("mismatch (-want/+got)\n%s", diff)
 			}
