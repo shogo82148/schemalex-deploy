@@ -78,7 +78,7 @@ func formatDatabase(ctx *fmtCtx, d *model.Database) error {
 		buf.WriteString(" IF NOT EXISTS")
 	}
 	buf.WriteByte(' ')
-	buf.WriteString(util.Backquote(d.Name))
+	buf.WriteString(d.Name.Quoted())
 	buf.WriteByte(';')
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {
