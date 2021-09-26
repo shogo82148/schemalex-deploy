@@ -1,50 +1,48 @@
-package model_test
+package model
 
 import (
-	"bytes"
 	"fmt"
 	"testing"
 
-	"github.com/shogo82148/schemalex-deploy/format"
-	"github.com/shogo82148/schemalex-deploy/model"
-	"github.com/stretchr/testify/assert"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestTableColumnNormalize(t *testing.T) {
 	type testCase struct {
-		before, after *model.TableColumn
+		beforeStr, afterStr string
+		before, after       *TableColumn
 	}
 
-	for _, tc := range []testCase{
+	testCases := []testCase{
 		{
-			// foo VARCHAR (255) NOT NULL
-			before: &model.TableColumn{
+			beforeStr: "foo VARCHAR (255) NOT NULL",
+			before: &TableColumn{
 				Name:      "foo",
-				Type:      model.ColumnTypeVarChar,
-				Length:    model.NewLength("255"),
-				NullState: model.NullStateNotNull,
+				Type:      ColumnTypeVarChar,
+				Length:    NewLength("255"),
+				NullState: NullStateNotNull,
 			},
-			// foo VARCHAR (255) NOT NULL
-			after: &model.TableColumn{
+			afterStr: "foo VARCHAR (255) NOT NULL",
+			after: &TableColumn{
 				Name:      "foo",
-				Type:      model.ColumnTypeVarChar,
-				Length:    model.NewLength("255"),
-				NullState: model.NullStateNotNull,
+				Type:      ColumnTypeVarChar,
+				Length:    NewLength("255"),
+				NullState: NullStateNotNull,
 			},
 		},
 		{
-			// foo VARCHAR NULL
-			before: &model.TableColumn{
+			beforeStr: "foo VARCHAR NULL",
+			before: &TableColumn{
 				Name:      "foo",
-				Type:      model.ColumnTypeVarChar,
-				NullState: model.NullStateNull,
+				Type:      ColumnTypeVarChar,
+				NullState: NullStateNull,
 			},
-			// foo VARCHAR DEFAULT NULL
-			after: &model.TableColumn{
+			afterStr: "foo VARCHAR DEFAULT NULL",
+			after: &TableColumn{
 				Name:      "foo",
-				Type:      model.ColumnTypeVarChar,
-				NullState: model.NullStateNone,
-				Default: model.DefaultValue{
+				Type:      ColumnTypeVarChar,
+				NullState: NullStateNone,
+				Default: DefaultValue{
 					Valid:  true,
 					Value:  "NULL",
 					Quoted: false,
@@ -52,41 +50,41 @@ func TestTableColumnNormalize(t *testing.T) {
 			},
 		},
 		{
-			// foo INTEGER NOT NULL,
-			before: &model.TableColumn{
+			beforeStr: "foo INTEGER NOT NULL",
+			before: &TableColumn{
 				Name:      "foo",
-				Type:      model.ColumnTypeInteger,
-				NullState: model.NullStateNotNull,
+				Type:      ColumnTypeInteger,
+				NullState: NullStateNotNull,
 			},
-			// foo INT (11) NOT NULL,
-			after: &model.TableColumn{
+			afterStr: "foo INT (11) NOT NULL",
+			after: &TableColumn{
 				Name:      "foo",
-				Type:      model.ColumnTypeInt,
-				Length:    model.NewLength("11"),
-				NullState: model.NullStateNotNull,
+				Type:      ColumnTypeInt,
+				Length:    NewLength("11"),
+				NullState: NullStateNotNull,
 			},
 		},
 		{
-			// foo INTEGER UNSIGNED NULL DEFAULT 0,
-			before: &model.TableColumn{
+			beforeStr: "foo INTEGER UNSIGNED NULL DEFAULT 0",
+			before: &TableColumn{
 				Name:      "foo",
 				Unsigned:  true,
-				Type:      model.ColumnTypeInteger,
-				NullState: model.NullStateNull,
-				Default: model.DefaultValue{
+				Type:      ColumnTypeInteger,
+				NullState: NullStateNull,
+				Default: DefaultValue{
 					Valid:  true,
 					Value:  "0",
 					Quoted: false,
 				},
 			},
-			// foo INT (10) UNSIGNED DEFAULT 0,
-			after: &model.TableColumn{
+			afterStr: "foo INT (10) UNSIGNED DEFAULT 0",
+			after: &TableColumn{
 				Name:      "foo",
 				Unsigned:  true,
-				Type:      model.ColumnTypeInt,
-				Length:    model.NewLength("10"),
-				NullState: model.NullStateNone,
-				Default: model.DefaultValue{
+				Type:      ColumnTypeInt,
+				Length:    NewLength("10"),
+				NullState: NullStateNone,
+				Default: DefaultValue{
 					Valid:  true,
 					Value:  "0",
 					Quoted: false,
@@ -94,24 +92,24 @@ func TestTableColumnNormalize(t *testing.T) {
 			},
 		},
 		{
-			// foo bigint null default null,
-			before: &model.TableColumn{
+			beforeStr: "foo bigint null default null",
+			before: &TableColumn{
 				Name:      "foo",
-				Type:      model.ColumnTypeBigInt,
-				NullState: model.NullStateNull,
-				Default: model.DefaultValue{
+				Type:      ColumnTypeBigInt,
+				NullState: NullStateNull,
+				Default: DefaultValue{
 					Valid:  true,
 					Value:  "NULL",
 					Quoted: false,
 				},
 			},
-			// foo BIGINT (20) DEFAULT NULL,
-			after: &model.TableColumn{
+			afterStr: "foo BIGINT (20) DEFAULT NULL",
+			after: &TableColumn{
 				Name:      "foo",
-				Type:      model.ColumnTypeBigInt,
-				Length:    model.NewLength("20"),
-				NullState: model.NullStateNone,
-				Default: model.DefaultValue{
+				Type:      ColumnTypeBigInt,
+				Length:    NewLength("20"),
+				NullState: NullStateNone,
+				Default: DefaultValue{
 					Valid:  true,
 					Value:  "NULL",
 					Quoted: false,
@@ -119,25 +117,25 @@ func TestTableColumnNormalize(t *testing.T) {
 			},
 		},
 		{
-			// foo NUMERIC,
-			before: &model.TableColumn{
+			beforeStr: "foo NUMERIC",
+			before: &TableColumn{
 				Name:      "foo",
-				Type:      model.ColumnTypeNumeric,
-				NullState: model.NullStateNone,
+				Type:      ColumnTypeNumeric,
+				NullState: NullStateNone,
 			},
-			// foo DECIMAL (10,0) DEFAULT NULL,
-			after: &model.TableColumn{
+			afterStr: "foo DECIMAL (10,0) DEFAULT NULL",
+			after: &TableColumn{
 				Name: "foo",
-				Type: model.ColumnTypeDecimal,
-				Length: &model.Length{
+				Type: ColumnTypeDecimal,
+				Length: &Length{
 					Length: "10",
-					Decimals: model.MaybeString{
+					Decimals: MaybeString{
 						Valid: true,
 						Value: "0",
 					},
 				},
-				NullState: model.NullStateNone,
-				Default: model.DefaultValue{
+				NullState: NullStateNone,
+				Default: DefaultValue{
 					Valid:  true,
 					Value:  "NULL",
 					Quoted: false,
@@ -145,30 +143,30 @@ func TestTableColumnNormalize(t *testing.T) {
 			},
 		},
 		{
-			// foo TEXT,
-			before: &model.TableColumn{
+			beforeStr: "foo TEXT",
+			before: &TableColumn{
 				Name: "foo",
-				Type: model.ColumnTypeText,
+				Type: ColumnTypeText,
 			},
-			// foo TEXT,
-			after: &model.TableColumn{
+			afterStr: "foo TEXT",
+			after: &TableColumn{
 				Name: "foo",
-				Type: model.ColumnTypeText,
+				Type: ColumnTypeText,
 			},
 		},
 		{
-			// foo BOOL,
-			before: &model.TableColumn{
+			beforeStr: "foo BOOL",
+			before: &TableColumn{
 				Name: "foo",
-				Type: model.ColumnTypeBool,
+				Type: ColumnTypeBool,
 			},
-			// foo TINYINT(1) DEFAULT NULL,
-			after: &model.TableColumn{
+			afterStr: "foo TINYINT(1) DEFAULT NULL",
+			after: &TableColumn{
 				Name:      "foo",
-				Type:      model.ColumnTypeTinyInt,
-				Length:    model.NewLength("1"),
-				NullState: model.NullStateNone,
-				Default: model.DefaultValue{
+				Type:      ColumnTypeTinyInt,
+				Length:    NewLength("1"),
+				NullState: NullStateNone,
+				Default: DefaultValue{
 					Valid:  true,
 					Value:  "NULL",
 					Quoted: false,
@@ -176,47 +174,38 @@ func TestTableColumnNormalize(t *testing.T) {
 			},
 		},
 		{
-			// intud int unsigned default 0,
-			before: &model.TableColumn{
+			beforeStr: "intud int unsigned default 0",
+			before: &TableColumn{
 				Name:      "intud",
 				Unsigned:  true,
-				Type:      model.ColumnTypeInt,
-				NullState: model.NullStateNone,
-				Default: model.DefaultValue{
+				Type:      ColumnTypeInt,
+				NullState: NullStateNone,
+				Default: DefaultValue{
 					Valid:  true,
 					Value:  "0",
 					Quoted: true,
 				},
 			},
-			// intud INT (10) UNSIGNED DEFAULT '0'
-			after: &model.TableColumn{
+			afterStr: "intud INT (10) UNSIGNED DEFAULT '0'",
+			after: &TableColumn{
 				Name:      "intud",
 				Unsigned:  true,
-				Type:      model.ColumnTypeInt,
-				Length:    model.NewLength("10"),
-				NullState: model.NullStateNone,
-				Default: model.DefaultValue{
+				Type:      ColumnTypeInt,
+				Length:    NewLength("10"),
+				NullState: NullStateNone,
+				Default: DefaultValue{
 					Valid:  true,
 					Value:  "0",
 					Quoted: false,
 				},
 			},
 		},
-	} {
-		var buf bytes.Buffer
-		format.SQL(&buf, tc.before)
-		beforeStr := buf.String()
-		buf.Reset()
-		format.SQL(&buf, tc.after)
-		afterStr := buf.String()
-		t.Run(fmt.Sprintf("from %s to %s", beforeStr, afterStr), func(t *testing.T) {
+	}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("from %q to %q", tc.beforeStr, tc.afterStr), func(t *testing.T) {
 			norm, _ := tc.before.Normalize()
-			if !assert.Equal(t, norm, tc.after, "Unexpected return value.") {
-				buf.Reset()
-				format.SQL(&buf, norm)
-				normStr := buf.String()
-				t.Logf("before: %s normalized: %s", beforeStr, normStr)
-				t.Logf("after: %s", afterStr)
+			if diff := cmp.Diff(tc.after, norm); diff != "" {
+				t.Errorf("mismatch (-want/+got)\n%s", diff)
 			}
 		})
 	}

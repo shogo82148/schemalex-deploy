@@ -1,4 +1,4 @@
-package schemalex_test
+package diff_test
 
 import (
 	"os"
