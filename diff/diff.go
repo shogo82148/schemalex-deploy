@@ -12,7 +12,6 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/shogo82148/schemalex-deploy"
 	"github.com/shogo82148/schemalex-deploy/format"
-	"github.com/shogo82148/schemalex-deploy/internal/util"
 	"github.com/shogo82148/schemalex-deploy/model"
 )
 
@@ -143,7 +142,7 @@ func (ctx *diffCtx) dropTables() error {
 		if !ok {
 			return fmt.Errorf(`lookup failed: %q is not a model.Table`, id)
 		}
-		ctx.append("DROP TABLE " + util.Backquote(table.Name))
+		ctx.append("DROP TABLE " + table.Name.Quoted())
 	}
 	return nil
 }
@@ -258,15 +257,14 @@ func (ctx *alterCtx) dropTableColumns() error {
 	var buf bytes.Buffer
 	for _, columnName := range columnNames.ToSlice() {
 		buf.Reset()
-		buf.WriteString("ALTER TABLE `")
-		buf.WriteString(ctx.from.Name)
-		buf.WriteString("` DROP COLUMN `")
+		buf.WriteString("ALTER TABLE ")
+		buf.WriteString(ctx.from.Name.Quoted())
+		buf.WriteString(" DROP COLUMN ")
 		col, ok := ctx.from.LookupColumn(columnName.(string))
 		if !ok {
 			return fmt.Errorf("failed to lookup column %q", columnName)
 		}
-		buf.WriteString(col.Name)
-		buf.WriteString("`")
+		buf.WriteString(col.Name.Quoted())
 		ctx.append(buf.String())
 	}
 	return nil
@@ -354,14 +352,14 @@ func (ctx *alterCtx) writeAddColumn(columnNames ...string) error {
 		beforeCol, hasBeforeCol := ctx.to.LookupColumnBefore(stmt.ID())
 		buf.Reset()
 		buf.WriteString("ALTER TABLE ")
-		buf.WriteString(util.Backquote(ctx.from.Name))
+		buf.WriteString(ctx.from.Name.Quoted())
 		buf.WriteString(" ADD COLUMN ")
 		if err := format.SQL(&buf, stmt); err != nil {
 			return err
 		}
 		if hasBeforeCol {
 			buf.WriteString(" AFTER ")
-			buf.WriteString(util.Backquote(beforeCol.Name))
+			buf.WriteString(beforeCol.Name.Quoted())
 			buf.WriteString("")
 		} else {
 			buf.WriteString(" FIRST")
@@ -391,10 +389,10 @@ func (ctx *alterCtx) alterTableColumns() error {
 
 		buf.Reset()
 		buf.WriteString("ALTER TABLE ")
-		buf.WriteString(util.Backquote(ctx.from.Name))
-		buf.WriteString(" CHANGE COLUMN `")
-		buf.WriteString(afterColumnStmt.Name)
-		buf.WriteString("` ")
+		buf.WriteString(ctx.from.Name.Quoted())
+		buf.WriteString(" CHANGE COLUMN ")
+		buf.WriteString(afterColumnStmt.Name.Quoted())
+		buf.WriteString(" ")
 		if err := format.SQL(&buf, afterColumnStmt); err != nil {
 			return err
 		}
@@ -418,7 +416,7 @@ func (ctx *alterCtx) dropTableIndexes() error {
 		if indexStmt.Kind == model.IndexKindPrimaryKey {
 			buf.Reset()
 			buf.WriteString("ALTER TABLE ")
-			buf.WriteString(util.Backquote(ctx.from.Name))
+			buf.WriteString(ctx.from.Name.Quoted())
 			buf.WriteString(" DROP PRIMARY KEY")
 			ctx.append(buf.String())
 			continue
@@ -434,14 +432,13 @@ func (ctx *alterCtx) dropTableIndexes() error {
 
 		buf.Reset()
 		buf.WriteString("ALTER TABLE ")
-		buf.WriteString(util.Backquote(ctx.from.Name))
-		buf.WriteString(" DROP FOREIGN KEY `")
+		buf.WriteString(ctx.from.Name.Quoted())
+		buf.WriteString(" DROP FOREIGN KEY ")
 		if indexStmt.Symbol.Valid {
-			buf.WriteString(indexStmt.Symbol.Value)
+			buf.WriteString(indexStmt.Symbol.Quoted())
 		} else {
-			buf.WriteString(indexStmt.Name.Value)
+			buf.WriteString(indexStmt.Name.Quoted())
 		}
-		buf.WriteString("`")
 		ctx.append(buf.String())
 	}
 
@@ -449,14 +446,13 @@ func (ctx *alterCtx) dropTableIndexes() error {
 	for _, indexStmt := range lazy {
 		buf.Reset()
 		buf.WriteString("ALTER TABLE ")
-		buf.WriteString(util.Backquote(ctx.from.Name))
-		buf.WriteString(" DROP INDEX `")
+		buf.WriteString(ctx.from.Name.Quoted())
+		buf.WriteString(" DROP INDEX ")
 		if !indexStmt.Name.Valid {
-			buf.WriteString(indexStmt.Symbol.Value)
+			buf.WriteString(indexStmt.Symbol.Quoted())
 		} else {
-			buf.WriteString(indexStmt.Name.Value)
+			buf.WriteString(indexStmt.Name.Quoted())
 		}
-		buf.WriteString("`")
 		ctx.append(buf.String())
 	}
 
@@ -481,7 +477,7 @@ func (ctx *alterCtx) addTableIndexes() error {
 
 		buf.Reset()
 		buf.WriteString("ALTER TABLE ")
-		buf.WriteString(util.Backquote(ctx.from.Name))
+		buf.WriteString(ctx.from.Name.Quoted())
 		buf.WriteString(" ADD ")
 		if err := format.SQL(&buf, indexStmt); err != nil {
 			return err
@@ -492,7 +488,7 @@ func (ctx *alterCtx) addTableIndexes() error {
 	for _, indexStmt := range lazy {
 		buf.Reset()
 		buf.WriteString("ALTER TABLE ")
-		buf.WriteString(util.Backquote(ctx.from.Name))
+		buf.WriteString(ctx.from.Name.Quoted())
 		buf.WriteString(" ADD ")
 		if err := format.SQL(&buf, indexStmt); err != nil {
 			return err

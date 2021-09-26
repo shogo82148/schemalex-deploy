@@ -200,7 +200,7 @@ func (p *Parser) parseCreateDatabase(ctx *parseCtx) (*model.Database, error) {
 	var database *model.Database
 	switch t := ctx.next(); t.Type {
 	case IDENT, BACKTICK_IDENT:
-		database = model.NewDatabase(t.Value)
+		database = model.NewDatabase(t.Ident())
 	default:
 		return nil, newParseError(ctx, t, "expected IDENT, BACKTICK_IDENT")
 	}
@@ -239,7 +239,7 @@ func (p *Parser) parseCreateTable(ctx *parseCtx) (*model.Table, error) {
 
 	switch t := ctx.next(); t.Type {
 	case IDENT, BACKTICK_IDENT:
-		table = model.NewTable(t.Value)
+		table = model.NewTable(t.Ident())
 	default:
 		return nil, newParseError(ctx, t, "expected IDENT or BACKTICK_IDENT")
 	}
@@ -255,7 +255,7 @@ func (p *Parser) parseCreateTable(ctx *parseCtx) (*model.Table, error) {
 		switch t := ctx.next(); t.Type {
 		case IDENT, BACKTICK_IDENT:
 			table.LikeTable.Valid = true
-			table.LikeTable.Value = t.Value
+			table.LikeTable.Ident = t.Ident()
 		default:
 			return nil, newParseError(ctx, t, "expected table name after LIKE")
 		}
@@ -390,9 +390,9 @@ func (p *Parser) parseTableConstraint(ctx *parseCtx, table *model.Table) error {
 	}
 
 	if len(sym) > 0 {
-		index.Symbol = model.MaybeString{
+		index.Symbol = model.MaybeIdent{
+			Ident: model.Ident(sym),
 			Valid: true,
-			Value: sym,
 		}
 	}
 
@@ -867,14 +867,22 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 				return newParseError(ctx, t, "expected SET")
 			}
 			ctx.skipWhiteSpaces()
-			v := ctx.next()
-			col.CharacterSet.Valid = true
-			col.CharacterSet.Value = v.Value
+			switch v := ctx.next(); v.Type {
+			case IDENT, BACKTICK_IDENT:
+				col.CharacterSet.Valid = true
+				col.CharacterSet.Ident = v.Ident()
+			default:
+				return newParseError(ctx, t, "should IDENT or BACKTICK_IDENT")
+			}
 		case COLLATE:
 			ctx.skipWhiteSpaces()
-			v := ctx.next()
-			col.Collation.Valid = true
-			col.Collation.Value = v.Value
+			switch v := ctx.next(); v.Type {
+			case IDENT, BACKTICK_IDENT:
+				col.Collation.Valid = true
+				col.Collation.Ident = v.Ident()
+			default:
+				return newParseError(ctx, t, "should IDENT or BACKTICK_IDENT")
+			}
 		case UNSIGNED:
 			if !check(coloptUnsigned) {
 				return newParseError(ctx, t, "cannot apply UNSIGNED")
@@ -1205,7 +1213,7 @@ func (p *Parser) parseColumnReference(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	switch t := ctx.next(); t.Type {
 	case BACKTICK_IDENT, IDENT:
-		r.TableName = t.Value
+		r.TableName = t.Ident()
 	default:
 		return newParseError(ctx, t, "expected IDENT or BACKTICK_IDENT")
 	}
@@ -1268,9 +1276,9 @@ func (p *Parser) parseColumnIndexName(ctx *parseCtx, index *model.Index) error {
 	switch t := ctx.peek(); t.Type {
 	case BACKTICK_IDENT, IDENT:
 		ctx.advance()
-		index.Name = model.MaybeString{
+		index.Name = model.MaybeIdent{
 			Valid: true,
-			Value: t.Value,
+			Ident: model.Ident(t.Value),
 		}
 	}
 	return nil
@@ -1326,7 +1334,7 @@ OUTER:
 			return nil, newParseError(ctx, t, "should IDENT or BACKTICK_IDENT")
 		}
 
-		col := model.NewIndexColumn(t.Value)
+		col := model.NewIndexColumn(model.Ident(t.Value))
 		cols = append(cols, col)
 
 		ctx.skipWhiteSpaces()

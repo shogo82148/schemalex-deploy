@@ -43,9 +43,9 @@ const (
 
 // Index describes an index on a table.
 type Index struct {
-	Symbol    MaybeString
+	Symbol    MaybeIdent
 	Kind      IndexKind
-	Name      MaybeString
+	Name      MaybeIdent
 	Type      IndexType
 	Table     string
 	Columns   []*IndexColumn
@@ -70,13 +70,13 @@ func (stmt *Index) ID() string {
 	// the type, // the column(s), and the reference(s).
 	name := "index"
 	if stmt.Name.Valid {
-		name = name + "#" + stmt.Name.Value
+		name = name + "#" + string(stmt.Name.Ident)
 	}
 	h := sha256.New()
 
 	sym := "none"
 	if stmt.Symbol.Valid {
-		sym = stmt.Symbol.Value
+		sym = string(stmt.Symbol.Ident)
 	}
 
 	fmt.Fprintf(h,
@@ -104,22 +104,23 @@ func (stmt *Index) Normalize() *Index {
 
 // IndexColumn is a column name/length specification used in indexes
 type IndexColumn struct {
-	Name          string
+	Name          Ident
 	Length        MaybeString
 	SortDirection IndexColumnSortDirection
 }
 
-func NewIndexColumn(name string) *IndexColumn {
+func NewIndexColumn(name Ident) *IndexColumn {
 	return &IndexColumn{
 		Name: name,
 	}
 }
 
 func (col *IndexColumn) ID() string {
+	name := strings.ToLower(string(col.Name))
 	if col.Length.Valid {
-		return "index_column#" + col.Name + "-" + col.Length.Value
+		return "index_column#" + name + "-" + col.Length.Value
 	}
-	return "index_column#" + col.Name
+	return "index_column#" + name
 }
 
 // IndexOption describes a possible index option, such as `WITH PARSER ngram`

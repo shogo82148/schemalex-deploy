@@ -4,24 +4,24 @@ import "strings"
 
 // Table describes a table model
 type Table struct {
-	Name        string
+	Name        Ident
 	Temporary   bool
 	IfNotExists bool
-	LikeTable   MaybeString
+	LikeTable   MaybeIdent
 	Columns     []*TableColumn
 	Indexes     []*Index
 	Options     []*TableOption
 }
 
 // NewTable create a new table with the given name
-func NewTable(name string) *Table {
+func NewTable(name Ident) *Table {
 	return &Table{
 		Name: name,
 	}
 }
 
 func (t *Table) ID() string {
-	return "table#" + strings.ToLower(t.Name)
+	return "table#" + strings.ToLower(string(t.Name))
 }
 
 func (t *Table) LookupColumn(id string) (*TableColumn, bool) {
@@ -85,7 +85,7 @@ func (t *Table) Normalize() *Table {
 			index := NewIndex(IndexKindUnique, t.ID())
 			// if you do not assign a name, the index is assigned the same name as the first indexed column
 			index.Name.Valid = true
-			index.Name.Value = ncol.Name
+			index.Name.Ident = ncol.Name
 			index.Type = IndexTypeNone
 			idxCol := NewIndexColumn(ncol.Name)
 			index.Columns = append(index.Columns, idxCol)
@@ -97,7 +97,7 @@ func (t *Table) Normalize() *Table {
 	}
 
 	var indexes []*Index
-	var seen = make(map[string]struct{})
+	var seen = make(map[Ident]struct{})
 	for _, idx := range t.Indexes {
 		nidx := idx.Normalize()
 
@@ -109,11 +109,10 @@ func (t *Table) Normalize() *Table {
 			// There's a chance the user has already explicitly declared the
 			// index for this constraint. Only add this implicit index if we
 			// haven't seen it before
-			if _, ok := seen[nidx.Symbol.Value]; !ok {
+			if _, ok := seen[nidx.Symbol.Ident]; !ok {
 				// add implicitly created INDEX
 				index := NewIndex(IndexKindNormal, t.ID())
-				index.Name.Valid = true
-				index.Name.Value = nidx.Symbol.Value
+				index.Name = nidx.Symbol
 				index.Type = nidx.Type
 				index.Columns = make([]*IndexColumn, len(nidx.Columns))
 				copy(index.Columns, nidx.Columns)
@@ -121,18 +120,17 @@ func (t *Table) Normalize() *Table {
 			}
 		}
 		indexes = append(indexes, nidx)
-		seen[nidx.Name.Value] = struct{}{}
+		seen[nidx.Name.Ident] = struct{}{}
 	}
 
-	tbl := NewTable(t.Name)
+	tbl := *t
 	tbl.IfNotExists = t.IfNotExists
 	tbl.Temporary = t.Temporary
 	tbl.Indexes = append(additionalIndexes, indexes...)
 	tbl.Columns = columns
 	tbl.Options = make([]*TableOption, len(t.Options))
 	copy(tbl.Options, t.Options)
-
-	return tbl
+	return &tbl
 }
 
 // TableOption describes a possible table option, such as `ENGINE=InnoDB`
