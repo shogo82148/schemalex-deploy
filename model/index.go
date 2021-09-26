@@ -63,7 +63,7 @@ func (stmt *index) Columns() chan IndexColumn {
 	return c
 }
 
-func (stmt *index) Reference() Reference {
+func (stmt *index) Reference() *Reference {
 	return stmt.reference
 }
 
@@ -83,7 +83,7 @@ func (stmt *index) HasSymbol() bool {
 	return stmt.symbol.Valid
 }
 
-func (stmt *index) SetReference(r Reference) Index {
+func (stmt *index) SetReference(r *Reference) Index {
 	stmt.reference = r
 	return stmt
 }

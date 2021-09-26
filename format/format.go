@@ -65,7 +65,7 @@ func format(ctx *fmtCtx, v interface{}) error {
 		return formatTableOption(ctx, v)
 	case model.Index:
 		return formatIndex(ctx, v)
-	case model.Reference:
+	case *model.Reference:
 		return formatReference(ctx, v)
 	default:
 		return fmt.Errorf("unsupported model type: %T", v)
@@ -412,18 +412,17 @@ func formatIndex(ctx *fmtCtx, index model.Index) error {
 	return nil
 }
 
-func formatReference(ctx *fmtCtx, r model.Reference) error {
+func formatReference(ctx *fmtCtx, r *model.Reference) error {
 	var buf bytes.Buffer
 
 	buf.WriteString(ctx.curIndent)
 	buf.WriteString("REFERENCES ")
-	buf.WriteString(util.Backquote(r.TableName()))
+	buf.WriteString(util.Backquote(r.TableName))
 	buf.WriteString(" (")
 
-	ch := r.Columns()
+	ch := r.Columns
 	lch := len(ch)
-	var i int
-	for col := range ch {
+	for i, col := range ch {
 		buf.WriteString(util.Backquote(col.Name()))
 		if col.HasLength() {
 			buf.WriteByte('(')
@@ -437,18 +436,18 @@ func formatReference(ctx *fmtCtx, r model.Reference) error {
 	}
 	buf.WriteByte(')')
 
-	switch {
-	case r.MatchFull():
+	switch r.Match {
+	case model.ReferenceMatchFull:
 		buf.WriteString(" MATCH FULL")
-	case r.MatchPartial():
+	case model.ReferenceMatchPartial:
 		buf.WriteString(" MATCH PARTIAL")
-	case r.MatchSimple():
+	case model.ReferenceMatchSimple:
 		buf.WriteString(" MATCH SIMPLE")
 	}
 
-	// we don't need to check the errors, because bytes.Buffer doesn't return any error.
-	writeReferenceOption(&buf, "ON DELETE", r.OnDelete())
-	writeReferenceOption(&buf, "ON UPDATE", r.OnUpdate())
+	// we don't need to check the errors, because strings.Builder doesn't return any error.
+	writeReferenceOption(&buf, "ON DELETE", r.OnDelete)
+	writeReferenceOption(&buf, "ON UPDATE", r.OnUpdate)
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {
 		return err

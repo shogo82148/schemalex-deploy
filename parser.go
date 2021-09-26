@@ -1055,9 +1055,11 @@ func (p *Parser) parseColumnIndexCommon(ctx *parseCtx, index model.Index) error 
 		return err
 	}
 
-	if err := p.parseColumnIndexColumns(ctx, index); err != nil {
+	cols, err := p.parseColumnIndexColumns(ctx)
+	if err != nil {
 		return err
 	}
+	index.AddColumns(cols...)
 
 	// Doing this AGAIN, because apparently you can specify the index_type
 	// before or after the column declarations
@@ -1095,9 +1097,11 @@ func (p *Parser) parseColumnIndexFullTextKey(ctx *parseCtx, index model.Index) e
 		return err
 	}
 
-	if err := p.parseColumnIndexColumns(ctx, index); err != nil {
+	cols, err := p.parseColumnIndexColumns(ctx)
+	if err != nil {
 		return err
 	}
+	index.AddColumns(cols...)
 
 	if err := p.parseColumnIndexOptions(ctx, index); err != nil {
 		return err
@@ -1121,9 +1125,11 @@ func (p *Parser) parseColumnIndexSpatialKey(ctx *parseCtx, index model.Index) er
 		return err
 	}
 
-	if err := p.parseColumnIndexColumns(ctx, index); err != nil {
+	cols, err := p.parseColumnIndexColumns(ctx)
+	if err != nil {
 		return err
 	}
+	index.AddColumns(cols...)
 
 	return nil
 }
@@ -1142,9 +1148,11 @@ func (p *Parser) parseColumnIndexForeignKey(ctx *parseCtx, index model.Index) er
 		return err
 	}
 
-	if err := p.parseColumnIndexColumns(ctx, index); err != nil {
+	cols, err := p.parseColumnIndexColumns(ctx)
+	if err != nil {
 		return err
 	}
+	index.AddColumns(cols...)
 
 	ctx.skipWhiteSpaces()
 	if t := ctx.peek(); t.Type == REFERENCES {
@@ -1156,7 +1164,7 @@ func (p *Parser) parseColumnIndexForeignKey(ctx *parseCtx, index model.Index) er
 	return nil
 }
 
-func (p *Parser) parseReferenceOption(ctx *parseCtx, set func(model.ReferenceOption) model.Reference) error {
+func (p *Parser) parseReferenceOption(ctx *parseCtx, set func(model.ReferenceOption)) error {
 	ctx.skipWhiteSpaces()
 	switch t := ctx.next(); t.Type {
 	case RESTRICT:
@@ -1192,14 +1200,16 @@ func (p *Parser) parseColumnReference(ctx *parseCtx, index model.Index) error {
 	ctx.skipWhiteSpaces()
 	switch t := ctx.next(); t.Type {
 	case BACKTICK_IDENT, IDENT:
-		r.SetTableName(t.Value)
+		r.TableName = t.Value
 	default:
 		return newParseError(ctx, t, "expected IDENT or BACKTICK_IDENT")
 	}
 
-	if err := p.parseColumnIndexColumns(ctx, r); err != nil {
+	cols, err := p.parseColumnIndexColumns(ctx)
+	if err != nil {
 		return err
 	}
+	r.Columns = cols
 
 	ctx.skipWhiteSpaces()
 	if t := ctx.peek(); t.Type == MATCH {
@@ -1207,11 +1217,11 @@ func (p *Parser) parseColumnReference(ctx *parseCtx, index model.Index) error {
 		ctx.skipWhiteSpaces()
 		switch t = ctx.next(); t.Type {
 		case FULL:
-			r.SetMatch(model.ReferenceMatchFull)
+			r.Match = model.ReferenceMatchFull
 		case PARTIAL:
-			r.SetMatch(model.ReferenceMatchPartial)
+			r.Match = model.ReferenceMatchPartial
 		case SIMPLE:
-			r.SetMatch(model.ReferenceMatchSimple)
+			r.Match = model.ReferenceMatchSimple
 		default:
 			return newParseError(ctx, t, "should FULL, PARTIAL or SIMPLE")
 		}
@@ -1231,11 +1241,11 @@ OUTER:
 
 		switch t := ctx.next(); t.Type {
 		case DELETE:
-			if err := p.parseReferenceOption(ctx, r.SetOnDelete); err != nil {
+			if err := p.parseReferenceOption(ctx, func(opt model.ReferenceOption) { r.OnDelete = opt }); err != nil {
 				return errors.Wrap(err, `failed to parse ON DELETE`)
 			}
 		case UPDATE:
-			if err := p.parseReferenceOption(ctx, r.SetOnUpdate); err != nil {
+			if err := p.parseReferenceOption(ctx, func(opt model.ReferenceOption) { r.OnUpdate = opt }); err != nil {
 				return errors.Wrap(err, `failed to parse ON UPDATE`)
 			}
 			break OUTER
@@ -1290,15 +1300,13 @@ func (p *Parser) parseColumnIndexType(ctx *parseCtx, index model.Index) error {
 }
 
 // TODO rename method name
-func (p *Parser) parseColumnIndexColumns(ctx *parseCtx, container interface {
-	AddColumns(...model.IndexColumn)
-}) error {
+func (p *Parser) parseColumnIndexColumns(ctx *parseCtx) ([]model.IndexColumn, error) {
 
 	var cols []model.IndexColumn
 
 	ctx.skipWhiteSpaces()
 	if t := ctx.next(); t.Type != LPAREN {
-		return newParseError(ctx, t, "expected LPAREN while parsing index column: %s", t.Type)
+		return nil, newParseError(ctx, t, "expected LPAREN while parsing index column: %s", t.Type)
 	}
 
 OUTER:
@@ -1306,7 +1314,7 @@ OUTER:
 		ctx.skipWhiteSpaces()
 		t := ctx.next()
 		if !(t.Type == IDENT || t.Type == BACKTICK_IDENT) {
-			return newParseError(ctx, t, "should IDENT or BACKTICK_IDENT")
+			return nil, newParseError(ctx, t, "should IDENT or BACKTICK_IDENT")
 		}
 
 		col := model.NewIndexColumn(t.Value)
@@ -1317,12 +1325,12 @@ OUTER:
 		case LPAREN:
 			t := ctx.next()
 			if t.Type != NUMBER {
-				return newParseError(ctx, t, "expected NUMBER")
+				return nil, newParseError(ctx, t, "expected NUMBER")
 			}
 			tlen := t.Value
 			ctx.skipWhiteSpaces()
 			if t = ctx.next(); t.Type != RPAREN {
-				return newParseError(ctx, t, "expected RPAREN")
+				return nil, newParseError(ctx, t, "expected RPAREN")
 			}
 			col.SetLength(tlen)
 		default:
@@ -1347,12 +1355,11 @@ OUTER:
 		case RPAREN:
 			break OUTER
 		default:
-			return newParseError(ctx, t, "expected COMMA or RPAREN")
+			return nil, newParseError(ctx, t, "expected COMMA or RPAREN")
 		}
 	}
 
-	container.AddColumns(cols...)
-	return nil
+	return cols, nil
 }
 
 func (p *Parser) parseColumnIndexOptions(ctx *parseCtx, index model.Index) error {

@@ -55,8 +55,8 @@ type Index interface {
 	HasName() bool
 	HasSymbol() bool
 	Name() string
-	Reference() Reference
-	SetReference(Reference) Index
+	Reference() *Reference
+	SetReference(*Reference) Index
 	SetSymbol(string) Index
 	SetType(IndexType) Index
 	SetName(string) Index
@@ -122,34 +122,8 @@ type index struct {
 	typ       IndexType
 	table     string
 	columns   []IndexColumn
-	reference Reference
+	reference *Reference
 	options   []*IndexOption
-}
-
-// Reference describes a possible reference from one table to another
-type Reference interface {
-	ColumnContainer
-
-	ID() string
-	String() string
-	TableName() string
-	OnDelete() ReferenceOption
-	OnUpdate() ReferenceOption
-	SetTableName(string) Reference
-	SetMatch(ReferenceMatch) Reference
-	SetOnDelete(ReferenceOption) Reference
-	SetOnUpdate(ReferenceOption) Reference
-	MatchFull() bool
-	MatchPartial() bool
-	MatchSimple() bool
-}
-
-type reference struct {
-	tableName string
-	columns   []IndexColumn
-	match     ReferenceMatch
-	onDelete  ReferenceOption
-	onUpdate  ReferenceOption
 }
 
 // ReferenceMatch describes the mathing method of a reference
