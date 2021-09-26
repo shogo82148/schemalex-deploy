@@ -413,7 +413,7 @@ func formatReference(ctx *fmtCtx, r *model.Reference) error {
 
 	buf.WriteString(ctx.curIndent)
 	buf.WriteString("REFERENCES ")
-	buf.WriteString(util.Backquote(r.TableName))
+	buf.WriteString(r.TableName.Quoted())
 	buf.WriteString(" (")
 
 	ch := r.Columns

@@ -1205,7 +1205,7 @@ func (p *Parser) parseColumnReference(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	switch t := ctx.next(); t.Type {
 	case BACKTICK_IDENT, IDENT:
-		r.TableName = t.Value
+		r.TableName = t.Ident()
 	default:
 		return newParseError(ctx, t, "expected IDENT or BACKTICK_IDENT")
 	}
