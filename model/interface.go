@@ -216,19 +216,6 @@ const (
 	NullStateNotNull
 )
 
-// Length describes the possible length constraint of a column
-type Length interface {
-	HasDecimal() bool
-	Decimal() string
-	SetDecimal(string) Length
-	Length() string
-}
-
-type length struct {
-	decimals MaybeString
-	length   string
-}
-
 type DefaultValue struct {
 	Valid  bool
 	Value  string

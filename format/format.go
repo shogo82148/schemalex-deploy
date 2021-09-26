@@ -229,10 +229,10 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 		if col.Length != nil {
 			l := col.Length
 			buf.WriteString(" (")
-			buf.WriteString(l.Length())
-			if l.HasDecimal() {
+			buf.WriteString(l.Length)
+			if l.Decimals.Valid {
 				buf.WriteByte(',')
-				buf.WriteString(l.Decimal())
+				buf.WriteString(l.Decimals.Value)
 			}
 			buf.WriteByte(')')
 		}

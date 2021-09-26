@@ -808,7 +808,8 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 					return err
 				}
 				l := model.NewLength(strs[0])
-				l.SetDecimal(strs[2])
+				l.Decimals.Valid = true
+				l.Decimals.Value = strs[2]
 				col.Length = l
 			} else if check(coloptDecimalOptionalSize) {
 				ctx.skipWhiteSpaces()
@@ -839,7 +840,8 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 					return newParseError(ctx, t, "expected RPAREN (decimal size)")
 				}
 				l := model.NewLength(tlen)
-				l.SetDecimal(tscale)
+				l.Decimals.Valid = true
+				l.Decimals.Value = tscale
 				col.Length = l
 			} else if check(coloptEnumValues) {
 				ctx.parseSetOrEnum(func(enum []string) *model.TableColumn {

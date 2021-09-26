@@ -127,9 +127,15 @@ func TestTableColumnNormalize(t *testing.T) {
 			},
 			// foo DECIMAL (10,0) DEFAULT NULL,
 			after: &model.TableColumn{
-				Name:      "foo",
-				Type:      model.ColumnTypeDecimal,
-				Length:    model.NewLength("10").SetDecimal("0"),
+				Name: "foo",
+				Type: model.ColumnTypeDecimal,
+				Length: &model.Length{
+					Length: "10",
+					Decimals: model.MaybeString{
+						Valid: true,
+						Value: "0",
+					},
+				},
 				NullState: model.NullStateNone,
 				Default: model.DefaultValue{
 					Valid:  true,

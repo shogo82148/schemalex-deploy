@@ -5,30 +5,17 @@ import (
 	"strings"
 )
 
+type Length struct {
+	Decimals MaybeString
+	Length   string
+}
+
 // NewLength creates a new Length which describes the
 // length of a column
-func NewLength(v string) Length {
-	return &length{
-		length: v,
+func NewLength(v string) *Length {
+	return &Length{
+		Length: v,
 	}
-}
-
-func (l *length) Decimal() string {
-	return l.decimals.Value
-}
-
-func (l *length) HasDecimal() bool {
-	return l.decimals.Valid
-}
-
-func (l *length) SetDecimal(v string) Length {
-	l.decimals.Valid = true
-	l.decimals.Value = v
-	return l
-}
-
-func (l *length) Length() string {
-	return l.length
 }
 
 // TableColumn describes a model object that describes a column
@@ -37,7 +24,7 @@ type TableColumn struct {
 	TableID       string
 	Name          string
 	Type          ColumnType
-	Length        Length
+	Length        *Length
 	NullState     NullState
 	CharacterSet  MaybeString
 	Collation     MaybeString
@@ -66,7 +53,7 @@ func (t *TableColumn) ID() string {
 	return "tablecol#" + strings.ToLower(t.Name)
 }
 
-func (t *TableColumn) NativeLength() Length {
+func (t *TableColumn) NativeLength() *Length {
 	// I referred to perl: SQL::Translator::Parser::MySQL#normalize_field https://metacpan.org/source/SQL::Translator::Parser::MySQL#L1072
 	unsigned := 0
 	if t.Unsigned {
@@ -91,8 +78,13 @@ func (t *TableColumn) NativeLength() Length {
 		// DECIMAL(M) means DECIMAL(M,0)
 		// The default value of M is 10.
 		// https://dev.mysql.com/doc/refman/5.6/en/fixed-point-types.html
-		l := NewLength("10")
-		l.SetDecimal("0")
+		l := &Length{
+			Length: "10",
+			Decimals: MaybeString{
+				Valid: true,
+				Value: "0",
+			},
+		}
 		return l
 	default:
 		return nil
@@ -103,7 +95,7 @@ func (t *TableColumn) NativeLength() Length {
 
 func (t *TableColumn) Normalize() (*TableColumn, bool) {
 	var clone bool
-	var length Length
+	var length *Length
 	var synonym ColumnType
 	var removeQuotes bool
 	var setDefaultNull bool
