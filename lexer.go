@@ -2,10 +2,9 @@ package schemalex
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/shogo82148/schemalex-deploy/internal/errors"
 )
 
 const eof = rune(0)

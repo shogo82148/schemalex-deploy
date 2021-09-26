@@ -12,7 +12,6 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/shogo82148/schemalex-deploy"
 	"github.com/shogo82148/schemalex-deploy/format"
-	"github.com/shogo82148/schemalex-deploy/internal/errors"
 	"github.com/shogo82148/schemalex-deploy/internal/util"
 	"github.com/shogo82148/schemalex-deploy/model"
 )
@@ -121,12 +120,12 @@ func Strings(dst io.Writer, from, to string, options ...Option) error {
 
 	stmts1, err := p.ParseString(from)
 	if err != nil {
-		return errors.Wrapf(err, `failed to parse "from" %s`, from)
+		return fmt.Errorf(`failed to parse "from" %s: %w`, from, err)
 	}
 
 	stmts2, err := p.ParseString(to)
 	if err != nil {
-		return errors.Wrapf(err, `failed to parse "to" %s`, to)
+		return fmt.Errorf(`failed to parse "to" %s: %w`, to, err)
 	}
 
 	return Statements(dst, stmts1, stmts2, options...)

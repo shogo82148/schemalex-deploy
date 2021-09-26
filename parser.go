@@ -1,10 +1,11 @@
 package schemalex
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/shogo82148/schemalex-deploy/internal/errors"
+	myerrors "github.com/shogo82148/schemalex-deploy/internal/errors"
 	"github.com/shogo82148/schemalex-deploy/model"
 )
 
@@ -115,14 +116,14 @@ LOOP:
 		case CREATE:
 			stmt, err := p.parseCreate(ctx)
 			if err != nil {
-				if errors.IsIgnorable(err) {
+				if myerrors.IsIgnorable(err) {
 					// this is ignorable.
 					continue
 				}
 				if pe, ok := err.(ParseError); ok {
 					return nil, pe
 				}
-				return nil, errors.Wrap(err, `failed to parse create`)
+				return nil, fmt.Errorf("failed to parse create: %w", err)
 			}
 			stmts = append(stmts, stmt)
 		case COMMENT_IDENT:
@@ -168,7 +169,7 @@ func (p *Parser) parseCreate(ctx *parseCtx) (model.Stmt, error) {
 		if _, err := p.parseCreateDatabase(ctx); err != nil {
 			return nil, err
 		}
-		return nil, errors.Ignorable(nil)
+		return nil, myerrors.Ignorable(nil)
 	case TABLE:
 		return p.parseCreateTable(ctx)
 	default:
@@ -1246,11 +1247,11 @@ OUTER:
 		switch t := ctx.next(); t.Type {
 		case DELETE:
 			if err := p.parseReferenceOption(ctx, func(opt model.ReferenceOption) { r.OnDelete = opt }); err != nil {
-				return errors.Wrap(err, `failed to parse ON DELETE`)
+				return fmt.Errorf("failed to parse ON DELETE: %w", err)
 			}
 		case UPDATE:
 			if err := p.parseReferenceOption(ctx, func(opt model.ReferenceOption) { r.OnUpdate = opt }); err != nil {
-				return errors.Wrap(err, `failed to parse ON UPDATE`)
+				return fmt.Errorf("failed to parse ON UPDATE: %w", err)
 			}
 			break OUTER
 		default:
@@ -1292,7 +1293,7 @@ func (p *Parser) parseColumnIndexType(ctx *parseCtx, index *model.Index) error {
 		default:
 			panic(fmt.Sprintf("unexpected index type: %v", index.Type))
 		}
-		return errors.Errorf(`statement already has index type declared (%s)`, typ)
+		return fmt.Errorf(`statement already has index type declared (%s)`, typ)
 	}
 
 	ctx.skipWhiteSpaces()
