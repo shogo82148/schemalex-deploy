@@ -24,10 +24,12 @@ jobs:
               '8.0',
               '5.7',
               '5.6',
+              'mariadb-10.7',
               'mariadb-10.6',
               'mariadb-10.5',
               'mariadb-10.4',
               'mariadb-10.3',
+              'mariadb-10.2',
           ]
           includes = []
           # MySQL versions compatibility check
