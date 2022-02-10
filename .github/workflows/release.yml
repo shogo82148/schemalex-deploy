@@ -16,7 +16,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: "1.17"
+          go-version: "1.18.0-beta2"
+          stable: "false"
 
       - name: Configure AWS Credentials
         uses: fuller-inc/actions-aws-assume-role@v1

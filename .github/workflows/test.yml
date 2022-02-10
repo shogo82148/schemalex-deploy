@@ -20,9 +20,6 @@ jobs:
         id: set-matrix
         run: |
           import json
-          go = [
-              '1.17',
-          ]
           mysql = [
               '8.0',
               '5.7',
@@ -39,7 +36,6 @@ jobs:
           matrix = {
               # OS vs Go versions
               'os': [ 'ubuntu-latest', 'macos-latest', 'windows-latest' ],
-              'go': go,
               'mysql': mysql[:1],
               'include': includes
           }
@@ -56,10 +52,11 @@ jobs:
       matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
 
     steps:
-      - name: Set up Go ${{ matrix.go }}
+      - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: ${{ matrix.go }}
+          go-version: "1.18.0-beta2"
+          stable: "false"
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
 
@@ -108,7 +105,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: "1.17"
+          go-version: "1.18.0-beta2"
+          stable: "false"
       - name: Check GoReleaser configure
         uses: goreleaser/goreleaser-action@v2
         with:
@@ -121,7 +119,8 @@ jobs:
       - name: Set up Go 1.17
         uses: actions/setup-go@v2
         with:
-          go-version: '1.17'
+          go-version: "1.18.0-beta2"
+          stable: "false"
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
 
