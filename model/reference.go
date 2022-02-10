@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-//go:generate stringer -type=ReferenceMatch -output=reference_match_string_gen.go
-//go:generate stringer -type=ReferenceOption -output=reference_option_string_gen.go
+//go:generate go run golang.org/x/tools/cmd/stringer@latest -type=ReferenceMatch -output=reference_match_string_gen.go
+//go:generate go run golang.org/x/tools/cmd/stringer@latest -type=ReferenceOption -output=reference_option_string_gen.go
 
 // ReferenceMatch describes the mathing method of a reference
 type ReferenceMatch int
