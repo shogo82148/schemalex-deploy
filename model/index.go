@@ -1,5 +1,5 @@
-//go:generate stringer -type=IndexType -output=index_type_string_gen.go
-//go:generate stringer -type=IndexKind -output=index_kind_string_gen.go
+//go:generate go run golang.org/x/tools/cmd/stringer@latest -type=IndexType -output=index_type_string_gen.go
+//go:generate go run golang.org/x/tools/cmd/stringer@latest -type=IndexKind -output=index_kind_string_gen.go
 
 package model
 

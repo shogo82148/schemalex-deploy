@@ -128,7 +128,6 @@ jobs:
 
       - name: Before script
         run: |
-          go install golang.org/x/tools/cmd/stringer@latest
           make generate
         shell: bash
       - name: Diff check
