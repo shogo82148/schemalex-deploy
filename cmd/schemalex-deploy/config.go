@@ -34,7 +34,7 @@ func loadConfig() (*config, error) {
 
 	flag.Usage = func() {
 		// TODO: fill the usage
-		fmt.Printf(`schemalex-deploy version %s
+		fmt.Printf(`%s
 
 schemalex -version
 `, getVersion())

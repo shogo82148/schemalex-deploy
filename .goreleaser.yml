@@ -16,7 +16,6 @@ builds:
     binary: schemalex-deploy
     ldflags:
       - -s -w
-      - -X github.com/shogo82148/schemalex-deploy.Version={{.Version}}
   - id: "cli-arm64"
     env:
       - CGO_ENABLED=0
@@ -30,7 +29,6 @@ builds:
     binary: schemalex-deploy
     ldflags:
       - -s -w
-      - -X github.com/shogo82148/schemalex-deploy.Version={{.Version}}
 archives:
   - builds:
       - cli-amd64

@@ -16,7 +16,6 @@ import (
 	"syscall"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/shogo82148/schemalex-deploy"
 	"github.com/shogo82148/schemalex-deploy/deploy"
 	"golang.org/x/term"
 )
@@ -33,7 +32,7 @@ func _main() error {
 		return err
 	}
 	if cfn.version {
-		showVersion()
+		fmt.Println(getVersion())
 		return nil
 	}
 
@@ -123,26 +122,49 @@ func approved(ctx context.Context) (bool, error) {
 	}
 }
 
-func showVersion() {
-	fmt.Printf(
-		"schemalex-deploy version %s, built with %s for %s/%s\n",
-		getVersion(),
-		runtime.Version(),
-		runtime.GOOS,
-		runtime.GOARCH,
-	)
-}
-
 func getVersion() string {
-	if schemalex.Version != "" {
-		// in case of release build
-		return schemalex.Version
+	var version string
+	var revision string
+	var time string
+	var modified bool
+	if info, ok := debug.ReadBuildInfo(); ok {
+		version = info.Main.Version
+		for _, kv := range info.Settings {
+			switch kv.Key {
+			case "vcs.revision":
+				revision = kv.Value
+			case "vcs.time":
+				time = kv.Value
+			case "vcs.modified":
+				if b, err := strconv.ParseBool(kv.Value); err == nil {
+					modified = b
+				}
+			}
+		}
 	}
 
-	// in case of built from source
-	i, ok := debug.ReadBuildInfo()
-	if !ok {
-		return "unknown"
+	var buf strings.Builder
+	buf.WriteString("schemalex-deploy version ")
+	if version != "" {
+		buf.WriteString(version)
+	} else {
+		buf.WriteString("unknown")
 	}
-	return i.Main.Version
+	if revision != "" {
+		buf.WriteString(" (")
+		buf.WriteString(revision)
+		buf.WriteString(" at ")
+		buf.WriteString(time)
+		if modified {
+			buf.WriteString(", modified")
+		}
+		buf.WriteString(")")
+	}
+	buf.WriteString(", built with")
+	buf.WriteString(runtime.Version())
+	buf.WriteString(" for ")
+	buf.WriteString(runtime.GOOS)
+	buf.WriteString("/")
+	buf.WriteString(runtime.GOARCH)
+	return buf.String()
 }
