@@ -108,7 +108,7 @@ func TestDropAll(t *testing.T) {
 		mustExec(ctx, t, db, "INSERT INTO `users` (`name`) VALUES (?), (?), (?)", "Alice", "Bob", "Charlie")
 		mustExec(ctx, t, db, "CREATE VIEW `user_ids` AS SELECT `id` FROM `users`")
 
-		tables, views, err := listTables(ctx, db)
+		tables, views, err := ListTables(ctx, db)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +125,7 @@ func TestDropAll(t *testing.T) {
 		}
 
 		// check the result
-		tables, views, err = listTables(ctx, db)
+		tables, views, err = ListTables(ctx, db)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -156,7 +156,7 @@ func TestDropAll(t *testing.T) {
 			")")
 		mustExec(ctx, t, db, "INSERT INTO `user_items` (`user_id`, `item_id`) VALUES (?, ?), (?, ?), (?, ?)", 1, 1, 2, 1, 3, 3)
 
-		tables, views, err := listTables(ctx, db)
+		tables, views, err := ListTables(ctx, db)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -173,7 +173,7 @@ func TestDropAll(t *testing.T) {
 		}
 
 		// check the result
-		tables, views, err = listTables(ctx, db)
+		tables, views, err = ListTables(ctx, db)
 		if err != nil {
 			t.Fatal(err)
 		}
