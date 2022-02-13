@@ -211,21 +211,22 @@ var specs = []Spec{
 			"ALTER TABLE `fuga` ADD CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES `f` (`id`)",
 		},
 	},
-	// {
-	// 	Name: "remove FOREIGN KEY",
-	// 	Before: []string{
-	// 		"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
-	// 		"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `fid` INTEGER NOT NULL, CONSTRAINT `fk` FOREIGN KEY (fid) REFERENCES f (id) )",
-	// 	},
-	// 	After: []string{
-	// 		"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
-	// 		"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `fid` INTEGER NOT NULL, INDEX fid (fid) )",
-	// 	},
-	// 	Expect: []string{
-	// 		"ALTER TABLE `fuga` DROP FOREIGN KEY `fk`",
-	// 		"ALTER TABLE `fuga` ADD INDEX `fid` (`fid`)",
-	// 	},
-	// },
+	{
+		Name: "remove FOREIGN KEY",
+		Before: []string{
+			"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `fid` INTEGER NOT NULL, CONSTRAINT `fk` FOREIGN KEY (fid) REFERENCES f (id) )",
+		},
+		After: []string{
+			"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `fid` INTEGER NOT NULL, INDEX fid (fid) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP FOREIGN KEY `fk`",
+			"ALTER TABLE `fuga` DROP INDEX `fk`",
+			"ALTER TABLE `fuga` ADD INDEX `fid` (`fid`)",
+		},
+	},
 	{
 		Name: "full text key",
 		Before: []string{
