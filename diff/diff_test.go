@@ -246,6 +246,9 @@ var specs = []Spec{
 	},
 	{
 		Name: "drop fulltext key",
+		Tests: []string{
+			"CREATE TABLE `hoge` ( `txt` TEXT, FULLTEXT INDEX `ft_idx` (`txt`) WITH PARSER `ngram`)",
+		},
 		Before: []string{
 			"CREATE TABLE `hoge` ( `txt` TEXT, FULLTEXT INDEX `ft_idx` (`txt`) WITH PARSER `ngram`)",
 		},
