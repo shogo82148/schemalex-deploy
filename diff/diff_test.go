@@ -199,10 +199,12 @@ var specs = []Spec{
 	{
 		Name: "change CONSTRAINT symbol naml",
 		Before: []string{
-			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, CONSTRAINT `fsym` FOREIGN KEY (fid) REFERENCES f (id) )",
+			"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, PRIMARY KEY (`id`), CONSTRAINT `fsym` FOREIGN KEY (`fid`) REFERENCES f (`id`) )",
 		},
 		After: []string{
-			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, CONSTRAINT `ksym` FOREIGN KEY (fid) REFERENCES f (id) )",
+			"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, PRIMARY KEY (`id`), CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES f (`id`) )",
 		},
 		Expect: []string{
 			"ALTER TABLE `fuga` DROP FOREIGN KEY `fsym`",
