@@ -229,6 +229,9 @@ var specs = []Spec{
 	},
 	{
 		Name: "full text key",
+		Tests: []string{
+			"CREATE TABLE `hoge` ( `txt` TEXT, FULLTEXT INDEX `ft_idx` (`txt`) WITH PARSER `ngram`)",
+		},
 		Before: []string{
 			"CREATE TABLE `hoge` ( `txt` TEXT )",
 		},
@@ -392,6 +395,17 @@ func TestDiff_Integrated(t *testing.T) {
 	var buf bytes.Buffer
 	for _, spec := range specs {
 		t.Run(spec.Name, func(t *testing.T) {
+			if len(spec.Tests) > 0 {
+				test, cleanup := database.SetupTestDB()
+				defer cleanup()
+				for _, q := range spec.Tests {
+					if _, err := test.ExecContext(ctx, q); err != nil {
+						t.Skipf("skip because the error: %v", err)
+						break
+					}
+				}
+			}
+
 			buf.Reset()
 			before := joinQueries(spec.Before)
 			after := joinQueries(spec.After)
