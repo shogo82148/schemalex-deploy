@@ -5,6 +5,12 @@ Changes
 
 - TBD
 
+## [v0.0.4] - 2021-09-02
+
+- support unix domain socket [#32](https://github.com/shogo82148/schemalex-deploy/pull/32)
+- refactor the parser [#31](https://github.com/shogo82148/schemalex-deploy/pull/31)
+- publish to my rpm repository [#25](https://github.com/shogo82148/schemalex-deploy/pull/25)
+
 ## [v0.0.3] - 2021-08-15
 
 - fix ~/.my.cnf is not loaded [#19](https://github.com/shogo82148/schemalex-deploy/pull/19)
@@ -21,7 +27,8 @@ Changes
 
 - initial release
 
-[Unreleased]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.4...HEAD
+[v0.0.4]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.3...v0.0.4
 [v0.0.3]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.2...v0.0.3
 [v0.0.2]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.1...v0.0.2
 [v0.0.1]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.0...v0.0.1
