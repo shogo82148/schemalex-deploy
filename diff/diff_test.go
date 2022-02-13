@@ -15,6 +15,7 @@ import (
 
 type Spec struct {
 	Name   string
+	Tests  []string
 	Before []string
 	After  []string
 	Expect []string
@@ -195,13 +196,21 @@ var specs = []Spec{
 		},
 		Expect: []string{},
 	},
-	// 	// change CONSTRAINT symbol naml
-	// 	{
-	// 		Before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, CONSTRAINT `fsym` FOREIGN KEY (fid) REFERENCES f (id) );",
-	// 		After:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, CONSTRAINT `ksym` FOREIGN KEY (fid) REFERENCES f (id) );",
-	// 		Expect: "ALTER TABLE `fuga` DROP FOREIGN KEY `fsym`;\nALTER TABLE `fuga` DROP INDEX `fsym`;\nALTER TABLE `fuga` ADD INDEX `ksym` (`fid`);\nALTER TABLE `fuga` ADD CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES `f` (`id`);\n",
-	// 	},
-	// FIX ME!
+	{
+		Name: "change CONSTRAINT symbol naml",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, CONSTRAINT `fsym` FOREIGN KEY (fid) REFERENCES f (id) )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, CONSTRAINT `ksym` FOREIGN KEY (fid) REFERENCES f (id) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP FOREIGN KEY `fsym`",
+			"ALTER TABLE `fuga` DROP INDEX `fsym`",
+			"ALTER TABLE `fuga` ADD INDEX `ksym` (`fid`)",
+			"ALTER TABLE `fuga` ADD CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES `f` (`id`)",
+		},
+	},
 	// {
 	// 	Name: "remove FOREIGN KEY",
 	// 	Before: []string{
@@ -297,7 +306,7 @@ INDEX foo_idx (ints)
 CREATE TABLE bar (
 id int NOT NULL AUTO_INCREMENT,
 PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`, `
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`, `
 CREATE TABLE foo (
 id int(11) NOT NULL AUTO_INCREMENT,
 tinyints tinyint(4) DEFAULT NULL,
