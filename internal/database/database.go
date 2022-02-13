@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ import (
 
 // SetupTestDB creates a database for testing.
 // Run the following command to run this on your local machine.
-//     docker run -d -p 127.0.0.1:3306:3306 -e MYSQL_ROOT_PASSWORD=verysecret mysql:8.0
+//     docker run -d -p 127.0.0.1:3306:3306 -e MYSQL_ROOT_PASSWORD=verysecret -e MYSQL_ROOT_HOST='%' mysql/mysql-server:8.0
 func SetupTestDB() (*sql.DB, func()) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -89,7 +90,7 @@ func SkipIfNoTestDatabase(t *testing.T) {
 	}
 }
 
-func listTables(ctx context.Context, db *sql.DB) (tables, views []string, err error) {
+func ListTables(ctx context.Context, db *sql.DB) (tables, views []string, err error) {
 	rows, err := db.QueryContext(ctx, "SHOW FULL TABLES")
 	if err != nil {
 		return nil, nil, err
@@ -108,6 +109,8 @@ func listTables(ctx context.Context, db *sql.DB) (tables, views []string, err er
 			views = append(views, tableName)
 		}
 	}
+	sort.Strings(tables)
+	sort.Strings(views)
 	if err := rows.Err(); err != nil {
 		return nil, nil, err
 	}
@@ -116,7 +119,7 @@ func listTables(ctx context.Context, db *sql.DB) (tables, views []string, err er
 
 // TruncateAll truncates all tables in the database.
 func TruncateAll(ctx context.Context, db *sql.DB) error {
-	tables, _, err := listTables(ctx, db)
+	tables, _, err := ListTables(ctx, db)
 	if err != nil {
 		return err
 	}
@@ -146,7 +149,7 @@ func TruncateAll(ctx context.Context, db *sql.DB) error {
 
 // DropAll drops all tables in the database.
 func DropAll(ctx context.Context, db *sql.DB) error {
-	tables, views, err := listTables(ctx, db)
+	tables, views, err := ListTables(ctx, db)
 	if err != nil {
 		return err
 	}
