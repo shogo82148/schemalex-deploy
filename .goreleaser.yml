@@ -91,14 +91,6 @@ blobs:
   - provider: s3
     bucket: shogo82148-rpm-temporary
     ids: [package-amd64]
-    folder: centos/8/x86_64/schemalex-deploy
-  - provider: s3
-    bucket: shogo82148-rpm-temporary
-    ids: [package-arm64]
-    folder: centos/8/aarch64/schemalex-deploy
-  - provider: s3
-    bucket: shogo82148-rpm-temporary
-    ids: [package-amd64]
     folder: almalinux/8/x86_64/schemalex-deploy
   - provider: s3
     bucket: shogo82148-rpm-temporary
