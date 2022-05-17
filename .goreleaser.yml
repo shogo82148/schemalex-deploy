@@ -45,7 +45,7 @@ nfpms:
       - cli-amd64
     package_name: schemalex-deploy
     homepage: https://github.com/shogo82148/schemalex-deploy/
-    maintainer: Ichinose Shogo <shogo82148@gmail.com>
+    maintainer: ICHINOSE Shogo <shogo82148@gmail.com>
     description: Schema management tool for MySQL
     license: MIT
     formats:
@@ -60,7 +60,7 @@ nfpms:
       - cli-arm64
     package_name: schemalex-deploy
     homepage: https://github.com/shogo82148/schemalex-deploy/
-    maintainer: Ichinose Shogo <shogo82148@gmail.com>
+    maintainer: ICHINOSE Shogo <shogo82148@gmail.com>
     description: Schema management tool for MySQL
     license: MIT
     formats:
