@@ -20,6 +20,9 @@ import (
 	"golang.org/x/term"
 )
 
+// the version is set by goreleaser
+var version = "" // .Version
+
 func main() {
 	if err := _main(); err != nil {
 		log.Fatal(err)
@@ -123,12 +126,13 @@ func approved(ctx context.Context) (bool, error) {
 }
 
 func getVersion() string {
-	var version string
 	var revision string
 	var time string
 	var modified bool
 	if info, ok := debug.ReadBuildInfo(); ok {
-		version = info.Main.Version
+		if version == "" {
+			version = info.Main.Version
+		}
 		for _, kv := range info.Settings {
 			switch kv.Key {
 			case "vcs.revision":
@@ -160,7 +164,7 @@ func getVersion() string {
 		}
 		buf.WriteString(")")
 	}
-	buf.WriteString(", built with")
+	buf.WriteString(", built with ")
 	buf.WriteString(runtime.Version())
 	buf.WriteString(" for ")
 	buf.WriteString(runtime.GOOS)
