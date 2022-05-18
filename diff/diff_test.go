@@ -313,8 +313,8 @@ blob_n blob,
 blob_nn blob,
 int_sd int default 0,
 int_ud int unsigned default 0,
-CONSTRAINT bar_fk FOREIGN KEY (integers) REFERENCES bar (id),
-INDEX foo_idx (ints)
+CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id),
+INDEX foo_idx (int_s)
 )`},
 		// show create table foo
 		After: []string{`
@@ -352,9 +352,9 @@ int_sd int(11) DEFAULT '0',
 int_ud int(10) unsigned DEFAULT '0',
 PRIMARY KEY (id),
 UNIQUE KEY bigint_s (bigint_s),
-KEY bar_fk (integers),
-KEY foo_idx (ints),
-CONSTRAINT bar_fk FOREIGN KEY (integers) REFERENCES bar (id)
+KEY bar_fk (integer_s),
+KEY foo_idx (int_s),
+CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 )`},
 		Expect: []string{},
 	},
