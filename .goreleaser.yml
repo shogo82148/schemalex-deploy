@@ -16,6 +16,7 @@ builds:
     binary: schemalex-deploy
     ldflags:
       - -s -w
+      - -X main.version={{.Version}}
   - id: "cli-arm64"
     env:
       - CGO_ENABLED=0
@@ -29,6 +30,7 @@ builds:
     binary: schemalex-deploy
     ldflags:
       - -s -w
+      - -X main.version={{.Version}}
 archives:
   - builds:
       - cli-amd64
@@ -106,8 +108,4 @@ blobs:
     folder: rockylinux/8/aarch64/schemalex-deploy
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
+  use: github-native
