@@ -69,9 +69,10 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL, `c` INTEGER NOT NULL )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `id`",
-			"ALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`",
-			"ALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `b`",
+			"ALTER TABLE `fuga` " +
+				"ADD COLUMN `a` INT (11) NOT NULL AFTER `id`, " +
+				"ADD COLUMN `b` INT (11) NOT NULL AFTER `a`, " +
+				"ADD COLUMN `c` INT (11) NOT NULL AFTER `b`",
 		},
 	},
 	{
@@ -83,9 +84,10 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `a` INTEGER NOT NULL, `b` INTEGER NOT NULL, `c` INTEGER NOT NULL, `id` INTEGER NOT NULL)",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL FIRST",
-			"ALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`",
-			"ALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `b`",
+			"ALTER TABLE `fuga` " +
+				"ADD COLUMN `a` INT (11) NOT NULL FIRST, " +
+				"ADD COLUMN `b` INT (11) NOT NULL AFTER `a`, " +
+				"ADD COLUMN `c` INT (11) NOT NULL AFTER `b`",
 		},
 	},
 	{
@@ -97,9 +99,10 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `c` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `id`",
-			"ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `c`",
-			"ALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`",
+			"ALTER TABLE `fuga` " +
+				"ADD COLUMN `c` INT (11) NOT NULL AFTER `id`, " +
+				"ADD COLUMN `a` INT (11) NOT NULL AFTER `c`, " +
+				"ADD COLUMN `b` INT (11) NOT NULL AFTER `a`",
 		},
 	},
 	{
@@ -207,10 +210,11 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, PRIMARY KEY (`id`), CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES f (`id`) )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` DROP FOREIGN KEY `fsym`",
-			"ALTER TABLE `fuga` DROP INDEX `fsym`",
-			"ALTER TABLE `fuga` ADD INDEX `ksym` (`fid`)",
-			"ALTER TABLE `fuga` ADD CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES `f` (`id`)",
+			"ALTER TABLE `fuga` " +
+				"DROP FOREIGN KEY `fsym`, " +
+				"DROP INDEX `fsym`, " +
+				"ADD INDEX `ksym` (`fid`), " +
+				"ADD CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES `f` (`id`)",
 		},
 	},
 	{
@@ -224,9 +228,10 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `fid` INTEGER NOT NULL, INDEX fid (fid) )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` DROP FOREIGN KEY `fk`",
-			"ALTER TABLE `fuga` DROP INDEX `fk`",
-			"ALTER TABLE `fuga` ADD INDEX `fid` (`fid`)",
+			"ALTER TABLE `fuga` " +
+				"DROP FOREIGN KEY `fk`, " +
+				"DROP INDEX `fk`, " +
+				"ADD INDEX `fid` (`fid`)",
 		},
 	},
 	{
@@ -268,10 +273,11 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `aid` INTEGER NOT NULL, `cid` INTEGER NOT NULL, INDEX `ac` (`aid`, `cid`) )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` DROP INDEX `ab`",
-			"ALTER TABLE `fuga` DROP COLUMN `bid`",
-			"ALTER TABLE `fuga` ADD COLUMN `cid` INT (11) NOT NULL AFTER `aid`",
-			"ALTER TABLE `fuga` ADD INDEX `ac` (`aid`, `cid`)",
+			"ALTER TABLE `fuga` " +
+				"DROP INDEX `ab`, " +
+				"DROP COLUMN `bid`, " +
+				"ADD COLUMN `cid` INT (11) NOT NULL AFTER `aid`, " +
+				"ADD INDEX `ac` (`aid`, `cid`)",
 		},
 	},
 	{
@@ -281,34 +287,34 @@ var specs = []Spec{
 CREATE TABLE bar ( id INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (id) )`, `
 create table foo (
 id int not null AUTO_INCREMENT PRIMARY KEY,
-tinyints tinyint,
-tinyintu tinyint unsigned,
-smallints smallint,
-smallintu smallint unsigned,
-mediumints mediumint,
-mediumintu mediumint unsigned,
-ints int comment 'this is sined int nullable',
-intu int unsigned,
-integers integer null default null,
-integeru integer unsigned null,
-bigins bigint UNIQUE KEY,
-bigintu bigint unsigned,
-floats float,
-floaru float unsigned,
-doubles double,
-doubleu double unsigned,
-decimals decimal,
-decimalu decimal unsigned,
-varcharn varchar (10) null,
-varcharnn varchar (10) not null,
-textn text,
-textnn text not null,
-blobn blob,
-blobnn blob,
-intsd int default 0,
-intud int unsigned default 0,
-CONSTRAINT bar_fk FOREIGN KEY (integers) REFERENCES bar (id),
-INDEX foo_idx (ints)
+tinyint_s tinyint,
+tinyint_u tinyint unsigned,
+smallint_s smallint,
+smallint_u smallint unsigned,
+mediumint_s mediumint,
+mediumint_u mediumint unsigned,
+int_s int comment 'this is singed int nullable',
+int_u int unsigned,
+integer_s integer null default null,
+integer_u integer unsigned null,
+bigint_s bigint UNIQUE KEY,
+bigint_u bigint unsigned,
+float_s float,
+float_u float unsigned,
+double_s double,
+double_u double unsigned,
+decimal_s decimal,
+decimal_u decimal unsigned,
+varchar_n varchar (10) null,
+varchar_nn varchar (10) not null,
+text_n text,
+text_nn text not null,
+blob_n blob,
+blob_nn blob,
+int_sd int default 0,
+int_ud int unsigned default 0,
+CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id),
+INDEX foo_idx (int_s)
 )`},
 		// show create table foo
 		After: []string{`
@@ -318,37 +324,37 @@ PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`, `
 CREATE TABLE foo (
 id int(11) NOT NULL AUTO_INCREMENT,
-tinyints tinyint(4) DEFAULT NULL,
-tinyintu tinyint(3) unsigned DEFAULT NULL,
-smallints smallint(6) DEFAULT NULL,
-smallintu smallint(5) unsigned DEFAULT NULL,
-mediumints mediumint(9) DEFAULT NULL,
-mediumintu mediumint(8) unsigned DEFAULT NULL,
-ints int(11) DEFAULT NULL COMMENT 'this is sined int nullable',
-intu int(10) unsigned DEFAULT NULL,
-integers int(11) DEFAULT NULL,
-integeru int(10) unsigned DEFAULT NULL,
-bigins bigint(20) DEFAULT NULL,
-bigintu bigint(20) unsigned DEFAULT NULL,
-floats float DEFAULT NULL,
-floaru float unsigned DEFAULT NULL,
-doubles double DEFAULT NULL,
-doubleu double unsigned DEFAULT NULL,
-decimals decimal(10,0) DEFAULT NULL,
-decimalu decimal(10,0) unsigned DEFAULT NULL,
-varcharn varchar(10) DEFAULT NULL,
-varcharnn varchar(10) NOT NULL,
-textn text,
-textnn text NOT NULL,
-blobn blob,
-blobnn blob,
-intsd int(11) DEFAULT '0',
-intud int(10) unsigned DEFAULT '0',
+tinyint_s tinyint(4) DEFAULT NULL,
+tinyint_u tinyint(3) unsigned DEFAULT NULL,
+smallint_s smallint(6) DEFAULT NULL,
+smallint_u smallint(5) unsigned DEFAULT NULL,
+mediumint_s mediumint(9) DEFAULT NULL,
+mediumint_u mediumint(8) unsigned DEFAULT NULL,
+int_s int(11) DEFAULT NULL COMMENT 'this is singed int nullable',
+int_u int(10) unsigned DEFAULT NULL,
+integer_s int(11) DEFAULT NULL,
+integer_u int(10) unsigned DEFAULT NULL,
+bigint_s bigint(20) DEFAULT NULL,
+bigint_u bigint(20) unsigned DEFAULT NULL,
+float_s float DEFAULT NULL,
+float_u float unsigned DEFAULT NULL,
+double_s double DEFAULT NULL,
+double_u double unsigned DEFAULT NULL,
+decimal_s decimal(10,0) DEFAULT NULL,
+decimal_u decimal(10,0) unsigned DEFAULT NULL,
+varchar_n varchar(10) DEFAULT NULL,
+varchar_nn varchar(10) NOT NULL,
+text_n text,
+text_nn text NOT NULL,
+blob_n blob,
+blob_nn blob,
+int_sd int(11) DEFAULT '0',
+int_ud int(10) unsigned DEFAULT '0',
 PRIMARY KEY (id),
-UNIQUE KEY bigins (bigins),
-KEY bar_fk (integers),
-KEY foo_idx (ints),
-CONSTRAINT bar_fk FOREIGN KEY (integers) REFERENCES bar (id)
+UNIQUE KEY bigint_s (bigint_s),
+KEY bar_fk (integer_s),
+KEY foo_idx (int_s),
+CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 )`},
 		Expect: []string{},
 	},
@@ -381,7 +387,7 @@ func TestDiff(t *testing.T) {
 			actual := buf.String()
 			if diff := cmp.Diff(expect, actual); diff != "" {
 				t.Errorf(
-					"spec %s missmatch (-want/+got)\n%s\n"+
+					"spec %s mismatch (-want/+got)\n%s\n"+
 						"before = %q\n"+
 						"after  = %q",
 					spec.Name, diff, spec.Before, spec.After,
