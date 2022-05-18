@@ -5,6 +5,11 @@ Changes
 
 - TBD
 
+## [v0.0.5] - 2022-05-18
+
+- arrange alter table statement [#53](https://github.com/shogo82148/schemalex-deploy/pull/53)
+- bump Go 1.18 [#48](https://github.com/shogo82148/schemalex-deploy/pull/48)
+
 ## [v0.0.4] - 2021-09-02
 
 - support unix domain socket [#32](https://github.com/shogo82148/schemalex-deploy/pull/32)
@@ -27,7 +32,8 @@ Changes
 
 - initial release
 
-[Unreleased]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.4...HEAD
+[Unreleased]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.5...HEAD
+[v0.0.5]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.4...v0.0.5
 [v0.0.4]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.3...v0.0.4
 [v0.0.3]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.2...v0.0.3
 [v0.0.2]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.1...v0.0.2
