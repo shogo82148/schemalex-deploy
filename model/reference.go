@@ -8,7 +8,7 @@ import (
 //go:generate go run golang.org/x/tools/cmd/stringer@latest -type=ReferenceMatch -output=reference_match_string_gen.go
 //go:generate go run golang.org/x/tools/cmd/stringer@latest -type=ReferenceOption -output=reference_option_string_gen.go
 
-// ReferenceMatch describes the mathing method of a reference
+// ReferenceMatch describes the matching method of a reference
 type ReferenceMatch int
 
 // List of possible ReferenceMatch values
@@ -20,7 +20,7 @@ const (
 )
 
 // ReferenceOption describes the actions that could be taken when
-// a table/column referered by the reference has been deleted
+// a table/column referred by the reference has been deleted
 type ReferenceOption int
 
 // List of possible ReferenceOption values

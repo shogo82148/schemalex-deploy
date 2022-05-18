@@ -315,9 +315,9 @@ func formatIndex(ctx *fmtCtx, index *model.Index) error {
 	var buf bytes.Buffer
 
 	buf.WriteString(ctx.curIndent)
-	if index.Symbol.Valid {
+	if index.ConstraintName.Valid {
 		buf.WriteString("CONSTRAINT ")
-		buf.WriteString(index.Symbol.Quoted())
+		buf.WriteString(index.ConstraintName.Quoted())
 		buf.WriteByte(' ')
 	}
 

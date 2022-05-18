@@ -420,7 +420,7 @@ func (ctx *alterCtx) dropTableIndexes() error {
 			continue
 		}
 
-		if !indexStmt.Name.Valid && !indexStmt.Symbol.Valid {
+		if !indexStmt.Name.Valid && !indexStmt.ConstraintName.Valid {
 			return fmt.Errorf("can not drop index without name: %q", indexStmt.ID())
 		}
 		if indexStmt.Kind != model.IndexKindForeignKey {
@@ -430,8 +430,8 @@ func (ctx *alterCtx) dropTableIndexes() error {
 
 		ctx.begin()
 		ctx.writeString("DROP FOREIGN KEY ")
-		if indexStmt.Symbol.Valid {
-			ctx.writeIdent(indexStmt.Symbol.Ident)
+		if indexStmt.ConstraintName.Valid {
+			ctx.writeIdent(indexStmt.ConstraintName.Ident)
 		} else {
 			ctx.writeIdent(indexStmt.Name.Ident)
 		}
@@ -442,7 +442,7 @@ func (ctx *alterCtx) dropTableIndexes() error {
 		ctx.begin()
 		ctx.writeString("DROP INDEX ")
 		if !indexStmt.Name.Valid {
-			ctx.writeIdent(indexStmt.Symbol.Ident)
+			ctx.writeIdent(indexStmt.ConstraintName.Ident)
 		} else {
 			ctx.writeIdent(indexStmt.Name.Ident)
 		}
