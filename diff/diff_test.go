@@ -69,9 +69,10 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL, `c` INTEGER NOT NULL )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `id`",
-			"ALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`",
-			"ALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `b`",
+			"ALTER TABLE `fuga` " +
+				"ADD COLUMN `a` INT (11) NOT NULL AFTER `id`, " +
+				"ADD COLUMN `b` INT (11) NOT NULL AFTER `a`, " +
+				"ADD COLUMN `c` INT (11) NOT NULL AFTER `b`",
 		},
 	},
 	{
@@ -83,9 +84,10 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `a` INTEGER NOT NULL, `b` INTEGER NOT NULL, `c` INTEGER NOT NULL, `id` INTEGER NOT NULL)",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL FIRST",
-			"ALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`",
-			"ALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `b`",
+			"ALTER TABLE `fuga` " +
+				"ADD COLUMN `a` INT (11) NOT NULL FIRST, " +
+				"ADD COLUMN `b` INT (11) NOT NULL AFTER `a`, " +
+				"ADD COLUMN `c` INT (11) NOT NULL AFTER `b`",
 		},
 	},
 	{
@@ -97,9 +99,10 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `c` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` ADD COLUMN `c` INT (11) NOT NULL AFTER `id`",
-			"ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `c`",
-			"ALTER TABLE `fuga` ADD COLUMN `b` INT (11) NOT NULL AFTER `a`",
+			"ALTER TABLE `fuga` " +
+				"ADD COLUMN `c` INT (11) NOT NULL AFTER `id`, " +
+				"ADD COLUMN `a` INT (11) NOT NULL AFTER `c`, " +
+				"ADD COLUMN `b` INT (11) NOT NULL AFTER `a`",
 		},
 	},
 	{
@@ -207,10 +210,11 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, PRIMARY KEY (`id`), CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES f (`id`) )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` DROP FOREIGN KEY `fsym`",
-			"ALTER TABLE `fuga` DROP INDEX `fsym`",
-			"ALTER TABLE `fuga` ADD INDEX `ksym` (`fid`)",
-			"ALTER TABLE `fuga` ADD CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES `f` (`id`)",
+			"ALTER TABLE `fuga` " +
+				"DROP FOREIGN KEY `fsym`, " +
+				"DROP INDEX `fsym`, " +
+				"ADD INDEX `ksym` (`fid`), " +
+				"ADD CONSTRAINT `ksym` FOREIGN KEY (`fid`) REFERENCES `f` (`id`)",
 		},
 	},
 	{
@@ -224,9 +228,10 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `fid` INTEGER NOT NULL, INDEX fid (fid) )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` DROP FOREIGN KEY `fk`",
-			"ALTER TABLE `fuga` DROP INDEX `fk`",
-			"ALTER TABLE `fuga` ADD INDEX `fid` (`fid`)",
+			"ALTER TABLE `fuga` " +
+				"DROP FOREIGN KEY `fk`, " +
+				"DROP INDEX `fk`, " +
+				"ADD INDEX `fid` (`fid`)",
 		},
 	},
 	{
@@ -268,10 +273,11 @@ var specs = []Spec{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `aid` INTEGER NOT NULL, `cid` INTEGER NOT NULL, INDEX `ac` (`aid`, `cid`) )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` DROP INDEX `ab`",
-			"ALTER TABLE `fuga` DROP COLUMN `bid`",
-			"ALTER TABLE `fuga` ADD COLUMN `cid` INT (11) NOT NULL AFTER `aid`",
-			"ALTER TABLE `fuga` ADD INDEX `ac` (`aid`, `cid`)",
+			"ALTER TABLE `fuga` " +
+				"DROP INDEX `ab`, " +
+				"DROP COLUMN `bid`, " +
+				"ADD COLUMN `cid` INT (11) NOT NULL AFTER `aid`, " +
+				"ADD INDEX `ac` (`aid`, `cid`)",
 		},
 	},
 	{
@@ -381,7 +387,7 @@ func TestDiff(t *testing.T) {
 			actual := buf.String()
 			if diff := cmp.Diff(expect, actual); diff != "" {
 				t.Errorf(
-					"spec %s missmatch (-want/+got)\n%s\n"+
+					"spec %s mismatch (-want/+got)\n%s\n"+
 						"before = %q\n"+
 						"after  = %q",
 					spec.Name, diff, spec.Before, spec.After,
