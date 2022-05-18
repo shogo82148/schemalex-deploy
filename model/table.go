@@ -105,14 +105,14 @@ func (t *Table) Normalize() *Table {
 		// implicitly created INDEX too difficult.
 		// (lestrrat) this comment is confusing. Please add
 		// actual examples somewhere
-		if nidx.Kind == IndexKindForeignKey && nidx.Symbol.Valid {
+		if nidx.Kind == IndexKindForeignKey && nidx.ConstraintName.Valid {
 			// There's a chance the user has already explicitly declared the
 			// index for this constraint. Only add this implicit index if we
 			// haven't seen it before
-			if _, ok := seen[nidx.Symbol.Ident]; !ok {
+			if _, ok := seen[nidx.ConstraintName.Ident]; !ok {
 				// add implicitly created INDEX
 				index := NewIndex(IndexKindNormal, t.ID())
-				index.Name = nidx.Symbol
+				index.Name = nidx.ConstraintName
 				index.Type = nidx.Type
 				index.Columns = make([]*IndexColumn, len(nidx.Columns))
 				copy(index.Columns, nidx.Columns)

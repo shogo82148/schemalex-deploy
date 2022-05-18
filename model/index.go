@@ -43,14 +43,14 @@ const (
 
 // Index describes an index on a table.
 type Index struct {
-	Symbol    MaybeIdent
-	Kind      IndexKind
-	Name      MaybeIdent
-	Type      IndexType
-	Table     string
-	Columns   []*IndexColumn
-	Reference *Reference
-	Options   []*IndexOption
+	Table          string
+	Type           IndexType
+	ConstraintName MaybeIdent
+	Kind           IndexKind
+	Name           MaybeIdent
+	Columns        []*IndexColumn
+	Reference      *Reference
+	Options        []*IndexOption
 }
 
 // NewIndex creates a new index with the given index kind.
@@ -75,8 +75,8 @@ func (stmt *Index) ID() string {
 	h := sha256.New()
 
 	sym := "none"
-	if stmt.Symbol.Valid {
-		sym = string(stmt.Symbol.Ident)
+	if stmt.ConstraintName.Valid {
+		sym = string(stmt.ConstraintName.Ident)
 	}
 
 	fmt.Fprintf(h,

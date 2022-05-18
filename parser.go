@@ -390,7 +390,7 @@ func (p *Parser) parseTableConstraint(ctx *parseCtx, table *model.Table) error {
 	}
 
 	if len(sym) > 0 {
-		index.Symbol = model.MaybeIdent{
+		index.ConstraintName = model.MaybeIdent{
 			Ident: model.Ident(sym),
 			Valid: true,
 		}
