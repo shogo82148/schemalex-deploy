@@ -78,6 +78,11 @@ func _main() error {
 		return fmt.Errorf("failed to preview: %w", err)
 	}
 
+	// dry-run mode: skip deployment
+	if cfn.dryRun {
+		return nil
+	}
+
 	// ask to approve
 	if !cfn.autoApprove {
 		if result, err := approved(ctx); err != nil {
