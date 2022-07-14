@@ -22,6 +22,7 @@ type config struct {
 	port        int
 	schema      []byte
 	autoApprove bool
+	dryRun      bool
 }
 
 func loadConfig() (*config, error) {
@@ -31,6 +32,7 @@ func loadConfig() (*config, error) {
 	var host, username, password, database string
 	var port int
 	var approve bool
+	var dryRun bool
 
 	flag.Usage = func() {
 		// TODO: fill the usage
@@ -52,6 +54,7 @@ schemalex -version
 
 	// for schemalex-deploy
 	flag.BoolVar(&approve, "auto-approve", false, "skips interactive approval of plan before deploying")
+	flag.BoolVar(&dryRun, "dry-run", false, "outputs the schema difference, and then exit the program")
 	flag.Parse()
 
 	if version {
@@ -60,6 +63,7 @@ schemalex -version
 	}
 
 	cfn.autoApprove = approve
+	cfn.dryRun = dryRun
 
 	// load configure from files
 	cnfFile, err := mycnf.LoadDefault("")
