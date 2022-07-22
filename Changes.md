@@ -3,7 +3,7 @@ Changes
 
 ## [Unreleased]
 
-- TBD
+- Support dry-run option [#57](https://github.com/shogo82148/schemalex-deploy/pull/57)
 
 ## [v0.0.5] - 2022-05-18
 
@@ -32,7 +32,8 @@ Changes
 
 - initial release
 
-[Unreleased]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.6...HEAD
+[v0.0.6]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.5...v0.0.6
 [v0.0.5]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.4...v0.0.5
 [v0.0.4]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.3...v0.0.4
 [v0.0.3]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.2...v0.0.3
