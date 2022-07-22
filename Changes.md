@@ -3,6 +3,10 @@ Changes
 
 ## [Unreleased]
 
+TBD
+
+## [v0.0.6] - 2022-07-15
+
 - Support dry-run option [#57](https://github.com/shogo82148/schemalex-deploy/pull/57)
 
 ## [v0.0.5] - 2022-05-18
