@@ -12,6 +12,16 @@ import (
 	"github.com/shogo82148/schemalex-deploy/mycnf"
 )
 
+// ExecMode execute mode
+type ExecMode string
+
+const (
+	// ExecModeDeploy deploy mode
+	ExecModeDeploy ExecMode = "deploy"
+	// ExecModeImport import mode
+	ExecModeImport ExecMode = "import"
+)
+
 type config struct {
 	version     bool
 	socket      string
@@ -23,6 +33,7 @@ type config struct {
 	schema      []byte
 	autoApprove bool
 	dryRun      bool
+	mode        ExecMode
 }
 
 func loadConfig() (*config, error) {
@@ -33,6 +44,7 @@ func loadConfig() (*config, error) {
 	var port int
 	var approve bool
 	var dryRun bool
+	var runImport bool
 
 	flag.Usage = func() {
 		// TODO: fill the usage
@@ -55,6 +67,7 @@ schemalex -version
 	// for schemalex-deploy
 	flag.BoolVar(&approve, "auto-approve", false, "skips interactive approval of plan before deploying")
 	flag.BoolVar(&dryRun, "dry-run", false, "outputs the schema difference, and then exit the program")
+	flag.BoolVar(&runImport, "import", false, "imports existing table schemas from running database")
 	flag.Parse()
 
 	if version {
@@ -64,6 +77,12 @@ schemalex -version
 
 	cfn.autoApprove = approve
 	cfn.dryRun = dryRun
+
+	// choose execute mode
+	cfn.mode = ExecModeDeploy
+	if runImport {
+		cfn.mode = ExecModeImport
+	}
 
 	// load configure from files
 	cnfFile, err := mycnf.LoadDefault("")

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -67,6 +68,18 @@ func _main() error {
 	}
 	defer db.Close()
 
+	switch cfn.mode {
+	case ExecModeDeploy:
+		return runDeploy(ctx, db, cfn)
+
+	case ExecModeImport:
+		return runImport(ctx, db, cfn)
+	}
+
+	return nil
+}
+
+func runDeploy(ctx context.Context, db *deploy.DB, cfn *config) error {
 	// plan
 	plan, err := db.Plan(ctx, string(cfn.schema))
 	if err != nil {
@@ -96,6 +109,46 @@ func _main() error {
 	if err := db.Deploy(ctx, plan); err != nil {
 		return fmt.Errorf("failed to deploy: %w", err)
 	}
+
+	return nil
+}
+
+func runImport(ctx context.Context, db *deploy.DB, cfn *config) error {
+	// load schema
+	sqlText, err := db.LoadSchema(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load schema: %w", err)
+	}
+
+	// preview
+	if _, err := io.WriteString(os.Stderr, sqlText); err != nil {
+		return fmt.Errorf("failed to preview: %w", err)
+	}
+
+	// no table detected, skip import
+	if sqlText == "" {
+		log.Print("no table detected")
+		return nil
+	}
+
+	// dry-run mode: skip import
+	if cfn.dryRun {
+		return nil
+	}
+
+	// ask to approve
+	if !cfn.autoApprove {
+		if result, err := approved(ctx); err != nil {
+			return err
+		} else if !result {
+			return errors.New("import was cancelled")
+		}
+	}
+
+	if err := db.Import(ctx, sqlText); err != nil {
+		return fmt.Errorf("failed to import: %w", err)
+	}
+
 	return nil
 }
 
