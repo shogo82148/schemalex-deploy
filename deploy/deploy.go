@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -126,6 +127,97 @@ func (db *DB) Deploy(ctx context.Context, plan *Plan) error {
 	if _, err := tx.ExecContext(ctx, "SET FOREIGN_KEY_CHECKS = 1"); err != nil {
 		return fmt.Errorf("failed to disable foreign key checks: %w", err)
 	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit: %w", err)
+	}
+	log.Printf("done")
+	return nil
+}
+
+// LoadSchema loads existing table schemas from running database.
+func (db *DB) LoadSchema(ctx context.Context) (string, error) {
+	tx, err := db.db.BeginTx(ctx, &sql.TxOptions{
+		ReadOnly: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Commit()
+
+	rows, err := tx.QueryContext(ctx, "SHOW TABLES")
+	if err != nil {
+		return "", fmt.Errorf("failed to get table list: %w", err)
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			return "", fmt.Errorf("failed to scan table name: %w", err)
+		}
+		tables = append(tables, table)
+	}
+
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("some error occurred during iteration: %w", err)
+	}
+
+	if len(tables) == 0 {
+		return "", nil
+	}
+
+	statements := []string{
+		"SET FOREIGN_KEY_CHECKS = 0;",
+		"", // blank line
+	}
+
+	for _, tbl := range tables {
+		log.Printf("import table: %s", tbl)
+		statements = append(statements,
+			fmt.Sprintf("DROP TABLE IF EXISTS `%s`;", tbl),
+			"", // blank line
+		)
+		row := tx.QueryRowContext(ctx, fmt.Sprintf("SHOW CREATE TABLE `%s`", tbl))
+		var tmp, sqlText string
+		if err := row.Scan(&tmp, &sqlText); err != nil {
+			return "", fmt.Errorf("failed to get create table %q: %w", tbl, err)
+		}
+
+		if !strings.HasSuffix(sqlText, ";") {
+			sqlText = sqlText + ";"
+		}
+
+		statements = append(statements,
+			sqlText,
+			"", // blank line
+		)
+	}
+
+	statements = append(statements, "SET FOREIGN_KEY_CHECKS = 1;")
+
+	return strings.Join(statements, "\n"), nil
+}
+
+// Import imports and updates the schemalex revision using sqlText.
+func (db *DB) Import(ctx context.Context, sqlText string) error {
+	log.Printf("starting to import")
+
+	tx, err := db.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	log.Printf("updating the schema information")
+	err = updateLatestVersion(ctx, tx, &schemalexRevision{
+		SQLText:    sqlText,
+		UpgradedAt: time.Now(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update the schema information: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit: %w", err)
 	}
