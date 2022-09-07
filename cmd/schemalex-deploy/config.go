@@ -157,15 +157,18 @@ schemalex -version
 		cfn.database = database
 	}
 
-	if flag.NArg() == 0 {
-		flag.Usage()
-		return nil, errors.New("schema file is required")
+	// deploy mode: load schema file
+	if cfn.mode == ExecModeDeploy {
+		if flag.NArg() == 0 {
+			flag.Usage()
+			return nil, errors.New("schema file is required")
+		}
+		schema, err := os.ReadFile(flag.Arg(0))
+		if err != nil {
+			return nil, err
+		}
+		cfn.schema = schema
 	}
-	schema, err := os.ReadFile(flag.Arg(0))
-	if err != nil {
-		return nil, err
-	}
-	cfn.schema = schema
 
 	return &cfn, nil
 }
