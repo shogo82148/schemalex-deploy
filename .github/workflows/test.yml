@@ -54,20 +54,13 @@ jobs:
       matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
 
     steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v3
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: "1.18"
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v3
-
-      - name: restore cache
-        uses: actions/cache@v3
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+          go-version: "1.19"
+          cache: true
 
       - uses: shogo82148/actions-setup-mysql@v1
         with:
@@ -107,7 +100,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: "1.18"
+          go-version: "1.19"
+
       - name: Check GoReleaser configure
         uses: goreleaser/goreleaser-action@v3
         with:
@@ -117,11 +111,13 @@ jobs:
   check-diff:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-go@v3
-        with:
-          go-version: "1.18"
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
+
+      - uses: actions/setup-go@v3
+        with:
+          go-version: "1.19"
+          cache: true
 
       - name: Before script
         run: |

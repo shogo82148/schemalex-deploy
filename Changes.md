@@ -4,6 +4,7 @@ Changes
 ## [v0.0.7] - 2022-09-08
 
 - support `--import` option [#60](https://github.com/shogo82148/schemalex-deploy/pull/60), [#61](https://github.com/shogo82148/schemalex-deploy/pull/61)
+- bump Go 1.19 [#63](https://github.com/shogo82148/schemalex-deploy/pull/63)
 
 ## [v0.0.6] - 2022-07-15
 
