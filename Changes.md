@@ -3,7 +3,7 @@ Changes
 
 ## [Unreleased]
 
-TBD
+- bump Go 1.19 [#63](https://github.com/shogo82148/schemalex-deploy/pull/63)
 
 ## [v0.0.6] - 2022-07-15
 
