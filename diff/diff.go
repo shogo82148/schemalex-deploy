@@ -20,10 +20,11 @@ type diffCtx struct {
 	toSet   set
 	from    model.Stmts
 	to      model.Stmts
+	cur     model.Stmts
 	result  Stmts
 }
 
-func newDiffCtx(from, to model.Stmts) *diffCtx {
+func newDiffCtx(from, to, cur model.Stmts) *diffCtx {
 	fromSet := newSet()
 	for _, stmt := range from {
 		if cs, ok := stmt.(*model.Table); ok {
@@ -42,6 +43,7 @@ func newDiffCtx(from, to model.Stmts) *diffCtx {
 		toSet:   toSet,
 		from:    from,
 		to:      to,
+		cur:     cur,
 	}
 }
 
@@ -53,15 +55,32 @@ func (ctx *diffCtx) append(stmt string) {
 // statements as `diff.Stmts` so the consumer can, for example,
 // analyze or use these statements standalone by themselves.
 func Diff(from, to model.Stmts, options ...Option) (Stmts, error) {
+	var p *schemalex.Parser
 	var txn bool
+	var current string
 	for _, o := range options {
 		switch o.Name() {
+		case optkeyParser:
+			p = o.Value().(*schemalex.Parser)
 		case optkeyTransaction:
 			txn = o.Value().(bool)
+		case optkeyCurrent:
+			current = o.Value().(string)
 		}
 	}
 
-	ctx := newDiffCtx(from, to)
+	if p == nil {
+		p = schemalex.New()
+	}
+	var cur model.Stmts
+	if current != "" {
+		var err error
+		cur, err = p.ParseString(current)
+		if err != nil {
+			return nil, err
+		}
+	}
+	ctx := newDiffCtx(from, to, cur)
 
 	if txn {
 		ctx.append(`BEGIN`)

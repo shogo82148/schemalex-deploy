@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -495,4 +496,205 @@ func TestDiff_Integrated(t *testing.T) {
 			}
 		})
 	}
+}
+
+type AutoNamedSpec struct {
+	Name    string
+	Tests   []string
+	Before  []string
+	Current []string
+	After   []string
+	Expect  []string
+}
+
+var autoSpecs = []AutoNamedSpec{
+	{
+		Name: "remove FOREIGN KEY that MySQL named automatically",
+		Before: []string{
+			"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `fid` INTEGER NOT NULL, FOREIGN KEY (fid) REFERENCES f (id) )",
+		},
+		Current: []string{
+			"CREATE TABLE `f` ( `id` int NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+			"Create Table: CREATE TABLE `fuga` (" +
+				"`id` int NOT NULL," +
+				"`fid` int NOT NULL," +
+				"KEY `fid` (`fid`)," +
+				"CONSTRAINT `fuga_ibfk_1` FOREIGN KEY (`fid`) REFERENCES `f` (`id`)" +
+				") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `fid` INTEGER NOT NULL, INDEX fid (fid) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` " +
+				"DROP FOREIGN KEY `fk`, " +
+				"DROP INDEX `fk`, " +
+				"ADD INDEX `fid` (`fid`)",
+		},
+	},
+}
+
+func TestDiffWithAutoNamedObjects_Integrated(t *testing.T) {
+	database.SkipIfNoTestDatabase(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var buf bytes.Buffer
+	for _, spec := range autoSpecs {
+		t.Run(spec.Name, func(t *testing.T) {
+			// check the MySQL support the feature.
+			if len(spec.Tests) > 0 {
+				test, cleanup := database.SetupTestDB()
+				defer cleanup()
+				for _, q := range spec.Tests {
+					if _, err := test.ExecContext(ctx, q); err != nil {
+						t.Skipf("skip because the error: %v", err)
+						break
+					}
+				}
+			}
+
+			buf.Reset()
+
+			// apply the before
+			db1, cleanup := database.SetupTestDB()
+			defer cleanup()
+			for _, q := range spec.Before {
+				if q == "" {
+					continue
+				}
+				if _, err := db1.ExecContext(ctx, q); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// calculate the difference
+			before := joinQueries(spec.Before)
+			after := joinQueries(spec.After)
+			current, err := LoadSchema(ctx, db1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = diff.Strings(&buf, before, after, diff.WithCurrentSchema(current))
+			if err != nil {
+				t.Errorf("spec %s failed: %v", spec.Name, err)
+				return
+			}
+			queries := strings.Split(buf.String(), ";\n")
+
+			// apply
+			for _, q := range queries {
+				if q == "" {
+					continue
+				}
+				if _, err := db1.ExecContext(ctx, q); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// apply the after directly
+			db2, cleanup := database.SetupTestDB()
+			defer cleanup()
+			for _, q := range spec.After {
+				if q == "" {
+					continue
+				}
+				if _, err := db2.ExecContext(ctx, q); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// compare the results
+			tables1, views1, err := database.ListTables(ctx, db1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tables2, views2, err := database.ListTables(ctx, db2)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if diff := cmp.Diff(tables1, tables2); diff != "" {
+				t.Errorf("tables are unmatched: (-migrated/+directly)\n%s", diff)
+			}
+			if diff := cmp.Diff(views1, views2); diff != "" {
+				t.Errorf("tables are unmatched: (-migrated/+directly)\n%s", diff)
+			}
+
+			for _, tbl := range tables1 {
+				var row *sql.Row
+				var tmp string
+				var create1, create2 string
+				row = db1.QueryRowContext(ctx, "SHOW CREATE TABLE "+util.Backquote(tbl))
+				if err := row.Scan(&tmp, &create1); err != nil {
+					t.Fatal(err)
+				}
+				row = db2.QueryRowContext(ctx, "SHOW CREATE TABLE "+util.Backquote(tbl))
+				if err := row.Scan(&tmp, &create2); err != nil {
+					t.Fatal(err)
+				}
+				if diff := cmp.Diff(tables1, tables2); diff != "" {
+					t.Errorf("table %s definition is unmatched: (-migrated/+directly)\n%s", tbl, diff)
+				}
+			}
+		})
+	}
+}
+
+// LoadSchema loads existing table schemas from running database.
+func LoadSchema(ctx context.Context, db *sql.DB) (string, error) {
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{
+		ReadOnly: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Commit()
+
+	tables, err := showTables(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+	statements := make([]string, 0, len(tables))
+	for _, tbl := range tables {
+		row := tx.QueryRowContext(ctx, fmt.Sprintf("SHOW CREATE TABLE %s", util.Backquote(tbl)))
+		var tmp, sqlText string
+		if err := row.Scan(&tmp, &sqlText); err != nil {
+			return "", fmt.Errorf("failed to get create table %q: %w", tbl, err)
+		}
+
+		if !strings.HasSuffix(sqlText, ";") {
+			sqlText = sqlText + ";"
+		}
+		sqlText += "\n"
+
+		statements = append(statements, sqlText)
+	}
+
+	return strings.Join(statements, ""), nil
+}
+
+func showTables(ctx context.Context, tx *sql.Tx) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, "SHOW TABLES")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get table list: %w", err)
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			return nil, fmt.Errorf("failed to scan table name: %w", err)
+		}
+		tables = append(tables, table)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("some error occurred during iteration: %w", err)
+	}
+	return tables, nil
 }
