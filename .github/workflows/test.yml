@@ -42,7 +42,8 @@ jobs:
               'include': includes
           }
           output = json.dumps(matrix, separators=(',', ':'))
-          print('::set-output name=matrix::{0}'.format(output))
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+            f.write('matrix={0}\n'.format(output))
         shell: python
 
   test:
