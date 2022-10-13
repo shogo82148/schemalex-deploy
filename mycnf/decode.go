@@ -119,14 +119,16 @@ func (p *parser) SkipToEOL() {
 	case '\r', '\n', eof:
 		// EOL
 	default:
-		panic(fmt.Errorf("unexpected character: %c", ch))
+		p.err = fmt.Errorf("unexpected character: %c", ch)
+		return
 	}
 }
 
 // `[group]`
 func (p *parser) ParseGroup() {
 	if ch := p.Read(); ch != '[' {
-		panic(fmt.Errorf("unexpected section start: %c", ch))
+		p.err = fmt.Errorf("unexpected section start: %c", ch)
+		return
 	}
 
 	var buf strings.Builder
