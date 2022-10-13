@@ -144,7 +144,7 @@ func TestUnmarshal(t *testing.T) {
 			continue
 		}
 		if diff := cmp.Diff(tt.want, got); diff != "" {
-			t.Errorf("input: %s, missmatch: (-want/+got)\n%s", tt.in, diff)
+			t.Errorf("input: %s, mismatch: (-want/+got)\n%s", tt.in, diff)
 		}
 	}
 }

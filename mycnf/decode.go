@@ -119,7 +119,7 @@ func (p *parser) SkipToEOL() {
 	case '\r', '\n', eof:
 		// EOL
 	default:
-		panic(fmt.Errorf("unexpected charactor: %c", ch))
+		panic(fmt.Errorf("unexpected character: %c", ch))
 	}
 }
 
