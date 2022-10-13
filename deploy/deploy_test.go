@@ -49,7 +49,7 @@ func TestDeploy(t *testing.T) {
 			t.Fatalf("failed to get the latest version: %v", err)
 		}
 		if diff := cmp.Diff(sql, latest.SQLText); diff != "" {
-			t.Errorf("schema missmatch (-want,+got):\n%s", diff)
+			t.Errorf("schema mismatch (-want,+got):\n%s", diff)
 		}
 	})
 
@@ -87,7 +87,7 @@ func TestDeploy(t *testing.T) {
 			t.Fatalf("failed to get the latest version: %v", err)
 		}
 		if diff := cmp.Diff(sql, latest.SQLText); diff != "" {
-			t.Errorf("schema missmatch (-want,+got):\n%s", diff)
+			t.Errorf("schema mismatch (-want,+got):\n%s", diff)
 		}
 	})
 }
