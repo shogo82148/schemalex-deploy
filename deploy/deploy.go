@@ -153,12 +153,6 @@ func (db *DB) LoadSchema(ctx context.Context) (string, error) {
 	}
 	defer tx.Commit()
 
-	rows, err := tx.QueryContext(ctx, "SHOW TABLES")
-	if err != nil {
-		return "", fmt.Errorf("failed to get table list: %w", err)
-	}
-	defer rows.Close()
-
 	tables, err := showTables(ctx, tx)
 	if err != nil {
 		return "", err
