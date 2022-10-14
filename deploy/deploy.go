@@ -46,13 +46,22 @@ type Plan struct {
 func (db *DB) Plan(ctx context.Context, schema string) (*Plan, error) {
 	latest, err := getLatestVersion(ctx, db.db)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get the current schema: %w", err)
+		return nil, fmt.Errorf("failed to get the latest schema: %w", err)
 	}
 
 	p := schemalex.New()
+	opts := []diff.Option{
+		diff.WithTransaction(false),
+	}
+
+	current, err := db.LoadSchema(ctx)
+	if err == nil {
+		opts = append(opts, diff.WithCurrentSchema(current))
+	}
+
 	stmts1, err := p.ParseString(latest.SQLText)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse the current schema: %w", err)
+		return nil, fmt.Errorf("failed to parse the latest schema: %w", err)
 	}
 
 	stmts2, err := p.ParseString(schema)
@@ -60,7 +69,7 @@ func (db *DB) Plan(ctx context.Context, schema string) (*Plan, error) {
 		return nil, fmt.Errorf("failed to parse the new schema: %w", err)
 	}
 
-	stmts, err := diff.Diff(stmts1, stmts2, diff.WithTransaction(false))
+	stmts, err := diff.Diff(stmts1, stmts2, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to plan: %w", err)
 	}
@@ -150,17 +159,9 @@ func (db *DB) LoadSchema(ctx context.Context) (string, error) {
 	}
 	defer rows.Close()
 
-	var tables []string
-	for rows.Next() {
-		var table string
-		if err := rows.Scan(&table); err != nil {
-			return "", fmt.Errorf("failed to scan table name: %w", err)
-		}
-		tables = append(tables, table)
-	}
-
-	if err := rows.Err(); err != nil {
-		return "", fmt.Errorf("some error occurred during iteration: %w", err)
+	tables, err := showTables(ctx, tx)
+	if err != nil {
+		return "", err
 	}
 
 	if len(tables) == 0 {
@@ -290,4 +291,26 @@ func updateLatestVersion(ctx context.Context, tx *sql.Tx, rev *schemalexRevision
 		return err
 	}
 	return nil
+}
+
+func showTables(ctx context.Context, tx *sql.Tx) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, "SHOW TABLES")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get table list: %w", err)
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			return nil, fmt.Errorf("failed to scan table name: %w", err)
+		}
+		tables = append(tables, table)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("some error occurred during iteration: %w", err)
+	}
+	return tables, nil
 }
