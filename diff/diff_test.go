@@ -201,7 +201,7 @@ var specs = []Spec{
 		Expect: []string{},
 	},
 	{
-		Name: "change CONSTRAINT symbol naml",
+		Name: "change CONSTRAINT symbol name",
 		Before: []string{
 			"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, `fid` INTEGER NOT NULL, PRIMARY KEY (`id`), CONSTRAINT `fsym` FOREIGN KEY (`fid`) REFERENCES f (`id`) )",
