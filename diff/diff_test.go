@@ -189,6 +189,19 @@ var specs = []Spec{
 		Expect: []string{},
 	},
 	{
+		Name:   "create FOREIGN KEY",
+		Before: []string{},
+		After: []string{
+			"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`), `fid` INTEGER NOT NULL, CONSTRAINT `fsym` FOREIGN KEY `fk` (fid) REFERENCES f (id) )",
+		},
+		Expect: []string{
+			"CREATE TABLE `f` (\n`id` INT (11) NOT NULL AUTO_INCREMENT,\nPRIMARY KEY (`id`)\n)",
+			"CREATE TABLE `fuga` (\n`id` INT (11) NOT NULL AUTO_INCREMENT,\n`fid` INT (11) NOT NULL,\nPRIMARY KEY (`id`),\n" +
+				"INDEX `fsym` (`fid`),\nCONSTRAINT `fsym` FOREIGN KEY `fk` (`fid`) REFERENCES `f` (`id`)\n)",
+		},
+	},
+	{
 		Name: "not change FOREIGN KEY",
 		Before: []string{
 			"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
