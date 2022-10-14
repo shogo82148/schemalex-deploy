@@ -61,38 +61,38 @@ func NewIndex(kind IndexKind, table string) *Index {
 	}
 }
 
-func (stmt *Index) ID() string {
+func (idx *Index) ID() string {
 	// This is tricky. and index may or may not have a name. It would
 	// have been so much easier if we did, but we don't, so we'll fake
 	// something.
 	//
 	// In case we don't have a name, we need to know the table, the kind,
-	// the type, // the column(s), and the reference(s).
+	// the type, the column(s), and the reference(s).
 	name := "index"
-	if stmt.Name.Valid {
-		name = name + "#" + string(stmt.Name.Ident)
+	if idx.Name.Valid {
+		name = name + "#" + string(idx.Name.Ident)
 	}
 	h := sha256.New()
 
 	sym := "none"
-	if stmt.ConstraintName.Valid {
-		sym = string(stmt.ConstraintName.Ident)
+	if idx.ConstraintName.Valid {
+		sym = string(idx.ConstraintName.Ident)
 	}
 
 	fmt.Fprintf(h,
 		"%s.%s.%s.%s",
-		stmt.Table,
+		idx.Table,
 		sym,
-		stmt.Kind,
-		stmt.Type,
+		idx.Kind,
+		idx.Type,
 	)
-	for _, col := range stmt.Columns {
+	for _, col := range idx.Columns {
 		fmt.Fprintf(h, ".")
 		fmt.Fprintf(h, "%s", col.ID())
 	}
-	if stmt.Reference != nil {
+	if idx.Reference != nil {
 		fmt.Fprintf(h, ".")
-		fmt.Fprintf(h, "%s", stmt.Reference.ID())
+		fmt.Fprintf(h, "%s", idx.Reference.ID())
 	}
 	return fmt.Sprintf("%s#%x", name, h.Sum(nil))
 }
