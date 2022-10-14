@@ -442,7 +442,7 @@ func (ctx *alterCtx) dropTableIndexes() error {
 	indexes := ctx.fromIndexes.Difference(ctx.toIndexes)
 	// drop index after drop constraint.
 	// because cannot drop index if needed in a foreign key constraint
-	lazy := make([]*model.Index, 0, indexes.Cardinality())
+	lazy := make([]model.Ident, 0, indexes.Cardinality())
 	for _, index := range indexes.ToSlice() {
 		indexStmt, ok := ctx.from.LookupIndex(index)
 		if !ok {
@@ -455,37 +455,30 @@ func (ctx *alterCtx) dropTableIndexes() error {
 			continue
 		}
 
-		var indexName model.Ident
-		if indexStmt.ConstraintName.Valid {
-			indexName = indexStmt.ConstraintName.Ident
-		} else if indexStmt.Name.Valid {
-			indexName = indexStmt.Name.Ident
-		} else {
-			var err error
-			indexName, err = ctx.guessDropTableIndexName(indexStmt)
+		indexName := getIndexName(indexStmt)
+		if !indexName.Valid {
+			name, err := ctx.guessDropTableIndexName(indexStmt)
 			if err != nil {
 				return err
 			}
+			indexName.Valid = true
+			indexName.Ident = name
 		}
 		if indexStmt.Kind != model.IndexKindForeignKey {
-			lazy = append(lazy, indexStmt)
+			lazy = append(lazy, indexName.Ident)
 			continue
 		}
 
 		ctx.begin()
 		ctx.writeString("DROP FOREIGN KEY ")
-		ctx.writeIdent(indexName)
+		ctx.writeIdent(indexName.Ident)
 	}
 
 	// drop index after drop CONSTRAINT
-	for _, indexStmt := range lazy {
+	for _, indexName := range lazy {
 		ctx.begin()
 		ctx.writeString("DROP INDEX ")
-		if !indexStmt.Name.Valid {
-			ctx.writeIdent(indexStmt.ConstraintName.Ident)
-		} else {
-			ctx.writeIdent(indexStmt.Name.Ident)
-		}
+		ctx.writeIdent(indexName)
 	}
 
 	return nil
@@ -538,31 +531,32 @@ LOOP:
 			continue
 		}
 
-		var name model.Ident
-		if idx.ConstraintName.Valid {
-			name = idx.ConstraintName.Ident
-		} else if idx.Name.Valid {
-			name = idx.Name.Ident
-		} else {
+		name := getIndexName(idx)
+		if !name.Valid {
 			continue
 		}
 
 		// this name should not be used in the "from".
 		for _, idx2 := range ctx.from.Indexes {
-			if idx2.ConstraintName.Valid {
-				if idx2.ConstraintName.Ident == name {
-					continue LOOP
-				}
-			} else if idx2.Name.Valid {
-				if idx2.Name.Ident == name {
-					continue LOOP
-				}
+			name2 := getIndexName(idx2)
+			if name2.Valid && name2.Ident == name.Ident {
+				continue LOOP
 			}
 		}
 
-		return name, nil // found
+		return name.Ident, nil // found
 	}
 	return "", fmt.Errorf("can not drop index without name: %q", indexStmt.ID())
+}
+
+func getIndexName(idx *model.Index) model.MaybeIdent {
+	if idx.Name.Valid {
+		return idx.Name
+	}
+	if idx.ConstraintName.Valid {
+		return idx.ConstraintName
+	}
+	return model.MaybeIdent{}
 }
 
 // equalIndex returns whether index a and b have same definition, excluding their names.

@@ -522,14 +522,31 @@ type AutoNamedSpec struct {
 
 var autoSpecs = []AutoNamedSpec{
 	{
-		Name: "remove FOREIGN KEY that MySQL named automatically",
+		Name: "drop anonymous unique key",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, UNIQUE KEY (`id`) )",
+		},
+		Current: []string{"CREATE TABLE `fuga` (" +
+			"`id` int NOT NULL," +
+			"UNIQUE KEY `id` (`id`)" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP INDEX `id`",
+		},
+	},
+	{
+		Name: "remove anonymous FOREIGN KEY",
 		Before: []string{
 			"CREATE TABLE `f` ( `id` INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) )",
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `fid` INTEGER NOT NULL, FOREIGN KEY (fid) REFERENCES f (id) )",
 		},
 		Current: []string{
 			"CREATE TABLE `f` ( `id` int NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
-			"Create Table: CREATE TABLE `fuga` (" +
+			"CREATE TABLE `fuga` (" +
 				"`id` int NOT NULL," +
 				"`fid` int NOT NULL," +
 				"KEY `fid` (`fid`)," +
@@ -542,11 +559,39 @@ var autoSpecs = []AutoNamedSpec{
 		},
 		Expect: []string{
 			"ALTER TABLE `fuga` " +
-				"DROP FOREIGN KEY `fk`, " +
-				"DROP INDEX `fk`, " +
+				"DROP FOREIGN KEY `fuga_ibfk_1`, " +
 				"ADD INDEX `fid` (`fid`)",
 		},
 	},
+}
+
+func TestDiffWithAutoNamedObjects(t *testing.T) {
+	var buf bytes.Buffer
+	for _, spec := range autoSpecs {
+		t.Run(spec.Name, func(t *testing.T) {
+			buf.Reset()
+			before := joinQueries(spec.Before)
+			after := joinQueries(spec.After)
+			current := joinQueries(spec.Current)
+			expect := joinQueries(spec.Expect)
+
+			err := diff.Strings(&buf, before, after, diff.WithCurrentSchema(current))
+			if err != nil {
+				t.Errorf("spec %s failed: %v", spec.Name, err)
+				return
+			}
+
+			actual := buf.String()
+			if diff := cmp.Diff(expect, actual); diff != "" {
+				t.Errorf(
+					"spec %s mismatch (-want/+got)\n%s\n"+
+						"before = %q\n"+
+						"after  = %q",
+					spec.Name, diff, spec.Before, spec.After,
+				)
+			}
+		})
+	}
 }
 
 func TestDiffWithAutoNamedObjects_Integrated(t *testing.T) {
