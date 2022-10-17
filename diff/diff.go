@@ -20,10 +20,11 @@ type diffCtx struct {
 	toSet   set
 	from    model.Stmts
 	to      model.Stmts
+	cur     model.Stmts
 	result  Stmts
 }
 
-func newDiffCtx(from, to model.Stmts) *diffCtx {
+func newDiffCtx(from, to, cur model.Stmts) *diffCtx {
 	fromSet := newSet()
 	for _, stmt := range from {
 		if cs, ok := stmt.(*model.Table); ok {
@@ -42,6 +43,7 @@ func newDiffCtx(from, to model.Stmts) *diffCtx {
 		toSet:   toSet,
 		from:    from,
 		to:      to,
+		cur:     cur,
 	}
 }
 
@@ -53,15 +55,32 @@ func (ctx *diffCtx) append(stmt string) {
 // statements as `diff.Stmts` so the consumer can, for example,
 // analyze or use these statements standalone by themselves.
 func Diff(from, to model.Stmts, options ...Option) (Stmts, error) {
+	var p *schemalex.Parser
 	var txn bool
+	var current string
 	for _, o := range options {
 		switch o.Name() {
+		case optkeyParser:
+			p = o.Value().(*schemalex.Parser)
 		case optkeyTransaction:
 			txn = o.Value().(bool)
+		case optkeyCurrent:
+			current = o.Value().(string)
 		}
 	}
 
-	ctx := newDiffCtx(from, to)
+	if p == nil {
+		p = schemalex.New()
+	}
+	var cur model.Stmts
+	if current != "" {
+		var err error
+		cur, err = p.ParseString(current)
+		if err != nil {
+			return nil, err
+		}
+	}
+	ctx := newDiffCtx(from, to, cur)
 
 	if txn {
 		ctx.append(`BEGIN`)
@@ -175,6 +194,10 @@ type alterCtx struct {
 	from        *model.Table
 	to          *model.Table
 	buf         strings.Builder
+
+	// cur is the current model deployed to MySQL actually.
+	// it may be nil.
+	cur *model.Table
 }
 
 func (ctx *diffCtx) alterTables() error {
@@ -191,19 +214,30 @@ func (ctx *diffCtx) alterTables() error {
 		var stmt model.Stmt
 		var ok bool
 
+		// before statement
 		stmt, ok = ctx.from.Lookup(id)
 		if !ok {
 			return fmt.Errorf("table not found in old schema (alter table): %q", id)
 		}
 		beforeStmt := stmt.(*model.Table)
 
+		// after statement
 		stmt, ok = ctx.to.Lookup(id)
 		if !ok {
 			return fmt.Errorf("table not found in new schema (alter table): %q", id)
 		}
 		afterStmt := stmt.(*model.Table)
 
-		alterCtx := newAlterCtx(ctx, beforeStmt, afterStmt)
+		// current statement
+		var curStmt *model.Table
+		if ctx.cur != nil {
+			stmt, ok = ctx.cur.Lookup(id)
+			if ok {
+				curStmt = stmt.(*model.Table)
+			}
+		}
+
+		alterCtx := newAlterCtx(ctx, beforeStmt, afterStmt, curStmt)
 		for _, p := range procs {
 			if err := p(alterCtx); err != nil {
 				return fmt.Errorf("failed to generate alter table %q: %w", id, err)
@@ -217,7 +251,7 @@ func (ctx *diffCtx) alterTables() error {
 	return nil
 }
 
-func newAlterCtx(ctx *diffCtx, from, to *model.Table) *alterCtx {
+func newAlterCtx(ctx *diffCtx, from, to, cur *model.Table) *alterCtx {
 	fromColumns := newSet()
 	for _, col := range from.Columns {
 		fromColumns.Add(col.ID())
@@ -245,6 +279,7 @@ func newAlterCtx(ctx *diffCtx, from, to *model.Table) *alterCtx {
 		toIndexes:   toIndexes,
 		from:        from,
 		to:          to,
+		cur:         cur,
 	}
 }
 
@@ -407,7 +442,7 @@ func (ctx *alterCtx) dropTableIndexes() error {
 	indexes := ctx.fromIndexes.Difference(ctx.toIndexes)
 	// drop index after drop constraint.
 	// because cannot drop index if needed in a foreign key constraint
-	lazy := make([]*model.Index, 0, indexes.Cardinality())
+	lazy := make([]model.Ident, 0, indexes.Cardinality())
 	for _, index := range indexes.ToSlice() {
 		indexStmt, ok := ctx.from.LookupIndex(index)
 		if !ok {
@@ -420,32 +455,30 @@ func (ctx *alterCtx) dropTableIndexes() error {
 			continue
 		}
 
-		if !indexStmt.Name.Valid && !indexStmt.ConstraintName.Valid {
-			return fmt.Errorf("can not drop index without name: %q", indexStmt.ID())
+		indexName := getIndexName(indexStmt)
+		if !indexName.Valid {
+			name, err := ctx.guessDropTableIndexName(indexStmt)
+			if err != nil {
+				return err
+			}
+			indexName.Valid = true
+			indexName.Ident = name
 		}
 		if indexStmt.Kind != model.IndexKindForeignKey {
-			lazy = append(lazy, indexStmt)
+			lazy = append(lazy, indexName.Ident)
 			continue
 		}
 
 		ctx.begin()
 		ctx.writeString("DROP FOREIGN KEY ")
-		if indexStmt.ConstraintName.Valid {
-			ctx.writeIdent(indexStmt.ConstraintName.Ident)
-		} else {
-			ctx.writeIdent(indexStmt.Name.Ident)
-		}
+		ctx.writeIdent(indexName.Ident)
 	}
 
 	// drop index after drop CONSTRAINT
-	for _, indexStmt := range lazy {
+	for _, indexName := range lazy {
 		ctx.begin()
 		ctx.writeString("DROP INDEX ")
-		if !indexStmt.Name.Valid {
-			ctx.writeIdent(indexStmt.ConstraintName.Ident)
-		} else {
-			ctx.writeIdent(indexStmt.Name.Ident)
-		}
+		ctx.writeIdent(indexName)
 	}
 
 	return nil
@@ -482,4 +515,76 @@ func (ctx *alterCtx) addTableIndexes() error {
 	}
 
 	return nil
+}
+
+func (ctx *alterCtx) guessDropTableIndexName(indexStmt *model.Index) (name model.Ident, err error) {
+	cur := ctx.cur
+	if cur == nil {
+		return "", fmt.Errorf("can not drop index without name: %q", indexStmt.ID())
+	}
+
+	// Guess the name from the current schema
+LOOP:
+	for _, idx := range cur.Indexes {
+		// find the index that has same definition with indexStmt.
+		if !equalIndex(idx, indexStmt) {
+			continue
+		}
+
+		name := getIndexName(idx)
+		if !name.Valid {
+			continue
+		}
+
+		// this name should not be used in the "from".
+		for _, idx2 := range ctx.from.Indexes {
+			name2 := getIndexName(idx2)
+			if name2.Valid && name2.Ident == name.Ident {
+				continue LOOP
+			}
+		}
+
+		return name.Ident, nil // found
+	}
+	return "", fmt.Errorf("can not drop index without name: %q", indexStmt.ID())
+}
+
+func getIndexName(idx *model.Index) model.MaybeIdent {
+	if idx.Name.Valid {
+		return idx.Name
+	}
+	if idx.ConstraintName.Valid {
+		return idx.ConstraintName
+	}
+	return model.MaybeIdent{}
+}
+
+// equalIndex returns whether index a and b have same definition, excluding their names.
+func equalIndex(a, b *model.Index) bool {
+	if a.Table != b.Table {
+		return false
+	}
+	if a.Type != b.Type {
+		return false
+	}
+	if a.Kind != b.Kind {
+		return false
+	}
+	if len(a.Columns) != len(b.Columns) {
+		return false
+	}
+	for i := range a.Columns {
+		if a.Columns[i].ID() != b.Columns[i].ID() {
+			return false
+		}
+	}
+	if (a.Reference != nil) != (b.Reference != nil) {
+		return false
+	}
+	if a.Reference != nil {
+		if a.Reference.ID() != b.Reference.ID() {
+			return false
+		}
+	}
+	return true
 }

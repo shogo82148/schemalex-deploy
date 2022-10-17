@@ -1,6 +1,10 @@
 Changes
 =======
 
+## [unreleased]
+
+- support removing indexes without their names [#68](https://github.com/shogo82148/schemalex-deploy/pull/68)
+
 ## [v0.0.7] - 2022-09-08
 
 - support `--import` option [#60](https://github.com/shogo82148/schemalex-deploy/pull/60), [#61](https://github.com/shogo82148/schemalex-deploy/pull/61)
@@ -37,6 +41,7 @@ Changes
 
 - initial release
 
+[unreleased]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.7...main
 [v0.0.7]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.6...v0.0.7
 [v0.0.6]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.5...v0.0.6
 [v0.0.5]: https://github.com/shogo82148/schemalex-deploy/compare/v0.0.4...v0.0.5

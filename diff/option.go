@@ -5,11 +5,12 @@ import (
 	"github.com/shogo82148/schemalex-deploy/internal/option"
 )
 
-type Option = schemalex.Option
+type Option schemalex.Option
 
 const (
 	optkeyParser      = "parser"
 	optkeyTransaction = "transaction"
+	optkeyCurrent     = "current"
 )
 
 // WithParser specifies the parser instance to use when parsing
@@ -23,4 +24,9 @@ func WithParser(p *schemalex.Parser) Option {
 // should be included in the diff.
 func WithTransaction(b bool) Option {
 	return option.New(optkeyTransaction, b)
+}
+
+// WithCurrentSchema specifies the current schema deployed in MySQL.
+func WithCurrentSchema(schema string) Option {
+	return option.New(optkeyCurrent, schema)
 }

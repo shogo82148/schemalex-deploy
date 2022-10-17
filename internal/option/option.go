@@ -3,6 +3,7 @@ package option
 type Option interface {
 	Name() string
 	Value() interface{}
+	private()
 }
 
 type option struct {
@@ -19,3 +20,4 @@ func New(n string, v interface{}) Option {
 
 func (o option) Name() string       { return o.name }
 func (o option) Value() interface{} { return o.value }
+func (o option) private()           {}
