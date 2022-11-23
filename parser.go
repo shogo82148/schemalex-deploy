@@ -775,7 +775,6 @@ func (p *Parser) parseCreateTableOptions(ctx *parseCtx, table *model.Table) erro
 // Seems like MySQL doesn't really care about the order of some elements in the
 // column options, although the docs (https://dev.mysql.com/doc/refman/5.7/en/create-table.html)
 // seem to state otherwise.
-//
 func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int) error {
 	f = f | coloptNull | coloptDefault | coloptAutoIncrement | coloptKey | coloptComment
 	pos := 0
@@ -1150,7 +1149,7 @@ func (p *Parser) parseColumnIndexSpatialKey(ctx *parseCtx, index *model.Index) e
 func (p *Parser) parseColumnIndexForeignKey(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	if t := ctx.next(); t.Type != FOREIGN {
-		return newParseError(ctx, t, "expected FOREGIN")
+		return newParseError(ctx, t, "expected FOREIGN")
 	}
 
 	ctx.skipWhiteSpaces()
@@ -1241,8 +1240,6 @@ func (p *Parser) parseColumnReference(ctx *parseCtx, index *model.Index) error {
 		ctx.skipWhiteSpaces()
 	}
 
-	// ON DELETE can be followed by ON UPDATE, but
-	// ON UPDATE cannot be followed by ON DELETE
 OUTER:
 	for i := 0; i < 2; i++ {
 		ctx.skipWhiteSpaces()
@@ -1261,7 +1258,6 @@ OUTER:
 			if err := p.parseReferenceOption(ctx, func(opt model.ReferenceOption) { r.OnUpdate = opt }); err != nil {
 				return fmt.Errorf("failed to parse ON UPDATE: %w", err)
 			}
-			break OUTER
 		default:
 			return newParseError(ctx, t, "expected DELETE or UPDATE")
 		}
