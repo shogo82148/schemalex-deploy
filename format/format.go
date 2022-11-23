@@ -54,6 +54,9 @@ func format(ctx *fmtCtx, v interface{}) error {
 			if err := format(ctx, s); err != nil {
 				return err
 			}
+			if _, err := io.WriteString(ctx.dst, ";\n"); err != nil {
+				return err
+			}
 		}
 		return nil
 	case *model.Table:
@@ -170,7 +173,6 @@ func formatTable(ctx *fmtCtx, table *model.Table) error {
 			}
 		}
 	}
-	buf.WriteString(";\n")
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {
 		return err

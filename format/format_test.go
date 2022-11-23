@@ -204,7 +204,7 @@ primary key (id, c)
 		Expect: "CREATE TABLE `hoge` (\n" +
 			"`txt` TEXT,\n" +
 			"FULLTEXT INDEX `ft_idx` (`txt`) WITH PARSER `ngram`" +
-			"\n)",
+			"\n);\n",
 	})
 	parse("WithSimpleReferenceForeignKey", &Spec{
 		Input: "create table hoge ( `id` bigint unsigned not null auto_increment,\n" +
@@ -302,7 +302,7 @@ primary key (id, c)
 	})
 	parse("CreateTableLike", &Spec{
 		Input:  "CREATE TABLE foo LIKE bar",
-		Expect: "CREATE TABLE `foo` LIKE `bar`",
+		Expect: "CREATE TABLE `foo` LIKE `bar`;\n",
 	})
 	parse("ColumnOptionPrimaryKey", &Spec{
 		// see https://github.com/schemalex/schemalex/pull/40
@@ -364,31 +364,31 @@ primary key (id, c)
 	})
 	parse("BooleanDefaultFalse", &Spec{
 		Input:  "CREATE TABLE `test` (\n`valid` BOOLEAN not null default false\n);",
-		Expect: "CREATE TABLE `test` (\n`valid` TINYINT (1) NOT NULL DEFAULT 0\n)",
+		Expect: "CREATE TABLE `test` (\n`valid` TINYINT (1) NOT NULL DEFAULT 0\n);\n",
 	})
 	parse("BoolDefaultTrue", &Spec{
 		Input:  "CREATE TABLE `test` (\n`valid` BOOL not null default true\n);",
-		Expect: "CREATE TABLE `test` (\n`valid` TINYINT (1) NOT NULL DEFAULT 1\n)",
+		Expect: "CREATE TABLE `test` (\n`valid` TINYINT (1) NOT NULL DEFAULT 1\n);\n",
 	})
 	parse("BoolDefaultFalse", &Spec{
 		Input:  "CREATE TABLE `test` (\n`valid` BOOL not null default false\n);",
-		Expect: "CREATE TABLE `test` (\n`valid` TINYINT (1) NOT NULL DEFAULT 0\n)",
+		Expect: "CREATE TABLE `test` (\n`valid` TINYINT (1) NOT NULL DEFAULT 0\n);\n",
 	})
 	parse("JSON", &Spec{
 		Input:  "CREATE TABLE `test` (\n`valid` JSON not null\n);",
-		Expect: "CREATE TABLE `test` (\n`valid` JSON NOT NULL\n)",
+		Expect: "CREATE TABLE `test` (\n`valid` JSON NOT NULL\n);\n",
 	})
 	parse("GEOMETRY", &Spec{
 		Input:  "CREATE TABLE `test` (\n`valid` GEOMETRY not null\n);",
-		Expect: "CREATE TABLE `test` (\n`valid` GEOMETRY NOT NULL\n)",
+		Expect: "CREATE TABLE `test` (\n`valid` GEOMETRY NOT NULL\n);\n",
 	})
 	parse("CreateTableIfNotExists", &Spec{
 		Input:  "CREATE TABLE IF NOT EXISTS `test` (\n`id` INT (10) NOT NULL\n);",
-		Expect: "CREATE TABLE IF NOT EXISTS `test` (\n`id` INT (10) NOT NULL\n)",
+		Expect: "CREATE TABLE IF NOT EXISTS `test` (\n`id` INT (10) NOT NULL\n);\n",
 	})
 	parse("MultipleTableOptions", &Spec{
 		Input:  "CREATE TABLE foo (id INT(10) NOT NULL) ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4",
-		Expect: "CREATE TABLE `foo` (\n`id` INT (10) NOT NULL\n) ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4",
+		Expect: "CREATE TABLE `foo` (\n`id` INT (10) NOT NULL\n) ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4;\n",
 	})
 	parse("GithubIssue59", &Spec{
 		// see https://github.com/schemalex/schemalex/issues/59
@@ -419,7 +419,7 @@ primary key (id, c)
 			"CONSTRAINT `socialaccount_social_account_id_951f210e_fk_socialacc` FOREIGN KEY (`account_id`) REFERENCES `socialaccount_socialaccount` (`id`),\n" +
 			"INDEX `socialaccount_social_app_id_636a42d7_fk_socialacc` (`app_id`),\n" +
 			"CONSTRAINT `socialaccount_social_app_id_636a42d7_fk_socialacc` FOREIGN KEY (`app_id`) REFERENCES `socialaccount_socialapp` (`id`)\n" +
-			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4, DEFAULT COLLATE = utf8mb4_unicode_ci, ROW_FORMAT = DYNAMIC",
+			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4, DEFAULT COLLATE = utf8mb4_unicode_ci, ROW_FORMAT = DYNAMIC;\n",
 	})
 	parse("CommentsEmptyLines", &Spec{
 		Input: `/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
@@ -466,7 +466,7 @@ primary key (id, c)
 			"INDEX `user_id_idx` (`user_id`),\n" +
 			"INDEX `some_table__user_id` (`user_id`),\n" +
 			"CONSTRAINT `some_table__user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE SET NULL\n" +
-			") ENGINE = InnoDB, AUTO_INCREMENT = 19, DEFAULT CHARACTER SET = utf8mb4, DEFAULT COLLATE = utf8mb4_0900_ai_ci",
+			") ENGINE = InnoDB, AUTO_INCREMENT = 19, DEFAULT CHARACTER SET = utf8mb4, DEFAULT COLLATE = utf8mb4_0900_ai_ci;\n",
 	})
 	parse("DefaultNow", &Spec{
 		Input: "create table `test_log` (`created_at` DATETIME default NOW())",
@@ -489,12 +489,12 @@ primary key (id, c)
 			"`t_id` CHAR (17) NOT NULL,\n" +
 			"`t_type` SMALLINT (6) NOT NULL,\n" +
 			"`cur_date` DATETIME NOT NULL\n" +
-			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8",
+			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8;\n",
 	})
 	parse("WhiteSpacesBetweenTableOptionsAndSemicolon", &Spec{
 		Input: "CREATE TABLE foo (id INT(10) NOT NULL) ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4 \n/**/ ;",
 		Expect: "CREATE TABLE `foo` (\n" +
 			"`id` INT (10) NOT NULL\n" +
-			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4",
+			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4;\n",
 	})
 }
