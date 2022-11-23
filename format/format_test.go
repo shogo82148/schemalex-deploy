@@ -70,20 +70,20 @@ func TestFormat(t *testing.T) {
 		Input: "create table hoge_table ( id integer unsigned not null)",
 		Expect: "CREATE TABLE `hoge_table` (\n" +
 			"`id` INT (10) UNSIGNED NOT NULL\n" +
-			")",
+			");\n",
 	})
 	parse("CStyleComment", &Spec{
 		Input: "create table hoge ( /* id integer unsigned not null */ c varchar not null )",
 		Expect: "CREATE TABLE `hoge` (\n" +
 			"`c` VARCHAR NOT NULL\n" +
-			")",
+			");\n",
 	})
 	parse("DoubleDashComment", &Spec{
 		Input: "create table hoge ( -- id integer unsigned not null;\n" +
 			" c varchar not null )",
 		Expect: "CREATE TABLE `hoge` (\n" +
 			"`c` VARCHAR NOT NULL\n" +
-			")",
+			");\n",
 	})
 	parse("TrailingComma", &Spec{
 		Input: `create table hoge (
@@ -106,7 +106,7 @@ c int not null default 10
 			"`a` VARCHAR (20) DEFAULT 'hoge',\n" +
 			"`b` VARCHAR (20) DEFAULT 'hoge',\n" +
 			"`c` INT (11) NOT NULL DEFAULT 10\n" +
-			")",
+			");\n",
 	})
 
 	parse("WithPrimaryKey", &Spec{
@@ -120,7 +120,7 @@ primary key (id, c)
 			"`id` BIGINT (20) UNSIGNED NOT NULL AUTO_INCREMENT,\n" +
 			"`c` VARCHAR (20) NOT NULL DEFAULT 'hoge',\n" +
 			"PRIMARY KEY (`id`, `c`)\n" +
-			")",
+			");\n",
 	})
 
 	parse("WithTableOptions", &Spec{
@@ -129,7 +129,7 @@ primary key (id, c)
 			") ENGINE=InnoDB AUTO_INCREMENT 10 DEFAULT CHARACTER SET = utf8 COMMENT = 'hoge comment';",
 		Expect: "CREATE TABLE `hoge` (\n" +
 			"`id` BIGINT (20) UNSIGNED NOT NULL AUTO_INCREMENT\n" +
-			") ENGINE = InnoDB, AUTO_INCREMENT = 10, DEFAULT CHARACTER SET = utf8, COMMENT = 'hoge comment'",
+			") ENGINE = InnoDB, AUTO_INCREMENT = 10, DEFAULT CHARACTER SET = utf8, COMMENT = 'hoge comment';\n",
 	})
 
 	parse("NormalizeCharacterSetToCharset", &Spec{
@@ -138,7 +138,7 @@ primary key (id, c)
 			") ENGINE=InnoDB AUTO_INCREMENT 10 DEFAULT CHARSET = utf8 COMMENT = 'hoge comment';",
 		Expect: "CREATE TABLE `hoge` (\n" +
 			"`id` BIGINT (20) UNSIGNED NOT NULL AUTO_INCREMENT\n" +
-			") ENGINE = InnoDB, AUTO_INCREMENT = 10, DEFAULT CHARACTER SET = utf8, COMMENT = 'hoge comment'",
+			") ENGINE = InnoDB, AUTO_INCREMENT = 10, DEFAULT CHARACTER SET = utf8, COMMENT = 'hoge comment';\n",
 	})
 
 	parse("WithKeyAndIndex", &Spec{
@@ -146,13 +146,13 @@ primary key (id, c)
 			"`id` bigint unsigned not null auto_increment,\n" +
 			"`c` varchar(20) not null,\n" +
 			"KEY (`id`), INDEX (`c`)\n" +
-			")",
+			");\n",
 		Expect: "CREATE TABLE `hoge` (\n" +
 			"`id` BIGINT (20) UNSIGNED NOT NULL AUTO_INCREMENT,\n" +
 			"`c` VARCHAR (20) NOT NULL,\n" +
 			"INDEX (`id`),\n" +
 			"INDEX (`c`)\n" +
-			")",
+			");\n",
 	})
 	parse("WithUniqueKeyPrimaryKey", &Spec{
 		Input: "create table hoge (" +
@@ -160,13 +160,13 @@ primary key (id, c)
 			"`c` varchar(20) not null,\n" +
 			"UNIQUE INDEX `uniq_id` (`id`, `c`),\n" +
 			"PRIMARY KEY (`id`)\n" +
-			")",
+			");\n",
 		Expect: "CREATE TABLE `hoge` (\n" +
 			"`id` BIGINT (20) UNSIGNED NOT NULL AUTO_INCREMENT,\n" +
 			"`c` VARCHAR (20) NOT NULL,\n" +
 			"UNIQUE INDEX `uniq_id` (`id`, `c`),\n" +
 			"PRIMARY KEY (`id`)\n" +
-			")",
+			");\n",
 	})
 	parse("WithBsasicForeignKey", &Spec{
 		Input: "create table hoge ( `id` bigint unsigned not null auto_increment,\n" +
@@ -176,28 +176,28 @@ primary key (id, c)
 			"`id` BIGINT (20) UNSIGNED NOT NULL AUTO_INCREMENT,\n" +
 			"`c` VARCHAR (20) NOT NULL,\n" +
 			"FOREIGN KEY `fk_c` (`c`)\n" +
-			")",
+			");\n",
 	})
 	parse("WithFulltextIndex1", &Spec{
 		Input: "create table hoge (txt TEXT, fulltext ft_idx(txt))",
 		Expect: "CREATE TABLE `hoge` (\n" +
 			"`txt` TEXT,\n" +
 			"FULLTEXT INDEX `ft_idx` (`txt`)\n" +
-			")",
+			");\n",
 	})
 	parse("WithFulltextIndex2", &Spec{
 		Input: "create table hoge (txt TEXT, fulltext index ft_idx(txt))",
 		Expect: "CREATE TABLE `hoge` (\n" +
 			"`txt` TEXT,\n" +
 			"FULLTEXT INDEX `ft_idx` (`txt`)\n" +
-			")",
+			");\n",
 	})
 	parse("WithFulltextIndex3", &Spec{
 		Input: "create table hoge (txt TEXT, fulltext key ft_idx(txt))",
 		Expect: "CREATE TABLE `hoge` (\n" +
 			"`txt` TEXT,\n" +
 			"FULLTEXT INDEX `ft_idx` (`txt`)\n" +
-			")",
+			");\n",
 	})
 	parse("WithFullTextIndexWithParser", &Spec{
 		Input: "create table hoge (txt TEXT, fulltext ft_idx(txt) with parser ngram)",
@@ -214,7 +214,7 @@ primary key (id, c)
 			"`id` BIGINT (20) UNSIGNED NOT NULL AUTO_INCREMENT,\n" +
 			"`c` VARCHAR (20) NOT NULL,\n" +
 			"FOREIGN KEY `fk_c` (`c`) REFERENCES `fuga` (`id`)\n" +
-			")",
+			");\n",
 	})
 	parse("WithMatchReferenceForeignKey", &Spec{
 		Input: "create table hoge ( `id` bigint unsigned not null auto_increment,\n" +
@@ -224,7 +224,7 @@ primary key (id, c)
 			"`id` BIGINT (20) UNSIGNED NOT NULL AUTO_INCREMENT,\n" +
 			"`c` VARCHAR (20) NOT NULL,\n" +
 			"FOREIGN KEY `fk_c` (`c`) REFERENCES `fuga` (`id`) MATCH SIMPLE\n" +
-			")",
+			");\n",
 	})
 	parse("WithOnDeleteReferenceForeignKey", &Spec{
 		Input: "create table hoge ( `id` bigint unsigned not null auto_increment,\n" +
@@ -234,7 +234,7 @@ primary key (id, c)
 			"`id` BIGINT (20) UNSIGNED NOT NULL AUTO_INCREMENT,\n" +
 			"`c` VARCHAR (20) NOT NULL,\n" +
 			"FOREIGN KEY `fk_c` (`c`) REFERENCES `fuga` (`id`) ON DELETE SET NULL\n" +
-			")",
+			");\n",
 	})
 	parse("WithMatchAndOnDeleteReferenceForeignKey", &Spec{
 		Input: "create table hoge ( `id` bigint unsigned not null auto_increment,\n" +
@@ -244,7 +244,7 @@ primary key (id, c)
 			"`id` BIGINT (20) UNSIGNED NOT NULL AUTO_INCREMENT,\n" +
 			"`c` VARCHAR (20) NOT NULL,\n" +
 			"FOREIGN KEY `fk_c` (`c`) REFERENCES `fuga` (`id`) MATCH PARTIAL ON DELETE NO ACTION\n" +
-			")",
+			");\n",
 	})
 	parse("WithOnDeleteOnUpdateReferenceForeignKey", &Spec{
 		Input: "create table hoge ( `id` bigint unsigned not null auto_increment,\n" +
@@ -254,7 +254,7 @@ primary key (id, c)
 			"`id` BIGINT (20) UNSIGNED NOT NULL AUTO_INCREMENT,\n" +
 			"`c` VARCHAR (20) NOT NULL,\n" +
 			"FOREIGN KEY `fk_c` (`c`) REFERENCES `fuga` (`id`) ON DELETE NO ACTION ON UPDATE CASCADE\n" +
-			")",
+			");\n",
 	})
 	parse("UnexpectedIndentShownAfterReferencesFuga", &Spec{
 		Input: "create table hoge ( `id` bigint unsigned not null auto_increment,\n" +
@@ -266,39 +266,39 @@ primary key (id, c)
 		Input: "create table hoge (`foo` DECIMAL(32,30))",
 		Expect: "CREATE TABLE `hoge` (\n" +
 			"`foo` DECIMAL (32,30) DEFAULT NULL\n" +
-			")",
+			");\n",
 	})
 	parse("UniqueKeyWithConstraint", &Spec{
 		Input: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL AUTO_INCREMENT, CONSTRAINT `symbol` UNIQUE KEY `uniq_id` USING BTREE (`id`) )",
 		Expect: "CREATE TABLE `fuga` (\n" +
 			"`id` INT (11) NOT NULL AUTO_INCREMENT,\n" +
 			"CONSTRAINT `symbol` UNIQUE INDEX `uniq_id` USING BTREE (`id`)\n" +
-			")",
+			");\n",
 	})
 	parse("DropTableIfExists", &Spec{
 		Input: "DROP TABLE IF EXISTS `konboi_bug`; CREATE TABLE foo(`id` INT)",
 		Expect: "CREATE TABLE `foo` (\n" +
 			"`id` INT (11) DEFAULT NULL\n" +
-			")",
+			");\n",
 	})
 	parse("ColumnCharacterSet", &Spec{
 		Input: "CREATE TABLE `foo` (col TEXT CHARACTER SET latin1)",
 		Expect: "CREATE TABLE `foo` (\n" +
 			"`col` TEXT CHARACTER SET `latin1`\n" +
-			")",
+			");\n",
 	})
 	parse("OnUpdateCurrentTimestampNoDefault", &Spec{
 		Input: "CREATE TABLE `foo` (col DATETIME ON UPDATE CURRENT_TIMESTAMP)",
 		Expect: "CREATE TABLE `foo` (\n" +
 			"`col` DATETIME ON UPDATE CURRENT_TIMESTAMP DEFAULT NULL\n" +
-			")",
+			");\n",
 	})
 	parse("KeyNormalizedToIndex", &Spec{
 		Input: "CREATE TABLE `foo` (col TEXT, KEY col_idx (col(196)))",
 		Expect: "CREATE TABLE `foo` (\n" +
 			"`col` TEXT,\n" +
 			"INDEX `col_idx` (`col`(196))\n" +
-			")",
+			");\n",
 	})
 	parse("CreateTableLike", &Spec{
 		Input:  "CREATE TABLE foo LIKE bar",
@@ -310,7 +310,7 @@ primary key (id, c)
 		Expect: "CREATE TABLE `foo` (\n" +
 			"`id` INT (11) DEFAULT NULL AUTO_INCREMENT,\n" +
 			"PRIMARY KEY (`id`)\n" +
-			")",
+			");\n",
 	})
 	parse("ColumnOptionCommentPrimaryKey1", &Spec{
 		// see https://github.com/schemalex/schemalex/pull/40
@@ -323,7 +323,7 @@ primary key (id, c)
 			"`hoge` INT (11) NOT NULL DEFAULT 1 COMMENT 'bbb',\n" +
 			"PRIMARY KEY (`id`),\n" +
 			"UNIQUE INDEX `hoge` (`hoge`)\n" +
-			")",
+			");\n",
 	})
 	parse("ColumnOptionCommentPrimaryKey2", &Spec{
 		// see https://github.com/schemalex/schemalex/pull/40
@@ -336,7 +336,7 @@ primary key (id, c)
 			"`hoge` INT (11) NOT NULL DEFAULT 1 COMMENT 'bbb',\n" +
 			"PRIMARY KEY (`id`),\n" +
 			"UNIQUE INDEX `hoge` (`hoge`)\n" +
-			")",
+			");\n",
 	})
 	parse("Enum", &Spec{
 		Input: "CREATE TABLE `test` (\n" +
@@ -344,7 +344,7 @@ primary key (id, c)
 			");",
 		Expect: "CREATE TABLE `test` (\n" +
 			"`status` ENUM ('on','off') NOT NULL DEFAULT 'off'\n" +
-			")",
+			");\n",
 	})
 	parse("Set", &Spec{
 		Input: "CREATE TABLE `test` (\n" +
@@ -352,7 +352,7 @@ primary key (id, c)
 			");",
 		Expect: "CREATE TABLE `test` (\n" +
 			"`status` SET ('foo','bar','baz') NOT NULL DEFAULT 'foo,baz'\n" +
-			")",
+			");\n",
 	})
 	parse("BooleanDefaultTrue", &Spec{
 		Input: "CREATE TABLE `test` (\n" +
@@ -360,7 +360,7 @@ primary key (id, c)
 			");",
 		Expect: "CREATE TABLE `test` (\n" +
 			"`valid` TINYINT (1) NOT NULL DEFAULT 1\n" +
-			")",
+			");\n",
 	})
 	parse("BooleanDefaultFalse", &Spec{
 		Input:  "CREATE TABLE `test` (\n`valid` BOOLEAN not null default false\n);",
@@ -436,9 +436,10 @@ primary key (id, c)
 			"b int);",
 		Expect: "CREATE TABLE `foo` (\n" +
 			"`a` INT (11) DEFAULT NULL\n" +
-			")CREATE TABLE `bar` (\n" +
+			");\n" +
+			"CREATE TABLE `bar` (\n" +
 			"`b` INT (11) DEFAULT NULL\n" +
-			")",
+			");\n",
 	})
 	parse("GithubIssue62", &Spec{
 		// see https://github.com/schemalex/schemalex/issues/62
@@ -471,7 +472,7 @@ primary key (id, c)
 		Input: "create table `test_log` (`created_at` DATETIME default NOW())",
 		Expect: "CREATE TABLE `test_log` (\n" +
 			"`created_at` DATETIME DEFAULT NOW()\n" +
-			")",
+			");\n",
 	})
 
 	parse("GithubIssue79", &Spec{

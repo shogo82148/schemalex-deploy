@@ -170,6 +170,7 @@ func formatTable(ctx *fmtCtx, table *model.Table) error {
 			}
 		}
 	}
+	buf.WriteString(";\n")
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {
 		return err
