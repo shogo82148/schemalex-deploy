@@ -256,12 +256,6 @@ primary key (id, c)
 			"FOREIGN KEY `fk_c` (`c`) REFERENCES `fuga` (`id`) ON DELETE NO ACTION ON UPDATE CASCADE\n" +
 			")",
 	})
-	parse("OnDeleteAfterOnUpdateGotError", &Spec{
-		Input: "create table hoge ( `id` bigint unsigned not null auto_increment,\n" +
-			"`c` varchar(20) not null,\n" +
-			"FOREIGN KEY `fk_c` (`c`) REFERENCES `fuga` (`id`) ON UPDATE CASCADE ON DELETE RESTRICT)",
-		Error: true,
-	})
 	parse("UnexpectedIndentShownAfterReferencesFuga", &Spec{
 		Input: "create table hoge ( `id` bigint unsigned not null auto_increment,\n" +
 			"`c` varchar(20) not null,\n" +
