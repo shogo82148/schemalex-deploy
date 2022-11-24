@@ -4,6 +4,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   SCHEMALEX_DATABASE_HOST: "127.0.0.1"
   SCHEMALEX_DATABASE_PORT: "3306"
