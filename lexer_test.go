@@ -81,6 +81,14 @@ func TestLexToken(t *testing.T) {
 			input: "`ho``ge`",
 			token: Token{Value: "ho`ge", Type: BACKTICK_IDENT},
 		},
+		{
+			input: "``",
+			token: Token{Value: "", Type: BACKTICK_IDENT},
+		},
+		{
+			input: "````",
+			token: Token{Value: "`", Type: BACKTICK_IDENT},
+		},
 		// ESCAPED STRING BY BACKSLASH
 		{
 			input: `'ho\'ge'`,

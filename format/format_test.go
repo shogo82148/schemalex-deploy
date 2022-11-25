@@ -354,6 +354,10 @@ primary key (id, c)
 			"`status` SET ('foo','bar','baz') NOT NULL DEFAULT 'foo,baz'\n" +
 			");\n",
 	})
+	parse("Flag Set Not found", &Spec{
+		Input: "CREATE TABLE``(``SET)",
+		Error: true,
+	})
 	parse("BooleanDefaultTrue", &Spec{
 		Input: "CREATE TABLE `test` (\n" +
 			"`valid` BOOLEAN not null default true\n" +
