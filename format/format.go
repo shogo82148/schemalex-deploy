@@ -32,14 +32,13 @@ func (ctx *fmtCtx) clone() *fmtCtx {
 // SQL takes an arbitrary `model.*` object and formats it as SQL,
 // writing its result to `dst`
 func SQL(dst io.Writer, v interface{}, options ...Option) error {
-	ctx := newFmtCtx(dst)
+	var opts myOptions
 	for _, o := range options {
-		switch o.Name() {
-		case optkeyIndent:
-			ctx.indent = o.Value().(string)
-		}
+		o.apply(&opts)
 	}
 
+	ctx := newFmtCtx(dst)
+	ctx.indent = opts.indent
 	return format(ctx, v)
 }
 
