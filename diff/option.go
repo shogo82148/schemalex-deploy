@@ -2,31 +2,52 @@ package diff
 
 import (
 	"github.com/shogo82148/schemalex-deploy"
-	"github.com/shogo82148/schemalex-deploy/internal/option"
 )
 
-type Option schemalex.Option
+type myOptions struct {
+	parser        *schemalex.Parser
+	transaction   bool
+	currentSchema string
+}
 
-const (
-	optkeyParser      = "parser"
-	optkeyTransaction = "transaction"
-	optkeyCurrent     = "current"
-)
+type Option interface {
+	apply(opts *myOptions)
+}
+
+type withParser struct {
+	p *schemalex.Parser
+}
+
+func (opt withParser) apply(opts *myOptions) {
+	opts.parser = opt.p
+}
 
 // WithParser specifies the parser instance to use when parsing
 // the statements given to the diffing functions. If unspecified,
 // a default parser will be used
 func WithParser(p *schemalex.Parser) Option {
-	return option.New(optkeyParser, p)
+	return &withParser{p}
+}
+
+type withTransaction bool
+
+func (opt withTransaction) apply(opts *myOptions) {
+	opts.transaction = bool(opt)
 }
 
 // WithTransaction specifies if statements to control transactions
 // should be included in the diff.
 func WithTransaction(b bool) Option {
-	return option.New(optkeyTransaction, b)
+	return withTransaction(b)
+}
+
+type withCurrentSchema string
+
+func (opt withCurrentSchema) apply(opts *myOptions) {
+	opts.currentSchema = string(opt)
 }
 
 // WithCurrentSchema specifies the current schema deployed in MySQL.
 func WithCurrentSchema(schema string) Option {
-	return option.New(optkeyCurrent, schema)
+	return withCurrentSchema(schema)
 }

@@ -1,15 +1,20 @@
 package format
 
-import (
-	"strings"
+import "strings"
 
-	"github.com/shogo82148/schemalex-deploy"
-	"github.com/shogo82148/schemalex-deploy/internal/option"
-)
+type myOptions struct {
+	indent string
+}
 
-type Option = schemalex.Option
+type Option interface {
+	apply(opts *myOptions)
+}
 
-const optkeyIndent = "indent"
+type withIndent string
+
+func (opt withIndent) apply(opts *myOptions) {
+	opts.indent = string(opt)
+}
 
 // WithIndent specifies the indent string to use, and the length.
 // For example, if you specify WithIndent(" " /* single space */, 2), the
@@ -21,5 +26,5 @@ func WithIndent(s string, n int) Option {
 	if n <= 0 {
 		n = 1
 	}
-	return option.New(optkeyIndent, strings.Repeat(s, n))
+	return withIndent(strings.Repeat(s, n))
 }

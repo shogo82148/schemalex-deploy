@@ -55,19 +55,13 @@ func (ctx *diffCtx) append(stmt string) {
 // statements as `diff.Stmts` so the consumer can, for example,
 // analyze or use these statements standalone by themselves.
 func Diff(from, to model.Stmts, options ...Option) (Stmts, error) {
-	var p *schemalex.Parser
-	var txn bool
-	var current string
-	for _, o := range options {
-		switch o.Name() {
-		case optkeyParser:
-			p = o.Value().(*schemalex.Parser)
-		case optkeyTransaction:
-			txn = o.Value().(bool)
-		case optkeyCurrent:
-			current = o.Value().(string)
-		}
+	var opts myOptions
+	for _, opt := range options {
+		opt.apply(&opts)
 	}
+	p := opts.parser
+	txn := opts.transaction
+	current := opts.currentSchema
 
 	if p == nil {
 		p = schemalex.New()
@@ -125,16 +119,11 @@ func Statements(dst io.Writer, from, to model.Stmts, options ...Option) error {
 // of statements to migrate from the old one to the new one,
 // writing the result to `dst`
 func Strings(dst io.Writer, from, to string, options ...Option) error {
-	var p *schemalex.Parser
-	for _, o := range options {
-		switch o.Name() {
-		case optkeyParser:
-			p = o.Value().(*schemalex.Parser)
-		}
+	var opts myOptions
+	for _, opt := range options {
+		opt.apply(&opts)
 	}
-	if p == nil {
-		p = schemalex.New()
-	}
+	p := opts.parser
 
 	stmts1, err := p.ParseString(from)
 	if err != nil {
