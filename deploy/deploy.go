@@ -52,6 +52,7 @@ func (db *DB) Plan(ctx context.Context, schema string) (*Plan, error) {
 	p := schemalex.New()
 	opts := []diff.Option{
 		diff.WithTransaction(false),
+		diff.WithIndent(" ", 2),
 	}
 
 	current, err := db.LoadSchema(ctx)
