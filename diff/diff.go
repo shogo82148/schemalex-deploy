@@ -22,6 +22,7 @@ type diffCtx struct {
 	to      model.Stmts
 	cur     model.Stmts
 	result  Stmts
+	indent  string
 }
 
 func newDiffCtx(from, to, cur model.Stmts) *diffCtx {
@@ -75,6 +76,7 @@ func Diff(from, to model.Stmts, options ...Option) (Stmts, error) {
 		}
 	}
 	ctx := newDiffCtx(from, to, cur)
+	ctx.indent = opts.indent
 
 	if txn {
 		ctx.append(`BEGIN`)
@@ -167,7 +169,7 @@ func (ctx *diffCtx) createTables() error {
 		}
 
 		buf.Reset()
-		if err := format.SQL(&buf, stmt); err != nil {
+		if err := format.SQL(&buf, stmt, format.WithIndent(ctx.indent, 1)); err != nil {
 			return fmt.Errorf("failed to format a statement: %w", err)
 		}
 		ctx.append(buf.String())
