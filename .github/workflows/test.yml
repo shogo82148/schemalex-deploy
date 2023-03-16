@@ -65,7 +65,7 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: "1.19"
           cache: true
@@ -106,7 +106,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: "1.19"
 
@@ -122,7 +122,7 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: "1.19"
           cache: true
