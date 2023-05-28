@@ -34,3 +34,9 @@ type MaybeIdent struct {
 	Ident
 	Valid bool
 }
+
+// MaybeInteger is an integer that may not be set.
+type MaybeInteger struct {
+	Valid bool
+	Value int64
+}

@@ -3,6 +3,7 @@ package schemalex
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	myerrors "github.com/shogo82148/schemalex-deploy/internal/errors"
@@ -995,6 +996,21 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 			default:
 				return newParseError(ctx, t, "should SINGLE_QUOTE_IDENT")
 			}
+
+		case SRID:
+			ctx.skipWhiteSpaces()
+			switch t := ctx.next(); t.Type {
+			case NUMBER:
+				srid, err := strconv.ParseInt(t.Value, 10, 64)
+				if err != nil {
+					return newParseError(ctx, t, "invalid SRID: %v", err)
+				}
+				col.SRID.Valid = true
+				col.SRID.Value = srid
+			default:
+				return newParseError(ctx, t, "should NUMBER")
+			}
+
 		case COMMA:
 			ctx.rewind()
 			return nil
