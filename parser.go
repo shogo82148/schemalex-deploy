@@ -588,7 +588,7 @@ func (p *Parser) parseTableColumnSpec(ctx *parseCtx, col *model.TableColumn) err
 		coltyp = model.ColumnTypeJSON
 		colopt = coloptFlagNone
 	case GEOMETRY:
-		coltyp = model.ColumnTypeGEOMETRY
+		coltyp = model.ColumnTypeGeometry
 		colopt = coloptFlagNone
 	default:
 		return newParseError(ctx, t, "unsupported type in column specification")

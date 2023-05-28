@@ -72,7 +72,7 @@ func _main() error {
 		"Boolean",
 		"Bool",
 		"JSON",
-		"GEOMETRY",
+		"Geometry",
 	}
 
 	println := func(args ...string) {
