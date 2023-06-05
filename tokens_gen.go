@@ -109,6 +109,7 @@ const (
 	FULL
 	FULLTEXT
 	GEOMETRY
+	GEOMETRYCOLLECTION
 	HASH
 	IF
 	INDEX
@@ -120,6 +121,7 @@ const (
 	KEY
 	LAST
 	LIKE
+	LINESTRING
 	LONGBLOB
 	LONGTEXT
 	MATCH
@@ -129,6 +131,9 @@ const (
 	MEDIUMTEXT
 	MEMORY
 	MIN_ROWS
+	MULTILINESTRING
+	MULTIPOINT
+	MULTIPOLYGON
 	NO
 	NOT
 	NOW
@@ -139,6 +144,8 @@ const (
 	PARSER
 	PARTIAL
 	PASSWORD
+	POINT
+	POLYGON
 	PRIMARY
 	REAL
 	REDUNDANT
@@ -228,6 +235,7 @@ var keywordIdentMap = map[string]TokenType{
 	"FULL":               FULL,
 	"FULLTEXT":           FULLTEXT,
 	"GEOMETRY":           GEOMETRY,
+	"GEOMETRYCOLLECTION": GEOMETRYCOLLECTION,
 	"HASH":               HASH,
 	"IF":                 IF,
 	"INDEX":              INDEX,
@@ -239,6 +247,7 @@ var keywordIdentMap = map[string]TokenType{
 	"KEY":                KEY,
 	"LAST":               LAST,
 	"LIKE":               LIKE,
+	"LINESTRING":         LINESTRING,
 	"LONGBLOB":           LONGBLOB,
 	"LONGTEXT":           LONGTEXT,
 	"MATCH":              MATCH,
@@ -248,6 +257,9 @@ var keywordIdentMap = map[string]TokenType{
 	"MEDIUMTEXT":         MEDIUMTEXT,
 	"MEMORY":             MEMORY,
 	"MIN_ROWS":           MIN_ROWS,
+	"MULTILINESTRING":    MULTILINESTRING,
+	"MULTIPOINT":         MULTIPOINT,
+	"MULTIPOLYGON":       MULTIPOLYGON,
 	"NO":                 NO,
 	"NOT":                NOT,
 	"NOW":                NOW,
@@ -258,6 +270,8 @@ var keywordIdentMap = map[string]TokenType{
 	"PARSER":             PARSER,
 	"PARTIAL":            PARTIAL,
 	"PASSWORD":           PASSWORD,
+	"POINT":              POINT,
+	"POLYGON":            POLYGON,
 	"PRIMARY":            PRIMARY,
 	"REAL":               REAL,
 	"REDUNDANT":          REDUNDANT,
@@ -440,6 +454,8 @@ func (t TokenType) String() string {
 		return "FULLTEXT"
 	case GEOMETRY:
 		return "GEOMETRY"
+	case GEOMETRYCOLLECTION:
+		return "GEOMETRYCOLLECTION"
 	case HASH:
 		return "HASH"
 	case IF:
@@ -462,6 +478,8 @@ func (t TokenType) String() string {
 		return "LAST"
 	case LIKE:
 		return "LIKE"
+	case LINESTRING:
+		return "LINESTRING"
 	case LONGBLOB:
 		return "LONGBLOB"
 	case LONGTEXT:
@@ -480,6 +498,12 @@ func (t TokenType) String() string {
 		return "MEMORY"
 	case MIN_ROWS:
 		return "MIN_ROWS"
+	case MULTILINESTRING:
+		return "MULTILINESTRING"
+	case MULTIPOINT:
+		return "MULTIPOINT"
+	case MULTIPOLYGON:
+		return "MULTIPOLYGON"
 	case NO:
 		return "NO"
 	case NOT:
@@ -500,6 +524,10 @@ func (t TokenType) String() string {
 		return "PARTIAL"
 	case PASSWORD:
 		return "PASSWORD"
+	case POINT:
+		return "POINT"
+	case POLYGON:
+		return "POLYGON"
 	case PRIMARY:
 		return "PRIMARY"
 	case REAL:

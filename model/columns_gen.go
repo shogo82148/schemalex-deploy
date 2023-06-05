@@ -8,117 +8,138 @@ type ColumnType int
 // List of possible ColumnType values
 const (
 	ColumnTypeInvalid ColumnType = iota
+	ColumnTypeBigInt
+	ColumnTypeBinary
 	ColumnTypeBit
-	ColumnTypeTinyInt
-	ColumnTypeSmallInt
-	ColumnTypeMediumInt
+	ColumnTypeBlob
+	ColumnTypeBool
+	ColumnTypeBoolean
+	ColumnTypeChar
+	ColumnTypeDate
+	ColumnTypeDateTime
+	ColumnTypeDecimal
+	ColumnTypeDouble
+	ColumnTypeEnum
+	ColumnTypeFloat
+	ColumnTypeGeometry
+	ColumnTypeGeometryCollection
 	ColumnTypeInt
 	ColumnTypeInteger
-	ColumnTypeBigInt
-	ColumnTypeReal
-	ColumnTypeDouble
-	ColumnTypeFloat
-	ColumnTypeDecimal
+	ColumnTypeJSON
+	ColumnTypeLineString
+	ColumnTypeLongBlob
+	ColumnTypeLongText
+	ColumnTypeMediumBlob
+	ColumnTypeMediumInt
+	ColumnTypeMediumText
+	ColumnTypeMultiLineString
+	ColumnTypeMultiPoint
+	ColumnTypeMultiPolygon
 	ColumnTypeNumeric
-	ColumnTypeDate
+	ColumnTypePoint
+	ColumnTypePolygon
+	ColumnTypeReal
+	ColumnTypeSet
+	ColumnTypeSmallInt
+	ColumnTypeText
 	ColumnTypeTime
 	ColumnTypeTimestamp
-	ColumnTypeDateTime
-	ColumnTypeYear
-	ColumnTypeChar
-	ColumnTypeVarChar
-	ColumnTypeBinary
-	ColumnTypeVarBinary
 	ColumnTypeTinyBlob
-	ColumnTypeBlob
-	ColumnTypeMediumBlob
-	ColumnTypeLongBlob
+	ColumnTypeTinyInt
 	ColumnTypeTinyText
-	ColumnTypeText
-	ColumnTypeMediumText
-	ColumnTypeLongText
-	ColumnTypeEnum
-	ColumnTypeSet
-	ColumnTypeBoolean
-	ColumnTypeBool
-	ColumnTypeJSON
-	ColumnTypeGeometry
+	ColumnTypeVarBinary
+	ColumnTypeVarChar
+	ColumnTypeYear
 
 	ColumnTypeMax
 )
 
 func (c ColumnType) String() string {
 	switch c {
+	case ColumnTypeBigInt:
+		return "BIGINT"
+	case ColumnTypeBinary:
+		return "BINARY"
 	case ColumnTypeBit:
 		return "BIT"
-	case ColumnTypeTinyInt:
-		return "TINYINT"
-	case ColumnTypeSmallInt:
-		return "SMALLINT"
-	case ColumnTypeMediumInt:
-		return "MEDIUMINT"
+	case ColumnTypeBlob:
+		return "BLOB"
+	case ColumnTypeBool:
+		return "BOOL"
+	case ColumnTypeBoolean:
+		return "BOOLEAN"
+	case ColumnTypeChar:
+		return "CHAR"
+	case ColumnTypeDate:
+		return "DATE"
+	case ColumnTypeDateTime:
+		return "DATETIME"
+	case ColumnTypeDecimal:
+		return "DECIMAL"
+	case ColumnTypeDouble:
+		return "DOUBLE"
+	case ColumnTypeEnum:
+		return "ENUM"
+	case ColumnTypeFloat:
+		return "FLOAT"
+	case ColumnTypeGeometry:
+		return "GEOMETRY"
+	case ColumnTypeGeometryCollection:
+		return "GEOMETRYCOLLECTION"
 	case ColumnTypeInt:
 		return "INT"
 	case ColumnTypeInteger:
 		return "INTEGER"
-	case ColumnTypeBigInt:
-		return "BIGINT"
-	case ColumnTypeReal:
-		return "REAL"
-	case ColumnTypeDouble:
-		return "DOUBLE"
-	case ColumnTypeFloat:
-		return "FLOAT"
-	case ColumnTypeDecimal:
-		return "DECIMAL"
+	case ColumnTypeJSON:
+		return "JSON"
+	case ColumnTypeLineString:
+		return "LINESTRING"
+	case ColumnTypeLongBlob:
+		return "LONGBLOB"
+	case ColumnTypeLongText:
+		return "LONGTEXT"
+	case ColumnTypeMediumBlob:
+		return "MEDIUMBLOB"
+	case ColumnTypeMediumInt:
+		return "MEDIUMINT"
+	case ColumnTypeMediumText:
+		return "MEDIUMTEXT"
+	case ColumnTypeMultiLineString:
+		return "MULTILINESTRING"
+	case ColumnTypeMultiPoint:
+		return "MULTIPOINT"
+	case ColumnTypeMultiPolygon:
+		return "MULTIPOLYGON"
 	case ColumnTypeNumeric:
 		return "NUMERIC"
-	case ColumnTypeDate:
-		return "DATE"
+	case ColumnTypePoint:
+		return "POINT"
+	case ColumnTypePolygon:
+		return "POLYGON"
+	case ColumnTypeReal:
+		return "REAL"
+	case ColumnTypeSet:
+		return "SET"
+	case ColumnTypeSmallInt:
+		return "SMALLINT"
+	case ColumnTypeText:
+		return "TEXT"
 	case ColumnTypeTime:
 		return "TIME"
 	case ColumnTypeTimestamp:
 		return "TIMESTAMP"
-	case ColumnTypeDateTime:
-		return "DATETIME"
-	case ColumnTypeYear:
-		return "YEAR"
-	case ColumnTypeChar:
-		return "CHAR"
-	case ColumnTypeVarChar:
-		return "VARCHAR"
-	case ColumnTypeBinary:
-		return "BINARY"
-	case ColumnTypeVarBinary:
-		return "VARBINARY"
 	case ColumnTypeTinyBlob:
 		return "TINYBLOB"
-	case ColumnTypeBlob:
-		return "BLOB"
-	case ColumnTypeMediumBlob:
-		return "MEDIUMBLOB"
-	case ColumnTypeLongBlob:
-		return "LONGBLOB"
+	case ColumnTypeTinyInt:
+		return "TINYINT"
 	case ColumnTypeTinyText:
 		return "TINYTEXT"
-	case ColumnTypeText:
-		return "TEXT"
-	case ColumnTypeMediumText:
-		return "MEDIUMTEXT"
-	case ColumnTypeLongText:
-		return "LONGTEXT"
-	case ColumnTypeEnum:
-		return "ENUM"
-	case ColumnTypeSet:
-		return "SET"
-	case ColumnTypeBoolean:
-		return "BOOLEAN"
-	case ColumnTypeBool:
-		return "BOOL"
-	case ColumnTypeJSON:
-		return "JSON"
-	case ColumnTypeGeometry:
-		return "GEOMETRY"
+	case ColumnTypeVarBinary:
+		return "VARBINARY"
+	case ColumnTypeVarChar:
+		return "VARCHAR"
+	case ColumnTypeYear:
+		return "YEAR"
 	default:
 		return "(invalid)"
 	}

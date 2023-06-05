@@ -393,6 +393,34 @@ primary key (id, c)
 		Input:  "CREATE TABLE `test` (\n`valid` GEOMETRY not null\n);",
 		Expect: "CREATE TABLE `test` (\n`valid` GEOMETRY NOT NULL\n);\n",
 	})
+	parse("POINT", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` POINT not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` POINT NOT NULL\n);\n",
+	})
+	parse("LINESTRING", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` LINESTRING not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` LINESTRING NOT NULL\n);\n",
+	})
+	parse("POLYGON", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` POLYGON not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` POLYGON NOT NULL\n);\n",
+	})
+	parse("MULTIPOINT", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` MULTIPOINT not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` MULTIPOINT NOT NULL\n);\n",
+	})
+	parse("MULTILINESTRING", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` MULTILINESTRING not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` MULTILINESTRING NOT NULL\n);\n",
+	})
+	parse("MULTIPOLYGON", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` MULTIPOLYGON not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` MULTIPOLYGON NOT NULL\n);\n",
+	})
+	parse("GEOMETRYCOLLECTION", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` GEOMETRYCOLLECTION not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` GEOMETRYCOLLECTION NOT NULL\n);\n",
+	})
 	parse("CreateTableIfNotExists", &Spec{
 		Input:  "CREATE TABLE IF NOT EXISTS `test` (\n`id` INT (10) NOT NULL\n);",
 		Expect: "CREATE TABLE IF NOT EXISTS `test` (\n`id` INT (10) NOT NULL\n);\n",

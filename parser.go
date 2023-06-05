@@ -591,6 +591,28 @@ func (p *Parser) parseTableColumnSpec(ctx *parseCtx, col *model.TableColumn) err
 	case GEOMETRY:
 		coltyp = model.ColumnTypeGeometry
 		colopt = coloptFlagNone
+	case POINT:
+		coltyp = model.ColumnTypePoint
+		colopt = coloptFlagNone
+	case LINESTRING:
+		coltyp = model.ColumnTypeLineString
+		colopt = coloptFlagNone
+	case POLYGON:
+		coltyp = model.ColumnTypePolygon
+		colopt = coloptFlagNone
+	case MULTIPOINT:
+		coltyp = model.ColumnTypeMultiPoint
+		colopt = coloptFlagNone
+	case MULTILINESTRING:
+		coltyp = model.ColumnTypeMultiLineString
+		colopt = coloptFlagNone
+	case MULTIPOLYGON:
+		coltyp = model.ColumnTypeMultiPolygon
+		colopt = coloptFlagNone
+	case GEOMETRYCOLLECTION:
+		coltyp = model.ColumnTypeGeometryCollection
+		colopt = coloptFlagNone
+
 	default:
 		return newParseError(ctx, t, "unsupported type in column specification")
 	}
