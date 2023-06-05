@@ -109,6 +109,13 @@ c int not null default 10
 			");\n",
 	})
 
+	parse("WithSRID", &Spec{
+		Input: `create table hoge (a geometry not null srid 0);`,
+		Expect: "CREATE TABLE `hoge` (\n" +
+			"`a` GEOMETRY NOT NULL SRID 0\n" +
+			");\n",
+	})
+
 	parse("WithPrimaryKey", &Spec{
 		Input: `create table hoge (
 id bigint unsigned not null auto_increment,
@@ -168,7 +175,7 @@ primary key (id, c)
 			"PRIMARY KEY (`id`)\n" +
 			");\n",
 	})
-	parse("WithBsasicForeignKey", &Spec{
+	parse("WithBasicForeignKey", &Spec{
 		Input: "create table hoge ( `id` bigint unsigned not null auto_increment,\n" +
 			"`c` varchar(20) not null,\n" +
 			"FOREIGN KEY `fk_c` (`c`) )",
