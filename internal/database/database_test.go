@@ -137,7 +137,7 @@ func TestDropAll(t *testing.T) {
 		}
 	})
 
-	t.Run("forgeign key", func(t *testing.T) {
+	t.Run("foreign key", func(t *testing.T) {
 		db, cleanup := SetupTestDB()
 		defer cleanup()
 
