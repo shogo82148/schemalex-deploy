@@ -297,6 +297,9 @@ var specs = []Spec{
 
 	{
 		Name: "add columns with srid",
+		Tests: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `point` GEOMETRY NOT NULL SRID 4326 )",
+		},
 		Before: []string{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
 		},
@@ -312,6 +315,9 @@ var specs = []Spec{
 	},
 	{
 		Name: "change columns with srid",
+		Tests: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `point` GEOMETRY NOT NULL SRID 4326 )",
+		},
 		Before: []string{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `point` GEOMETRY NOT NULL )",
 		},
