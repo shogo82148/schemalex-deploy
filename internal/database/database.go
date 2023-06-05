@@ -19,7 +19,8 @@ import (
 
 // SetupTestDB creates a database for testing.
 // Run the following command to run this on your local machine.
-//     docker run -d -p 127.0.0.1:3306:3306 -e MYSQL_ROOT_PASSWORD=verysecret -e MYSQL_ROOT_HOST='%' mysql/mysql-server:8.0
+//
+//	docker run -d -p 127.0.0.1:3306:3306 -e MYSQL_ROOT_PASSWORD=verysecret -e MYSQL_ROOT_HOST='%' mysql/mysql-server:8.0
 func SetupTestDB() (*sql.DB, func()) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
