@@ -58,6 +58,7 @@ type TableColumn struct {
 	Unique        bool
 	Unsigned      bool
 	ZeroFill      bool
+	SRID          MaybeInteger
 }
 
 // NewTableColumn creates a new TableColumn with the given name

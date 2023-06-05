@@ -4,5 +4,5 @@ package schemalex
 // optional parameters to the various format functions in this package
 type Option interface {
 	Name() string
-	Value() interface {}
+	Value() interface{}
 }

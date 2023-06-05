@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/shogo82148/schemalex-deploy/internal/util"
 	"github.com/shogo82148/schemalex-deploy/model"
@@ -274,6 +275,11 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 		case model.NullStateNotNull:
 			buf.WriteString("NOT NULL")
 		}
+	}
+
+	if col.SRID.Valid {
+		buf.WriteString(" SRID ")
+		buf.WriteString(strconv.FormatInt(col.SRID.Value, 10))
 	}
 
 	if col.Default.Valid {

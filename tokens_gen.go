@@ -60,6 +60,7 @@ const (
 	EQUAL         // =
 	COMMENT_IDENT // // /*   */, --, #
 	ACTION
+	ASC
 	AUTO_INCREMENT
 	AVG_ROW_LENGTH
 	BIGINT
@@ -91,6 +92,7 @@ const (
 	DEFAULT
 	DELAY_KEY_WRITE
 	DELETE
+	DESC
 	DIRECTORY
 	DISK
 	DOUBLE
@@ -107,6 +109,7 @@ const (
 	FULL
 	FULLTEXT
 	GEOMETRY
+	GEOMETRYCOLLECTION
 	HASH
 	IF
 	INDEX
@@ -114,10 +117,11 @@ const (
 	INT
 	INTEGER
 	JSON
-	KEY
 	KEY_BLOCK_SIZE
+	KEY
 	LAST
 	LIKE
+	LINESTRING
 	LONGBLOB
 	LONGTEXT
 	MATCH
@@ -127,15 +131,21 @@ const (
 	MEDIUMTEXT
 	MEMORY
 	MIN_ROWS
+	MULTILINESTRING
+	MULTIPOINT
+	MULTIPOLYGON
 	NO
 	NOT
+	NOW
 	NULL
 	NUMERIC
 	ON
 	PACK_KEYS
-	PARTIAL
 	PARSER
+	PARTIAL
 	PASSWORD
+	POINT
+	POLYGON
 	PRIMARY
 	REAL
 	REDUNDANT
@@ -146,6 +156,7 @@ const (
 	SIMPLE
 	SMALLINT
 	SPATIAL
+	SRID
 	STATS_AUTO_RECALC
 	STATS_PERSISTENT
 	STATS_SAMPLE_PAGES
@@ -168,16 +179,14 @@ const (
 	USING
 	VARBINARY
 	VARCHAR
-	YEAR
 	WITH
+	YEAR
 	ZEROFILL
-	ASC
-	DESC
-	NOW
 )
 
 var keywordIdentMap = map[string]TokenType{
 	"ACTION":             ACTION,
+	"ASC":                ASC,
 	"AUTO_INCREMENT":     AUTO_INCREMENT,
 	"AVG_ROW_LENGTH":     AVG_ROW_LENGTH,
 	"BIGINT":             BIGINT,
@@ -209,6 +218,7 @@ var keywordIdentMap = map[string]TokenType{
 	"DEFAULT":            DEFAULT,
 	"DELAY_KEY_WRITE":    DELAY_KEY_WRITE,
 	"DELETE":             DELETE,
+	"DESC":               DESC,
 	"DIRECTORY":          DIRECTORY,
 	"DISK":               DISK,
 	"DOUBLE":             DOUBLE,
@@ -225,6 +235,7 @@ var keywordIdentMap = map[string]TokenType{
 	"FULL":               FULL,
 	"FULLTEXT":           FULLTEXT,
 	"GEOMETRY":           GEOMETRY,
+	"GEOMETRYCOLLECTION": GEOMETRYCOLLECTION,
 	"HASH":               HASH,
 	"IF":                 IF,
 	"INDEX":              INDEX,
@@ -232,10 +243,11 @@ var keywordIdentMap = map[string]TokenType{
 	"INT":                INT,
 	"INTEGER":            INTEGER,
 	"JSON":               JSON,
-	"KEY":                KEY,
 	"KEY_BLOCK_SIZE":     KEY_BLOCK_SIZE,
+	"KEY":                KEY,
 	"LAST":               LAST,
 	"LIKE":               LIKE,
+	"LINESTRING":         LINESTRING,
 	"LONGBLOB":           LONGBLOB,
 	"LONGTEXT":           LONGTEXT,
 	"MATCH":              MATCH,
@@ -245,15 +257,21 @@ var keywordIdentMap = map[string]TokenType{
 	"MEDIUMTEXT":         MEDIUMTEXT,
 	"MEMORY":             MEMORY,
 	"MIN_ROWS":           MIN_ROWS,
+	"MULTILINESTRING":    MULTILINESTRING,
+	"MULTIPOINT":         MULTIPOINT,
+	"MULTIPOLYGON":       MULTIPOLYGON,
 	"NO":                 NO,
 	"NOT":                NOT,
+	"NOW":                NOW,
 	"NULL":               NULL,
 	"NUMERIC":            NUMERIC,
 	"ON":                 ON,
 	"PACK_KEYS":          PACK_KEYS,
-	"PARTIAL":            PARTIAL,
 	"PARSER":             PARSER,
+	"PARTIAL":            PARTIAL,
 	"PASSWORD":           PASSWORD,
+	"POINT":              POINT,
+	"POLYGON":            POLYGON,
 	"PRIMARY":            PRIMARY,
 	"REAL":               REAL,
 	"REDUNDANT":          REDUNDANT,
@@ -264,6 +282,7 @@ var keywordIdentMap = map[string]TokenType{
 	"SIMPLE":             SIMPLE,
 	"SMALLINT":           SMALLINT,
 	"SPATIAL":            SPATIAL,
+	"SRID":               SRID,
 	"STATS_AUTO_RECALC":  STATS_AUTO_RECALC,
 	"STATS_PERSISTENT":   STATS_PERSISTENT,
 	"STATS_SAMPLE_PAGES": STATS_SAMPLE_PAGES,
@@ -286,12 +305,9 @@ var keywordIdentMap = map[string]TokenType{
 	"USING":              USING,
 	"VARBINARY":          VARBINARY,
 	"VARCHAR":            VARCHAR,
-	"YEAR":               YEAR,
 	"WITH":               WITH,
+	"YEAR":               YEAR,
 	"ZEROFILL":           ZEROFILL,
-	"ASC":                ASC,
-	"DESC":               DESC,
-	"NOW":                NOW,
 }
 
 func (t TokenType) String() string {
@@ -340,6 +356,8 @@ func (t TokenType) String() string {
 		return "COMMENT_IDENT"
 	case ACTION:
 		return "ACTION"
+	case ASC:
+		return "ASC"
 	case AUTO_INCREMENT:
 		return "AUTO_INCREMENT"
 	case AVG_ROW_LENGTH:
@@ -402,6 +420,8 @@ func (t TokenType) String() string {
 		return "DELAY_KEY_WRITE"
 	case DELETE:
 		return "DELETE"
+	case DESC:
+		return "DESC"
 	case DIRECTORY:
 		return "DIRECTORY"
 	case DISK:
@@ -434,6 +454,8 @@ func (t TokenType) String() string {
 		return "FULLTEXT"
 	case GEOMETRY:
 		return "GEOMETRY"
+	case GEOMETRYCOLLECTION:
+		return "GEOMETRYCOLLECTION"
 	case HASH:
 		return "HASH"
 	case IF:
@@ -448,14 +470,16 @@ func (t TokenType) String() string {
 		return "INTEGER"
 	case JSON:
 		return "JSON"
-	case KEY:
-		return "KEY"
 	case KEY_BLOCK_SIZE:
 		return "KEY_BLOCK_SIZE"
+	case KEY:
+		return "KEY"
 	case LAST:
 		return "LAST"
 	case LIKE:
 		return "LIKE"
+	case LINESTRING:
+		return "LINESTRING"
 	case LONGBLOB:
 		return "LONGBLOB"
 	case LONGTEXT:
@@ -474,10 +498,18 @@ func (t TokenType) String() string {
 		return "MEMORY"
 	case MIN_ROWS:
 		return "MIN_ROWS"
+	case MULTILINESTRING:
+		return "MULTILINESTRING"
+	case MULTIPOINT:
+		return "MULTIPOINT"
+	case MULTIPOLYGON:
+		return "MULTIPOLYGON"
 	case NO:
 		return "NO"
 	case NOT:
 		return "NOT"
+	case NOW:
+		return "NOW"
 	case NULL:
 		return "NULL"
 	case NUMERIC:
@@ -486,12 +518,16 @@ func (t TokenType) String() string {
 		return "ON"
 	case PACK_KEYS:
 		return "PACK_KEYS"
-	case PARTIAL:
-		return "PARTIAL"
 	case PARSER:
 		return "PARSER"
+	case PARTIAL:
+		return "PARTIAL"
 	case PASSWORD:
 		return "PASSWORD"
+	case POINT:
+		return "POINT"
+	case POLYGON:
+		return "POLYGON"
 	case PRIMARY:
 		return "PRIMARY"
 	case REAL:
@@ -512,6 +548,8 @@ func (t TokenType) String() string {
 		return "SMALLINT"
 	case SPATIAL:
 		return "SPATIAL"
+	case SRID:
+		return "SRID"
 	case STATS_AUTO_RECALC:
 		return "STATS_AUTO_RECALC"
 	case STATS_PERSISTENT:
@@ -556,18 +594,12 @@ func (t TokenType) String() string {
 		return "VARBINARY"
 	case VARCHAR:
 		return "VARCHAR"
-	case YEAR:
-		return "YEAR"
 	case WITH:
 		return "WITH"
+	case YEAR:
+		return "YEAR"
 	case ZEROFILL:
 		return "ZEROFILL"
-	case ASC:
-		return "ASC"
-	case DESC:
-		return "DESC"
-	case NOW:
-		return "NOW"
 	}
 	return "(invalid)"
 }

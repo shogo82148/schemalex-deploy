@@ -109,6 +109,13 @@ c int not null default 10
 			");\n",
 	})
 
+	parse("WithSRID", &Spec{
+		Input: `create table hoge (a geometry not null srid 0);`,
+		Expect: "CREATE TABLE `hoge` (\n" +
+			"`a` GEOMETRY NOT NULL SRID 0\n" +
+			");\n",
+	})
+
 	parse("WithPrimaryKey", &Spec{
 		Input: `create table hoge (
 id bigint unsigned not null auto_increment,
@@ -168,7 +175,7 @@ primary key (id, c)
 			"PRIMARY KEY (`id`)\n" +
 			");\n",
 	})
-	parse("WithBsasicForeignKey", &Spec{
+	parse("WithBasicForeignKey", &Spec{
 		Input: "create table hoge ( `id` bigint unsigned not null auto_increment,\n" +
 			"`c` varchar(20) not null,\n" +
 			"FOREIGN KEY `fk_c` (`c`) )",
@@ -385,6 +392,34 @@ primary key (id, c)
 	parse("GEOMETRY", &Spec{
 		Input:  "CREATE TABLE `test` (\n`valid` GEOMETRY not null\n);",
 		Expect: "CREATE TABLE `test` (\n`valid` GEOMETRY NOT NULL\n);\n",
+	})
+	parse("POINT", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` POINT not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` POINT NOT NULL\n);\n",
+	})
+	parse("LINESTRING", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` LINESTRING not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` LINESTRING NOT NULL\n);\n",
+	})
+	parse("POLYGON", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` POLYGON not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` POLYGON NOT NULL\n);\n",
+	})
+	parse("MULTIPOINT", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` MULTIPOINT not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` MULTIPOINT NOT NULL\n);\n",
+	})
+	parse("MULTILINESTRING", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` MULTILINESTRING not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` MULTILINESTRING NOT NULL\n);\n",
+	})
+	parse("MULTIPOLYGON", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` MULTIPOLYGON not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` MULTIPOLYGON NOT NULL\n);\n",
+	})
+	parse("GEOMETRYCOLLECTION", &Spec{
+		Input:  "CREATE TABLE `test` (\n`valid` GEOMETRYCOLLECTION not null\n);",
+		Expect: "CREATE TABLE `test` (\n`valid` GEOMETRYCOLLECTION NOT NULL\n);\n",
 	})
 	parse("CreateTableIfNotExists", &Spec{
 		Input:  "CREATE TABLE IF NOT EXISTS `test` (\n`id` INT (10) NOT NULL\n);",

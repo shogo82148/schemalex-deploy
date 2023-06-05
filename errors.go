@@ -11,8 +11,8 @@ import (
 // invalid or unsupported SQL is found. When stringified, the result
 // will look something like this:
 //
-//    parse error: expected RPAREN at line 3 column 14
-//	      "CREATE TABLE foo " <---- AROUND HERE
+//	parse error: expected RPAREN at line 3 column 14
+//	    "CREATE TABLE foo " <---- AROUND HERE
 type ParseError interface {
 	error
 	File() string

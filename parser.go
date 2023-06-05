@@ -3,6 +3,7 @@ package schemalex
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	myerrors "github.com/shogo82148/schemalex-deploy/internal/errors"
@@ -590,6 +591,28 @@ func (p *Parser) parseTableColumnSpec(ctx *parseCtx, col *model.TableColumn) err
 	case GEOMETRY:
 		coltyp = model.ColumnTypeGeometry
 		colopt = coloptFlagNone
+	case POINT:
+		coltyp = model.ColumnTypePoint
+		colopt = coloptFlagNone
+	case LINESTRING:
+		coltyp = model.ColumnTypeLineString
+		colopt = coloptFlagNone
+	case POLYGON:
+		coltyp = model.ColumnTypePolygon
+		colopt = coloptFlagNone
+	case MULTIPOINT:
+		coltyp = model.ColumnTypeMultiPoint
+		colopt = coloptFlagNone
+	case MULTILINESTRING:
+		coltyp = model.ColumnTypeMultiLineString
+		colopt = coloptFlagNone
+	case MULTIPOLYGON:
+		coltyp = model.ColumnTypeMultiPolygon
+		colopt = coloptFlagNone
+	case GEOMETRYCOLLECTION:
+		coltyp = model.ColumnTypeGeometryCollection
+		colopt = coloptFlagNone
+
 	default:
 		return newParseError(ctx, t, "unsupported type in column specification")
 	}
@@ -995,6 +1018,21 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 			default:
 				return newParseError(ctx, t, "should SINGLE_QUOTE_IDENT")
 			}
+
+		case SRID:
+			ctx.skipWhiteSpaces()
+			switch t := ctx.next(); t.Type {
+			case NUMBER:
+				srid, err := strconv.ParseInt(t.Value, 10, 64)
+				if err != nil {
+					return newParseError(ctx, t, "invalid SRID: %v", err)
+				}
+				col.SRID.Valid = true
+				col.SRID.Value = srid
+			default:
+				return newParseError(ctx, t, "should NUMBER")
+			}
+
 		case COMMA:
 			ctx.rewind()
 			return nil
