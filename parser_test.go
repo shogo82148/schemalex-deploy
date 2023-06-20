@@ -155,15 +155,68 @@ func TestParse1(t *testing.T) {
 				},
 			},
 		},
+		{
+			src: "CREATE TABLE `fuga` (\n" +
+				"`id` INTEGER NOT NULL AUTO_INCREMENT,\n" +
+				"`point` POINT SRID 4326 NOT NULL,\n" +
+				"SPATIAL KEY `idx_point` (`point`),\n" +
+				"PRIMARY KEY (`id`)\n" +
+				");",
+			want: model.Stmts{
+				&model.Table{
+					Name: "fuga",
+					Columns: []*model.TableColumn{
+						{
+							Name:          "id",
+							Type:          model.ColumnTypeInt,
+							Length:        model.NewLength("11"),
+							NullState:     model.NullStateNotNull,
+							AutoIncrement: true,
+						},
+						{
+							Name:      "point",
+							Type:      model.ColumnTypePoint,
+							NullState: model.NullStateNotNull,
+							SRID: model.MaybeInteger{
+								Valid: true,
+								Value: 4326,
+							},
+						},
+					},
+					Indexes: []*model.Index{
+						{
+							Table: "table#fuga",
+							Kind:  model.IndexKindSpatial,
+							Name: model.MaybeIdent{
+								Valid: true,
+								Ident: "idx_point",
+							},
+							Columns: []*model.IndexColumn{
+								{Name: "point"},
+							},
+						},
+						{
+							Table: "table#fuga",
+							Kind:  model.IndexKindPrimaryKey,
+							Columns: []*model.IndexColumn{
+								{Name: "id"},
+							},
+						},
+					},
+					Options: []*model.TableOption{},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		p := schemalex.New()
 		got, err := p.ParseString(tt.src)
 		if err != nil {
-			t.Fatal()
+			t.Errorf("while parsing %q, got an error: %v", tt.src, err)
+			continue
 		}
 		if diff := cmp.Diff(tt.want, got); diff != "" {
-			t.Errorf("(-want/+got):\n%s", diff)
+			t.Errorf("while parsing %q, got unexpected result:\n(-want/+got):\n%s", tt.src, diff)
 		}
 	}
 

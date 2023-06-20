@@ -1169,9 +1169,9 @@ func (p *Parser) parseColumnIndexSpatialKey(ctx *parseCtx, index *model.Index) e
 		return newParseError(ctx, t, "expected SPATIAL")
 	}
 
-	// optional INDEX
+	// optional INDEX or KEY
 	ctx.skipWhiteSpaces()
-	if t := ctx.peek(); t.Type == INDEX {
+	if t := ctx.peek(); t.Type == INDEX || t.Type == KEY {
 		ctx.advance()
 	}
 
