@@ -25,9 +25,15 @@ jobs:
           import json
           import os
           mysql = [
+              '8.2',
+              '8.1',
               '8.0',
               '5.7',
               '5.6',
+              'mariadb-11.2',
+              'mariadb-11.1',
+              'mariadb-11.0',
+              'mariadb-10.11',
               'mariadb-10.10',
               'mariadb-10.9',
               'mariadb-10.8',
