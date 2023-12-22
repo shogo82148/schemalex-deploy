@@ -97,7 +97,9 @@ schemalex -version
 			cfn.host = v
 		}
 		if v, ok := client["port"]; ok {
-			cfn.database = v
+			if i, err := strconv.Atoi(v); err != nil {
+				cfn.port = i
+			}
 		}
 		if v, ok := client["user"]; ok {
 			cfn.user = v
