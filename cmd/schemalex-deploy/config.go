@@ -47,7 +47,6 @@ func loadConfig() (*config, error) {
 	var runImport bool
 
 	flag.Usage = func() {
-		// TODO: fill the usage
 		fmt.Printf(`schemalex-deploy version %s
 
 -socket           the unix domain socket path for the database
