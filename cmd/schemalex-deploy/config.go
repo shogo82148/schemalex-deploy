@@ -47,10 +47,18 @@ func loadConfig() (*config, error) {
 	var runImport bool
 
 	flag.Usage = func() {
-		// TODO: fill the usage
-		fmt.Printf(`%s
+		fmt.Printf(`schemalex-deploy version %s
 
-schemalex -version
+-socket           the unix domain socket path for the database
+-host             the host name of the database
+-port             the port number(default: 3306)
+-user             username
+-password         password
+-database         the database name
+-version          show the version
+-auto-approve     skips interactive approval of plan before deploying
+-dry-run          outputs the schema difference, and then exit the program
+-import           imports existing table schemas from running database
 `, getVersion())
 	}
 
