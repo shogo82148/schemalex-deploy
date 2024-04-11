@@ -105,7 +105,7 @@ func loadConfig() (*config, error) {
 			cfn.host = v
 		}
 		if v, ok := client["port"]; ok {
-			if i, err := strconv.Atoi(v); err != nil {
+			if i, err := strconv.Atoi(v); err == nil { // if NO error
 				cfn.port = i
 			}
 		}
@@ -137,13 +137,13 @@ func loadConfig() (*config, error) {
 		}
 	} else {
 		if cfn.user == "" {
-			if u, err := user.Current(); err != nil {
+			if u, err := user.Current(); err == nil { // if NO error
 				cfn.user = u.Username
 			}
 		}
 	}
 	if v := os.Getenv("MYSQL_TCP_PORT"); v != "" {
-		if i, err := strconv.Atoi(v); err != nil {
+		if i, err := strconv.Atoi(v); err == nil { // if NO error
 			cfn.port = i
 		}
 	}
@@ -154,7 +154,7 @@ func loadConfig() (*config, error) {
 	if host != "" {
 		cfn.host = host
 	}
-	if port != 0 {
+	if port != 3306 {
 		cfn.port = port
 	}
 	if username != "" {
