@@ -31,11 +31,11 @@ func main() {
 }
 
 func _main() error {
-	cfn, err := loadConfig()
+	cfn, err := loadConfig(os.Args)
 	if err != nil {
 		return err
 	}
-	if cfn.version {
+	if cfn.Version {
 		fmt.Println(getVersion())
 		return nil
 	}
@@ -44,16 +44,16 @@ func _main() error {
 	defer stop()
 
 	config := mysql.NewConfig()
-	if cfn.socket != "" {
+	if cfn.Socket != "" {
 		config.Net = "unix"
-		config.Addr = cfn.socket
+		config.Addr = cfn.Socket
 	} else {
 		config.Net = "tcp"
-		config.Addr = net.JoinHostPort(cfn.host, strconv.Itoa(cfn.port))
+		config.Addr = net.JoinHostPort(cfn.Host, strconv.Itoa(cfn.Port))
 	}
-	config.User = cfn.user
-	config.Passwd = cfn.password
-	config.DBName = cfn.database
+	config.User = cfn.User
+	config.Passwd = cfn.Password
+	config.DBName = cfn.Database
 	config.ParseTime = true
 	config.RejectReadOnly = true
 	config.Params = map[string]string{
@@ -68,7 +68,7 @@ func _main() error {
 	}
 	defer db.Close()
 
-	switch cfn.mode {
+	switch cfn.Mode {
 	case ExecModeDeploy:
 		return runDeploy(ctx, db, cfn)
 
@@ -81,7 +81,7 @@ func _main() error {
 
 func runDeploy(ctx context.Context, db *deploy.DB, cfn *config) error {
 	// plan
-	plan, err := db.Plan(ctx, string(cfn.schema))
+	plan, err := db.Plan(ctx, string(cfn.Schema))
 	if err != nil {
 		return fmt.Errorf("failed to plan: %w", err)
 	}
@@ -92,12 +92,12 @@ func runDeploy(ctx context.Context, db *deploy.DB, cfn *config) error {
 	}
 
 	// dry-run mode: skip deployment
-	if cfn.dryRun {
+	if cfn.DryRun {
 		return nil
 	}
 
 	// ask to approve
-	if !cfn.autoApprove {
+	if !cfn.AutoApprove {
 		if result, err := approved(ctx); err != nil {
 			return err
 		} else if !result {
@@ -132,12 +132,12 @@ func runImport(ctx context.Context, db *deploy.DB, cfn *config) error {
 	}
 
 	// dry-run mode: skip import
-	if cfn.dryRun {
+	if cfn.DryRun {
 		return nil
 	}
 
 	// ask to approve
-	if !cfn.autoApprove {
+	if !cfn.AutoApprove {
 		if result, err := approved(ctx); err != nil {
 			return err
 		} else if !result {

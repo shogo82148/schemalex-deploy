@@ -23,20 +23,23 @@ const (
 )
 
 type config struct {
-	version     bool
-	socket      string
-	host        string
-	user        string
-	password    string
-	database    string
-	port        int
-	schema      []byte
-	autoApprove bool
-	dryRun      bool
-	mode        ExecMode
+	Version     bool
+	Socket      string
+	Host        string
+	User        string
+	Password    string
+	Database    string
+	Port        int
+	Schema      []byte
+	AutoApprove bool
+	DryRun      bool
+	Mode        ExecMode
 }
 
-func loadConfig() (*config, error) {
+// for testing
+var loadDefault = mycnf.LoadDefault
+
+func loadConfig(args []string) (*config, error) {
 	var cfn config
 	var version bool
 	var socket string
@@ -46,7 +49,9 @@ func loadConfig() (*config, error) {
 	var dryRun bool
 	var runImport bool
 
-	flag.Usage = func() {
+	flagSet := flag.NewFlagSet(args[0], flag.ExitOnError)
+
+	flagSet.Usage = func() {
 		fmt.Printf(`schemalex-deploy version %s
 
 -socket           the unix domain socket path for the database
@@ -64,120 +69,121 @@ func loadConfig() (*config, error) {
 
 	// options that are compatible with the mysql(1)
 	// https://dev.mysql.com/doc/refman/8.0/en/mysql-command-options.html
-	flag.StringVar(&socket, "socket", "", "the unix domain socket path for the database")
-	flag.StringVar(&host, "host", "", "the host name of the database")
-	flag.IntVar(&port, "port", 3306, "the port number")
-	flag.StringVar(&username, "user", "", "username")
-	flag.StringVar(&password, "password", "", "password")
-	flag.StringVar(&database, "database", "", "the database name")
-	flag.BoolVar(&version, "version", false, "show the version")
+	flagSet.StringVar(&socket, "socket", "", "the unix domain socket path for the database")
+	flagSet.StringVar(&host, "host", "", "the host name of the database")
+	flagSet.IntVar(&port, "port", 0, "the port number")
+	flagSet.StringVar(&username, "user", "", "username")
+	flagSet.StringVar(&password, "password", "", "password")
+	flagSet.StringVar(&database, "database", "", "the database name")
+	flagSet.BoolVar(&version, "version", false, "show the version")
 
 	// for schemalex-deploy
-	flag.BoolVar(&approve, "auto-approve", false, "skips interactive approval of plan before deploying")
-	flag.BoolVar(&dryRun, "dry-run", false, "outputs the schema difference, and then exit the program")
-	flag.BoolVar(&runImport, "import", false, "imports existing table schemas from running database")
-	flag.Parse()
+	flagSet.BoolVar(&approve, "auto-approve", false, "skips interactive approval of plan before deploying")
+	flagSet.BoolVar(&dryRun, "dry-run", false, "outputs the schema difference, and then exit the program")
+	flagSet.BoolVar(&runImport, "import", false, "imports existing table schemas from running database")
+	flagSet.Parse(args[1:])
 
 	if version {
-		cfn.version = true
+		cfn.Version = true
 		return &cfn, nil
 	}
 
-	cfn.autoApprove = approve
-	cfn.dryRun = dryRun
+	cfn.AutoApprove = approve
+	cfn.DryRun = dryRun
+	cfn.Port = 3306
 
 	// choose execute mode
-	cfn.mode = ExecModeDeploy
+	cfn.Mode = ExecModeDeploy
 	if runImport {
-		cfn.mode = ExecModeImport
+		cfn.Mode = ExecModeImport
 	}
 
 	// load configure from files
-	cnfFile, err := mycnf.LoadDefault("")
+	cnfFile, err := loadDefault("")
 	if err != nil {
 		return nil, err
 	}
 	if client, ok := cnfFile["client"]; ok {
 		if v, ok := client["socket"]; ok {
-			cfn.socket = v
+			cfn.Socket = v
 		}
 		if v, ok := client["host"]; ok {
-			cfn.host = v
+			cfn.Host = v
 		}
 		if v, ok := client["port"]; ok {
 			if i, err := strconv.Atoi(v); err == nil { // if NO error
-				cfn.port = i
+				cfn.Port = i
 			}
 		}
 		if v, ok := client["user"]; ok {
-			cfn.user = v
+			cfn.User = v
 		}
 		if v, ok := client["password"]; ok {
-			cfn.password = v
+			cfn.Password = v
 		}
 		if v, ok := client["database"]; ok {
-			cfn.database = v
+			cfn.Database = v
 		}
 	}
 
 	// load configure from the environment values
 	// https://dev.mysql.com/doc/refman/8.0/en/environment-variables.html
 	if v := os.Getenv("MYSQL_UNIX_PORT"); v != "" {
-		cfn.socket = v
+		cfn.Socket = v
 	}
 	if v := os.Getenv("MYSQL_HOST"); v != "" {
-		cfn.host = v
+		cfn.Host = v
 	}
 	if v := os.Getenv("MYSQL_PWD"); v != "" {
-		cfn.password = v
+		cfn.Password = v
 	}
 	if runtime.GOOS == "windows" {
 		if v := os.Getenv("USER"); v != "" {
-			cfn.user = v
+			cfn.User = v
 		}
 	} else {
-		if cfn.user == "" {
+		if cfn.User == "" {
 			if u, err := user.Current(); err == nil { // if NO error
-				cfn.user = u.Username
+				cfn.User = u.Username
 			}
 		}
 	}
 	if v := os.Getenv("MYSQL_TCP_PORT"); v != "" {
 		if i, err := strconv.Atoi(v); err == nil { // if NO error
-			cfn.port = i
+			cfn.Port = i
 		}
 	}
 
 	if socket != "" {
-		cfn.socket = socket
+		cfn.Socket = socket
 	}
 	if host != "" {
-		cfn.host = host
+		cfn.Host = host
 	}
-	if port != 3306 {
-		cfn.port = port
+	if port != 0 {
+		cfn.Port = port
 	}
 	if username != "" {
-		cfn.user = username
+		cfn.User = username
 	}
 	if password != "" {
-		cfn.password = password
+		cfn.Password = password
 	}
 	if database != "" {
-		cfn.database = database
+		cfn.Database = database
 	}
 
 	// deploy mode: load schema file
-	if cfn.mode == ExecModeDeploy {
-		if flag.NArg() == 0 {
-			flag.Usage()
+	if cfn.Mode == ExecModeDeploy {
+		if flagSet.NArg() == 0 {
+			flagSet.Usage()
 			return nil, errors.New("schema file is required")
 		}
-		schema, err := os.ReadFile(flag.Arg(0))
+		schema, err := os.ReadFile(flagSet.Arg(0))
 		if err != nil {
 			return nil, err
 		}
-		cfn.schema = schema
+		cfn.Schema = schema
 	}
 
 	return &cfn, nil
