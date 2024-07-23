@@ -81,7 +81,9 @@ func loadConfig(args []string) (*config, error) {
 	flagSet.BoolVar(&approve, "auto-approve", false, "skips interactive approval of plan before deploying")
 	flagSet.BoolVar(&dryRun, "dry-run", false, "outputs the schema difference, and then exit the program")
 	flagSet.BoolVar(&runImport, "import", false, "imports existing table schemas from running database")
-	flagSet.Parse(args[1:])
+	if err := flagSet.Parse(args[1:]); err != nil {
+		return nil, err
+	}
 
 	if version {
 		cfn.Version = true
