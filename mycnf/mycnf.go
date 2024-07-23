@@ -11,6 +11,12 @@ type MyCnf map[string]map[string]string
 
 // LoadDefault loads my.cnf from the default path.
 func LoadDefault(extraFile string) (MyCnf, error) {
+	paths := listConfigureFile(extraFile)
+	return load(paths)
+}
+
+// listConfigureFile returns a list of paths to read my.cnf.
+func listConfigureFile(extraFile string) []string {
 	// https://dev.mysql.com/doc/refman/8.0/en/option-files.html
 	var paths []string
 	if runtime.GOOS == "windows" {
@@ -32,7 +38,10 @@ func LoadDefault(extraFile string) (MyCnf, error) {
 			paths = append(paths, filepath.Join(home, ".my.cnf"))
 		}
 	}
+	return paths
+}
 
+func load(paths []string) (MyCnf, error) {
 	result := MyCnf{}
 	for _, p := range paths {
 		data, err := os.ReadFile(p)
