@@ -33,7 +33,7 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
 archives:
-  - builds:
+  - ids:
       - cli-amd64
       - cli-arm64
     name_template: "schemalex-deploy_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
@@ -44,7 +44,7 @@ snapshot:
 
 nfpms:
   - id: package-amd64
-    builds:
+    ids:
       - cli-amd64
     package_name: schemalex-deploy
     homepage: https://github.com/shogo82148/schemalex-deploy/
@@ -59,7 +59,7 @@ nfpms:
     epoch: 0
     bindir: /usr/bin
   - id: package-arm64
-    builds:
+    ids:
       - cli-arm64
     package_name: schemalex-deploy
     homepage: https://github.com/shogo82148/schemalex-deploy/
