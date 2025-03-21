@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
-	"fmt"
 	"net"
 	"os"
 	"sort"
@@ -57,7 +56,7 @@ func SetupTestDB() (*sql.DB, func()) {
 		panic(err)
 	}
 	dbName := "schemalex_test_" + hex.EncodeToString(b[:])
-	_, err = db1.ExecContext(ctx, fmt.Sprintf("CREATE DATABASE "+util.Backquote(dbName)))
+	_, err = db1.ExecContext(ctx, "CREATE DATABASE "+util.Backquote(dbName))
 	if err != nil {
 		panic(err)
 	}
@@ -74,7 +73,7 @@ func SetupTestDB() (*sql.DB, func()) {
 		defer cancel()
 
 		// clean up
-		db2.ExecContext(ctx, fmt.Sprintf("DROP DATABASE "+util.Backquote(dbName)))
+		db2.ExecContext(ctx, "DROP DATABASE "+util.Backquote(dbName))
 		db2.Close()
 	}
 }
