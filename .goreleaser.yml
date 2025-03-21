@@ -33,7 +33,7 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
 archives:
-  - builds:
+  - ids:
       - cli-amd64
       - cli-arm64
     name_template: "schemalex-deploy_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
