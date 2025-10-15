@@ -20,8 +20,9 @@ const _ReferenceOption_name = "ReferenceOptionNoneReferenceOptionRestrictReferen
 var _ReferenceOption_index = [...]uint8{0, 19, 42, 64, 86, 109}
 
 func (i ReferenceOption) String() string {
-	if i < 0 || i >= ReferenceOption(len(_ReferenceOption_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ReferenceOption_index)-1 {
 		return "ReferenceOption(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ReferenceOption_name[_ReferenceOption_index[i]:_ReferenceOption_index[i+1]]
+	return _ReferenceOption_name[_ReferenceOption_index[idx]:_ReferenceOption_index[idx+1]]
 }

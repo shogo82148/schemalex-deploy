@@ -19,8 +19,9 @@ const _ReferenceMatch_name = "ReferenceMatchNoneReferenceMatchFullReferenceMatch
 var _ReferenceMatch_index = [...]uint8{0, 18, 36, 57, 77}
 
 func (i ReferenceMatch) String() string {
-	if i < 0 || i >= ReferenceMatch(len(_ReferenceMatch_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ReferenceMatch_index)-1 {
 		return "ReferenceMatch(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ReferenceMatch_name[_ReferenceMatch_index[i]:_ReferenceMatch_index[i+1]]
+	return _ReferenceMatch_name[_ReferenceMatch_index[idx]:_ReferenceMatch_index[idx+1]]
 }
