@@ -1421,7 +1421,7 @@ OUTER:
 func (p *Parser) parseColumnIndexOptions(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
 	t := ctx.peek()
-	if t.Type == RPAREN {
+	if t.Type == RPAREN || t.Type == COMMA {
 		return nil
 	}
 	// TODO: support for other index options.
@@ -1430,7 +1430,7 @@ func (p *Parser) parseColumnIndexOptions(ctx *parseCtx, index *model.Index) erro
 		ctx.advance()
 		ctx.skipWhiteSpaces()
 		if t := ctx.peek(); t.Type != PARSER {
-			return newParseError(ctx, t, "expeected PARSER")
+			return newParseError(ctx, t, "expected PARSER")
 		}
 		ctx.advance()
 		if err := p.parseColumnIndexOptionValue(ctx, index, "WITH PARSER", IDENT, BACKTICK_IDENT); err != nil {
