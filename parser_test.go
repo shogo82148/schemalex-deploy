@@ -207,6 +207,61 @@ func TestParse1(t *testing.T) {
 				},
 			},
 		},
+		{
+			src: "CREATE TABLE `fuga` (\n" +
+				"`id` INTEGER NOT NULL AUTO_INCREMENT,\n" +
+				"`title` TEXT NOT NULL,\n" +
+				"FULLTEXT INDEX `title_idx` (`title`) WITH PARSER `ngram`,\n" +
+				"PRIMARY KEY (`id`)\n" +
+				");",
+			want: model.Stmts{
+				&model.Table{
+					Name: "fuga",
+					Columns: []*model.TableColumn{
+						{
+							Name:          "id",
+							Type:          model.ColumnTypeInt,
+							Length:        model.NewLength("11"),
+							NullState:     model.NullStateNotNull,
+							AutoIncrement: true,
+						},
+						{
+							Name:      "title",
+							Type:      model.ColumnTypeText,
+							NullState: model.NullStateNotNull,
+						},
+					},
+					Indexes: []*model.Index{
+						{
+							Table: "table#fuga",
+							Kind:  model.IndexKindFullText,
+							Name: model.MaybeIdent{
+								Valid: true,
+								Ident: "title_idx",
+							},
+							Columns: []*model.IndexColumn{
+								{Name: "title"},
+							},
+							Options: []*model.IndexOption{
+								{
+									Key:        "WITH PARSER",
+									Value:      "ngram",
+									NeedQuotes: true,
+								},
+							},
+						},
+						{
+							Table: "table#fuga",
+							Kind:  model.IndexKindPrimaryKey,
+							Columns: []*model.IndexColumn{
+								{Name: "id"},
+							},
+						},
+					},
+					Options: []*model.TableOption{},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		p := schemalex.New()
