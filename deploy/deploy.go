@@ -273,7 +273,7 @@ func getLatestVersionTx(ctx context.Context, tx *sql.Tx) (*schemalexRevision, er
 func updateLatestVersion(ctx context.Context, tx *sql.Tx, rev *schemalexRevision) error {
 	createTable := "CREATE TABLE IF NOT EXISTS `schemalex_revision` ( " +
 		"`id` BIGINT unsigned NOT NULL AUTO_INCREMENT, " +
-		"`sql_text` TEXT NOT NULL, " +
+		"`sql_text` LONGTEXT NOT NULL, " +
 		"`upgraded_at` DATETIME(6) NOT NULL, " +
 		"PRIMARY KEY (`id`) " +
 		") ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4"
