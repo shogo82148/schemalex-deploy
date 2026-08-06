@@ -4,6 +4,7 @@ Changes
 ## [unreleased]
 
 - support removing indexes without their names [#68](https://github.com/shogo82148/schemalex-deploy/pull/68)
+- fix ignoring the white spaces before the equal sign in my.cnf [#221](https://github.com/shogo82148/schemalex-deploy/pull/221)
 
 ## [v0.0.7] - 2022-09-08
 
