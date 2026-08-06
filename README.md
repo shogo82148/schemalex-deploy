@@ -88,10 +88,42 @@ Enter a value: yes
 -user             username
 -password         password
 -database         the database name
+-ssl-mode         the security state of the connection to the database
+                  (DISABLED, PREFERRED, REQUIRED, VERIFY_CA or VERIFY_IDENTITY.
+                  default: PREFERRED, or VERIFY_CA if -ssl-ca is specified)
+-ssl-ca           the path of the file that contains the CA certificate
+                  (used by VERIFY_CA and VERIFY_IDENTITY)
 -version          show the version
 -auto-approve     skips interactive approval of plan before deploying
 -dry-run          outputs the schema difference, and then exit the program
 -import           imports existing table schemas from running database
+```
+
+## ENCRYPTED CONNECTIONS
+
+`-ssl-mode` is compatible with [the option of the same name of the mysql(1)](https://dev.mysql.com/doc/refman/8.0/en/connection-options.html#option_general_ssl-mode).
+The default is `PREFERRED`: schemalex-deploy uses an encrypted connection if the server supports it,
+and falls back to an unencrypted connection otherwise.
+Note that `PREFERRED` and `REQUIRED` don't verify the server certificate.
+
+`-ssl-mode` and `-ssl-ca` can also be specified in the `[client]` group of my.cnf.
+
+Amazon Aurora MySQL 8.4 and later enable `require_secure_transport` by default,
+so unencrypted connections are rejected with the following error:
+
+```plain
+Error 3159 (HY000): Connections using insecure transport are prohibited while --require_secure_transport=ON.
+```
+
+The default `PREFERRED` is enough to connect to them.
+To verify the server certificate, download [the CA certificate bundle of Amazon RDS](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.SSL.html)
+and pass it to `-ssl-ca`. It is not included in the system certificate store.
+
+```plain
+$ curl -O https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+$ schemalex-deploy -host my-cluster.cluster-xxxxxxxx.ap-northeast-1.rds.amazonaws.com \
+    -user admin -password password -database gotest \
+    -ssl-mode VERIFY_IDENTITY -ssl-ca global-bundle.pem schema.sql
 ```
 
 ## SEE ALSO

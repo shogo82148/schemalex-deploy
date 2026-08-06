@@ -61,6 +61,9 @@ func _main() error {
 		// kamipo TRADITIONAL http://www.songmu.jp/riji/entry/2015-07-08-kamipo-traditional.html
 		"sql_mode": "'TRADITIONAL,NO_AUTO_VALUE_ON_ZERO,ONLY_FULL_GROUP_BY'",
 	}
+	if err := cfn.configureTLS(config); err != nil {
+		return err
+	}
 
 	db, err := deploy.Open("mysql", config.FormatDSN())
 	if err != nil {
