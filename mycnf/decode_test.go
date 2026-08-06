@@ -64,6 +64,30 @@ func TestUnmarshal(t *testing.T) {
 			},
 		},
 		{
+			in: "[group]\nkey   =   value\n",
+			want: MyCnf{
+				"group": map[string]string{
+					"key": "value",
+				},
+			},
+		},
+		{
+			in: "[group]\n key=value\n",
+			want: MyCnf{
+				"group": map[string]string{
+					"key": "value",
+				},
+			},
+		},
+		{
+			in: "[group]\n \t key \t = \t value \t \n",
+			want: MyCnf{
+				"group": map[string]string{
+					"key": "value",
+				},
+			},
+		},
+		{
 			in: "[group]\nkey \n",
 			want: MyCnf{
 				"group": map[string]string{
