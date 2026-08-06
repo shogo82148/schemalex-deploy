@@ -115,6 +115,16 @@ blobs:
     ids: [package-arm64]
     directory: almalinux/9/aarch64/schemalex-deploy
 
+  # AlmaLinux 10
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-amd64]
+    directory: almalinux/10/x86_64/schemalex-deploy
+  - provider: s3
+    bucket: shogo82148-rpm-temporary
+    ids: [package-arm64]
+    directory: almalinux/10/aarch64/schemalex-deploy
+
   # Rocky Linux 8
   - provider: s3
     bucket: shogo82148-rpm-temporary
