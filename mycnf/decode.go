@@ -178,7 +178,9 @@ LOOP:
 		buf.WriteRune(unicode.ToLower(ch))
 		p.Read()
 	}
-	return buf.String()
+	// white spaces are allowed around the equal sign.
+	// https://dev.mysql.com/doc/refman/8.0/en/option-files.html
+	return strings.TrimRightFunc(buf.String(), isWhitespace)
 }
 
 func (p *parser) ParseOptionValue() string {
