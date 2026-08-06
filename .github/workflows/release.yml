@@ -19,12 +19,12 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Go
-        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: "go.mod"
 
       - name: Configure AWS Credentials
-        uses: fuller-inc/actions-aws-assume-role@c936409c1d11aae9fcc2603e09412a352c1d62ee # v1.8.0
+        uses: fuller-inc/actions-aws-assume-role@c6cc1f39a57c0228a4b542ae2b3d49d3e56ce85a # v1.9.1
         with:
           aws-region: ap-northeast-1
           role-to-assume: arn:aws:iam::445285296882:role/rpm-repository-users-SchemalexDeployRole-1HXKOEZ82HCRH
@@ -37,7 +37,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+      - uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
         with:
           subject-path: |
             dist/*.tar.gz
