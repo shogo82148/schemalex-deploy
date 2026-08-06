@@ -4,6 +4,7 @@ Changes
 ## [unreleased]
 
 - support removing indexes without their names [#68](https://github.com/shogo82148/schemalex-deploy/pull/68)
+- support encrypted connections with the `-ssl-mode` and `-ssl-ca` options [#220](https://github.com/shogo82148/schemalex-deploy/pull/220)
 
 ## [v0.0.7] - 2022-09-08
 
