@@ -45,6 +45,7 @@ func TestLoadConfig(t *testing.T) {
 				User:     "shogo",
 				Password: "secret",
 				Port:     3306,
+				SSLMode:  SSLModePreferred,
 				Schema:   []byte{},
 				Mode:     ExecModeDeploy,
 			},
@@ -63,6 +64,7 @@ func TestLoadConfig(t *testing.T) {
 				User:     "shogo",
 				Password: "environment",
 				Port:     3306,
+				SSLMode:  SSLModePreferred,
 				Schema:   []byte{},
 				Mode:     ExecModeDeploy,
 			},
@@ -80,6 +82,7 @@ func TestLoadConfig(t *testing.T) {
 				User:     "shogo",
 				Password: "password",
 				Port:     3306,
+				SSLMode:  SSLModePreferred,
 				Schema:   []byte{},
 				Mode:     ExecModeDeploy,
 			},
@@ -101,6 +104,7 @@ func TestLoadConfig(t *testing.T) {
 				User:     "chooblarin",
 				Password: "password",
 				Port:     1234,
+				SSLMode:  SSLModePreferred,
 				Schema:   []byte{},
 				Mode:     ExecModeDeploy,
 			},
@@ -120,6 +124,7 @@ func TestLoadConfig(t *testing.T) {
 				User:     "chooblarin",
 				Password: "password",
 				Port:     3456,
+				SSLMode:  SSLModePreferred,
 				Schema:   []byte{},
 				Mode:     ExecModeDeploy,
 			},
@@ -138,8 +143,71 @@ func TestLoadConfig(t *testing.T) {
 				User:     "chooblarin",
 				Password: "password",
 				Port:     2345,
+				SSLMode:  SSLModePreferred,
 				Schema:   []byte{},
 				Mode:     ExecModeDeploy,
+			},
+		},
+
+		// ssl-mode
+		{
+			name: "The ssl-mode specified in the argument takes precedence",
+			args: []string{"schemalex-deploy", "-user", "shogo", "-ssl-mode", "REQUIRED", filepath.Join("testdata", "schema.sql")},
+			cnf: mycnf.MyCnf{
+				"client": map[string]string{
+					"ssl-mode": "DISABLED",
+				},
+			},
+			want: &config{
+				User:    "shogo",
+				Port:    3306,
+				SSLMode: SSLModeRequired,
+				Schema:  []byte{},
+				Mode:    ExecModeDeploy,
+			},
+		},
+		{
+			name: "The ssl-mode specified in the configure file takes precedence",
+			args: []string{"schemalex-deploy", "-user", "shogo", filepath.Join("testdata", "schema.sql")},
+			cnf: mycnf.MyCnf{
+				"client": map[string]string{
+					"ssl_mode": "verify_identity",
+					"ssl_ca":   "/path/to/ca.pem",
+				},
+			},
+			want: &config{
+				User:    "shogo",
+				Port:    3306,
+				SSLMode: SSLModeVerifyIdentity,
+				SSLCA:   "/path/to/ca.pem",
+				Schema:  []byte{},
+				Mode:    ExecModeDeploy,
+			},
+		},
+		{
+			name: "The ssl-ca implies VERIFY_CA",
+			args: []string{"schemalex-deploy", "-user", "shogo", "-ssl-ca", "/path/to/ca.pem", filepath.Join("testdata", "schema.sql")},
+			cnf:  mycnf.MyCnf{},
+			want: &config{
+				User:    "shogo",
+				Port:    3306,
+				SSLMode: SSLModeVerifyCA,
+				SSLCA:   "/path/to/ca.pem",
+				Schema:  []byte{},
+				Mode:    ExecModeDeploy,
+			},
+		},
+		{
+			name: "The ssl-ca doesn't imply VERIFY_CA if the ssl-mode is explicitly set",
+			args: []string{"schemalex-deploy", "-user", "shogo", "-ssl-ca", "/path/to/ca.pem", "-ssl-mode", "PREFERRED", filepath.Join("testdata", "schema.sql")},
+			cnf:  mycnf.MyCnf{},
+			want: &config{
+				User:    "shogo",
+				Port:    3306,
+				SSLMode: SSLModePreferred,
+				SSLCA:   "/path/to/ca.pem",
+				Schema:  []byte{},
+				Mode:    ExecModeDeploy,
 			},
 		},
 	}
@@ -162,6 +230,47 @@ func TestLoadConfig(t *testing.T) {
 			}
 			if diff := cmp.Diff(got, tt.want); diff != "" {
 				t.Errorf("unexpected config: (-want/+got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestLoadConfig_error(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		cnf  mycnf.MyCnf
+	}{
+		{
+			name: "unknown ssl-mode in the argument",
+			args: []string{"schemalex-deploy", "-ssl-mode", "ENABLED", filepath.Join("testdata", "schema.sql")},
+			cnf:  mycnf.MyCnf{},
+		},
+		{
+			name: "unknown ssl-mode in the configure file",
+			args: []string{"schemalex-deploy", filepath.Join("testdata", "schema.sql")},
+			cnf: mycnf.MyCnf{
+				"client": map[string]string{
+					"ssl-mode": "ENABLED",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orig := loadDefault
+			loadDefault = func(extraFile string) (mycnf.MyCnf, error) {
+				return tt.cnf, nil
+			}
+			defer func() { loadDefault = orig }()
+			t.Setenv("MYSQL_UNIX_PORT", "")
+			t.Setenv("MYSQL_TCP_PORT", "")
+			t.Setenv("MYSQL_HOST", "")
+			t.Setenv("MYSQL_PWD", "")
+
+			if _, err := loadConfig(tt.args); err == nil {
+				t.Error("loadConfig doesn't return an error")
 			}
 		})
 	}
