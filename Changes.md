@@ -5,6 +5,7 @@
 - support generated columns
 - accept non-reserved keywords (e.g. `action`, `date`, `text`) as identifiers without quoting
 - fix format generating SQL that cannot be parsed again: ENUM without values, quoted non-numeric defaults of numeric columns, NUL characters, quoted table option values, and columns with both PRIMARY KEY and UNIQUE
+- support encrypted connections with the `-ssl-mode` and `-ssl-ca` options [#220](https://github.com/shogo82148/schemalex-deploy/pull/220)
 
 ## [v0.1.7] - 2026-09-23
 
