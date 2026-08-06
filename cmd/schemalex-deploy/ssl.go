@@ -52,6 +52,38 @@ func parseSSLMode(s string) (SSLMode, error) {
 // tlsConfigName is the name of the TLS configuration registered to the mysql driver.
 const tlsConfigName = "schemalex-deploy"
 
+// tlsConfigNameInsecure is the name of the TLS configuration that doesn't verify the server certificate.
+const tlsConfigNameInsecure = "schemalex-deploy-insecure"
+
+// insecureTLSConfig returns the TLS configuration for PREFERRED and REQUIRED.
+// They don't verify the server certificate.
+func insecureTLSConfig() *tls.Config {
+	return &tls.Config{
+		InsecureSkipVerify: true, // PREFERRED and REQUIRED don't verify the server certificate.
+		MinVersion:         tls.VersionTLS12,
+		CipherSuites:       cipherSuites(),
+	}
+}
+
+// cipherSuites returns the default cipher suites of crypto/tls,
+// plus the ones that use the RSA key exchange.
+//
+// Go 1.22 and later exclude the RSA key exchange from the default cipher suites,
+// but MySQL 5.7 and MariaDB 10.1 can't use the elliptic curve key exchange,
+// so we need them to keep connecting to those servers.
+func cipherSuites() []uint16 {
+	suites := make([]uint16, 0, len(tls.CipherSuites())+4)
+	for _, suite := range tls.CipherSuites() {
+		suites = append(suites, suite.ID)
+	}
+	return append(suites,
+		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+	)
+}
+
 // configureTLS configures the TLS settings of dsn.
 //
 // The mysql driver serializes only [mysql.Config.TLSConfig] into the DSN,
@@ -63,10 +95,17 @@ func (cfn *config) configureTLS(dsn *mysql.Config) error {
 		dsn.TLSConfig = "false"
 	case SSLModePreferred:
 		// use TLS if the server supports it, and fall back to an unencrypted connection otherwise.
-		dsn.TLSConfig = "preferred"
+		if err := mysql.RegisterTLSConfig(tlsConfigNameInsecure, insecureTLSConfig()); err != nil {
+			return fmt.Errorf("failed to register the tls configure: %w", err)
+		}
+		dsn.TLSConfig = tlsConfigNameInsecure
+		dsn.AllowFallbackToPlaintext = true
 	case SSLModeRequired:
 		// require TLS, but don't verify the server certificate.
-		dsn.TLSConfig = "skip-verify"
+		if err := mysql.RegisterTLSConfig(tlsConfigNameInsecure, insecureTLSConfig()); err != nil {
+			return fmt.Errorf("failed to register the tls configure: %w", err)
+		}
+		dsn.TLSConfig = tlsConfigNameInsecure
 	case SSLModeVerifyCA, SSLModeVerifyIdentity:
 		tlsConfig, err := cfn.tlsConfig()
 		if err != nil {
@@ -107,9 +146,10 @@ func (cfn *config) tlsConfig() (*tls.Config, error) {
 			serverName = "localhost"
 		}
 		return &tls.Config{
-			RootCAs:    rootCAs,
-			ServerName: serverName,
-			MinVersion: tls.VersionTLS12,
+			RootCAs:      rootCAs,
+			ServerName:   serverName,
+			MinVersion:   tls.VersionTLS12,
+			CipherSuites: cipherSuites(),
 		}, nil
 	}
 
@@ -120,6 +160,7 @@ func (cfn *config) tlsConfig() (*tls.Config, error) {
 		InsecureSkipVerify:    true, // the chain is verified in verifyCA.
 		VerifyPeerCertificate: verifyCA(rootCAs),
 		MinVersion:            tls.VersionTLS12,
+		CipherSuites:          cipherSuites(),
 	}, nil
 }
 
