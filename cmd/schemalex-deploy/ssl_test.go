@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -48,9 +49,10 @@ func TestParseSSLMode(t *testing.T) {
 
 func TestConfigureTLS(t *testing.T) {
 	tests := []struct {
-		name string
-		cfn  *config
-		want string // the value of the tls parameter in the DSN
+		name     string
+		cfn      *config
+		want     string // the value of the tls parameter in the DSN
+		fallback bool   // whether the connection falls back to plaintext
 	}{
 		{
 			name: "disabled",
@@ -58,14 +60,15 @@ func TestConfigureTLS(t *testing.T) {
 			want: "false",
 		},
 		{
-			name: "preferred",
-			cfn:  &config{SSLMode: SSLModePreferred},
-			want: "preferred",
+			name:     "preferred",
+			cfn:      &config{SSLMode: SSLModePreferred},
+			want:     tlsConfigNameInsecure,
+			fallback: true,
 		},
 		{
 			name: "required",
 			cfn:  &config{SSLMode: SSLModeRequired},
-			want: "skip-verify",
+			want: tlsConfigNameInsecure,
 		},
 		{
 			name: "verify_ca",
@@ -103,7 +106,38 @@ func TestConfigureTLS(t *testing.T) {
 			if tt.cfn.SSLMode != SSLModeDisabled && parsed.TLS == nil {
 				t.Error("the TLS configure is not restored from the DSN")
 			}
+			if parsed.AllowFallbackToPlaintext != tt.fallback {
+				t.Errorf("unexpected fallback to plaintext: got %t, want %t", parsed.AllowFallbackToPlaintext, tt.fallback)
+			}
 		})
+	}
+}
+
+func TestCipherSuites(t *testing.T) {
+	// MySQL 5.7 and MariaDB 10.1 can't use the elliptic curve key exchange,
+	// so the cipher suites must contain the ones that use the RSA key exchange.
+	// crypto/tls excludes them from the default since Go 1.22.
+	want := map[uint16]bool{
+		tls.TLS_RSA_WITH_AES_128_GCM_SHA256: false,
+		tls.TLS_RSA_WITH_AES_256_GCM_SHA384: false,
+		tls.TLS_RSA_WITH_AES_128_CBC_SHA:    false,
+		tls.TLS_RSA_WITH_AES_256_CBC_SHA:    false,
+	}
+	suites := cipherSuites()
+	for _, id := range suites {
+		if _, ok := want[id]; ok {
+			want[id] = true
+		}
+	}
+	for id, found := range want {
+		if !found {
+			t.Errorf("the cipher suite %s is not contained", tls.CipherSuiteName(id))
+		}
+	}
+
+	// it must keep the modern cipher suites too.
+	if len(suites) <= len(want) {
+		t.Errorf("the cipher suites are too few: %d", len(suites))
 	}
 }
 
