@@ -2,6 +2,7 @@ package mycnf
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -59,9 +60,7 @@ func load(paths []string) (MyCnf, error) {
 				g = map[string]string{}
 				result[group] = g
 			}
-			for k, v := range kv {
-				g[k] = v
-			}
+			maps.Copy(g, kv)
 		}
 	}
 	return result, nil

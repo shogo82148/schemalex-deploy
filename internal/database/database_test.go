@@ -7,10 +7,10 @@ import (
 )
 
 type execer interface {
-	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-func mustExec(ctx context.Context, t *testing.T, db execer, query string, args ...interface{}) {
+func mustExec(ctx context.Context, t *testing.T, db execer, query string, args ...any) {
 	t.Helper()
 	_, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
@@ -21,8 +21,7 @@ func mustExec(ctx context.Context, t *testing.T, db execer, query string, args .
 func TestTruncateAll(t *testing.T) {
 	SkipIfNoTestDatabase(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	t.Run("normal", func(t *testing.T) {
 		db, cleanup := SetupTestDB()
@@ -96,8 +95,7 @@ func TestTruncateAll(t *testing.T) {
 func TestDropAll(t *testing.T) {
 	SkipIfNoTestDatabase(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	t.Run("normal", func(t *testing.T) {
 		db, cleanup := SetupTestDB()

@@ -10,6 +10,7 @@ type ignorableErr struct {
 
 type ignorabler interface {
 	Ignorable() bool
+	Error() string
 }
 
 func (e ignorableErr) Error() string {
@@ -31,8 +32,7 @@ func IsIgnorable(err error) bool {
 	if err == nil {
 		return false
 	}
-	var ignore ignorabler
-	if errors.As(err, &ignore) {
+	if ignore, ok := errors.AsType[ignorabler](err); ok {
 		return ignore.Ignorable()
 	}
 	return false

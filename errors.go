@@ -67,7 +67,7 @@ func (e parseError) Error() string {
 	return buf.String()
 }
 
-func newParseError(ctx *parseCtx, t *Token, msg string, args ...interface{}) error {
+func newParseError(ctx *parseCtx, t *Token, msg string, args ...any) error {
 	if len(args) > 0 {
 		msg = fmt.Sprintf(msg, args...)
 	}

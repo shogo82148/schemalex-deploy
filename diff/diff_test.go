@@ -468,8 +468,7 @@ func TestDiff(t *testing.T) {
 func TestDiff_Integrated(t *testing.T) {
 	database.SkipIfNoTestDatabase(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	var buf bytes.Buffer
 	for _, spec := range specs {
@@ -651,8 +650,7 @@ func TestDiffWithAutoNamedObjects(t *testing.T) {
 func TestDiffWithAutoNamedObjects_Integrated(t *testing.T) {
 	database.SkipIfNoTestDatabase(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	var buf bytes.Buffer
 	for _, spec := range autoSpecs {
@@ -695,10 +693,10 @@ func TestDiffWithAutoNamedObjects_Integrated(t *testing.T) {
 				t.Errorf("spec %s failed: %v", spec.Name, err)
 				return
 			}
-			queries := strings.Split(buf.String(), ";\n")
+			queries := strings.SplitSeq(buf.String(), ";\n")
 
 			// apply
-			for _, q := range queries {
+			for q := range queries {
 				if q == "" {
 					continue
 				}

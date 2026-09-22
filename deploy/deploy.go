@@ -255,8 +255,7 @@ func getLatestVersionTx(ctx context.Context, tx *sql.Tx) (*schemalexRevision, er
 			return &schemalexRevision{}, nil
 		}
 
-		var myerr *mysql.MySQLError
-		if errors.As(err, &myerr) {
+		if myerr, ok := errors.AsType[*mysql.MySQLError](err); ok {
 			// https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_no_such_table
 			if myerr.Number == 1146 { // = ER_NO_SUCH_TABLE: Table 'schemalex_revision' doesn't exist
 				// the database is not initialized.
