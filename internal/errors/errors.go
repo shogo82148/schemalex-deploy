@@ -10,6 +10,7 @@ type ignorableErr struct {
 
 type ignorabler interface {
 	Ignorable() bool
+	Error() string
 }
 
 func (e ignorableErr) Error() string {
