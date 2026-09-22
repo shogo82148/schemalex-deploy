@@ -32,7 +32,7 @@ func (ctx *fmtCtx) clone() *fmtCtx {
 
 // SQL takes an arbitrary `model.*` object and formats it as SQL,
 // writing its result to `dst`
-func SQL(dst io.Writer, v interface{}, options ...Option) error {
+func SQL(dst io.Writer, v any, options ...Option) error {
 	var opts myOptions
 	for _, o := range options {
 		o.apply(&opts)
@@ -43,7 +43,7 @@ func SQL(dst io.Writer, v interface{}, options ...Option) error {
 	return format(ctx, v)
 }
 
-func format(ctx *fmtCtx, v interface{}) error {
+func format(ctx *fmtCtx, v any) error {
 	switch v := v.(type) {
 	case model.ColumnType:
 		return formatColumnType(ctx, v)

@@ -1283,7 +1283,7 @@ func (p *Parser) parseColumnReference(ctx *parseCtx, index *model.Index) error {
 	}
 
 OUTER:
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		ctx.skipWhiteSpaces()
 		if t := ctx.peek(); t.Type != ON {
 			break OUTER

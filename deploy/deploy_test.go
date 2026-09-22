@@ -13,8 +13,7 @@ import (
 func TestDeploy(t *testing.T) {
 	database.SkipIfNoTestDatabase(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	rawDB, cleanup := database.SetupTestDB()
 	defer cleanup()
 	db := &DB{
@@ -126,8 +125,7 @@ func showColumns(ctx context.Context, db *sql.DB, table string) ([]*column, erro
 func TestImport(t *testing.T) {
 	database.SkipIfNoTestDatabase(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	rawDB, cleanup := database.SetupTestDB()
 	defer cleanup()
 	db := &DB{
