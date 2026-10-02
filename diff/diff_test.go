@@ -119,6 +119,40 @@ var specs = []Spec{
 		},
 	},
 	{
+		Name: "add generated column",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER GENERATED ALWAYS AS (`a` + 1) STORED, `c` INTEGER AS (`a` * 2) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ADD COLUMN `b` INT (11) GENERATED ALWAYS AS (`a` + 1) STORED AFTER `a`, ADD COLUMN `c` INT (11) GENERATED ALWAYS AS (`a` * 2) VIRTUAL AFTER `b`",
+		},
+	},
+	{
+		Name: "change generated column expression",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER GENERATED ALWAYS AS (`a` + 1) VIRTUAL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER GENERATED ALWAYS AS (`a` + 2) VIRTUAL )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` CHANGE COLUMN `b` `b` INT (11) GENERATED ALWAYS AS (`a` + 2) VIRTUAL",
+		},
+	},
+	{
+		Name: "generated column with redundant parentheses",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER GENERATED ALWAYS AS ((`a` + 1)) VIRTUAL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) )",
+		},
+		Expect: []string{},
+	},
+	{
 		Name: "change column with comment",
 		Before: []string{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",

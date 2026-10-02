@@ -209,6 +209,58 @@ func TestParse1(t *testing.T) {
 		},
 		{
 			src: "CREATE TABLE `fuga` (\n" +
+				"`a` INTEGER NOT NULL,\n" +
+				"`b` INTEGER GENERATED ALWAYS AS ((`a` + 1)) STORED,\n" +
+				"`c` INTEGER AS (`a` * 2) NOT NULL,\n" +
+				"PRIMARY KEY (`a`)\n" +
+				");",
+			want: model.Stmts{
+				&model.Table{
+					Name: "fuga",
+					Columns: []*model.TableColumn{
+						{
+							Name:      "a",
+							Type:      model.ColumnTypeInt,
+							Length:    model.NewLength("11"),
+							NullState: model.NullStateNotNull,
+						},
+						{
+							Name:   "b",
+							Type:   model.ColumnTypeInt,
+							Length: model.NewLength("11"),
+							Generated: model.GeneratedColumn{
+								Valid:  true,
+								Expr:   "`a` + 1",
+								Stored: true,
+							},
+						},
+						{
+							Name:      "c",
+							Type:      model.ColumnTypeInt,
+							Length:    model.NewLength("11"),
+							NullState: model.NullStateNotNull,
+							Generated: model.GeneratedColumn{
+								Valid:  true,
+								Expr:   "`a` * 2",
+								Stored: false,
+							},
+						},
+					},
+					Indexes: []*model.Index{
+						{
+							Table: "table#fuga",
+							Kind:  model.IndexKindPrimaryKey,
+							Columns: []*model.IndexColumn{
+								{Name: "a"},
+							},
+						},
+					},
+					Options: []*model.TableOption{},
+				},
+			},
+		},
+		{
+			src: "CREATE TABLE `fuga` (\n" +
 				"`id` INTEGER NOT NULL AUTO_INCREMENT,\n" +
 				"`title` TEXT NOT NULL,\n" +
 				"FULLTEXT INDEX `title_idx` (`title`) WITH PARSER `ngram`,\n" +
