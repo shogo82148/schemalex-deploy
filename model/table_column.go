@@ -23,6 +23,20 @@ type DefaultValue struct {
 	Quoted bool
 }
 
+// GeneratedColumn describes the definition of a generated column.
+// https://dev.mysql.com/doc/refman/8.0/en/create-table-generated-columns.html
+type GeneratedColumn struct {
+	Valid bool
+
+	// Expr is the expression that computes the column value.
+	// It does not include the outermost parentheses.
+	Expr string
+
+	// Stored is true if the column is a STORED generated column.
+	// Otherwise, the column is a VIRTUAL generated column.
+	Stored bool
+}
+
 type Length struct {
 	Decimals MaybeString
 	Length   string
@@ -59,6 +73,7 @@ type TableColumn struct {
 	Unsigned      bool
 	ZeroFill      bool
 	SRID          MaybeInteger
+	Generated     GeneratedColumn
 }
 
 // NewTableColumn creates a new TableColumn with the given name
@@ -166,7 +181,8 @@ func (t *TableColumn) Normalize() *TableColumn {
 			ColumnTypeLongBlob, ColumnTypeLongText:
 		default:
 			// if nullable then set default null.
-			if nullState != NullStateNotNull {
+			// generated columns cannot have a default value.
+			if nullState != NullStateNotNull && !t.Generated.Valid {
 				setDefaultNull = true
 			}
 		}
@@ -193,5 +209,41 @@ func (t *TableColumn) Normalize() *TableColumn {
 		col.Default.Value = "NULL"
 		col.Default.Quoted = false
 	}
+
+	if t.Generated.Valid {
+		col.Generated.Expr = normalizeGeneratedExpr(t.Generated.Expr)
+	}
 	return &col
+}
+
+// normalizeGeneratedExpr trims white spaces and redundant outermost parentheses.
+// e.g. SHOW CREATE TABLE returns `((a + b))` for the expression `a + b`.
+func normalizeGeneratedExpr(expr string) string {
+	for {
+		expr = strings.TrimSpace(expr)
+		if !isWrappedByParens(expr) {
+			return expr
+		}
+		expr = expr[1 : len(expr)-1]
+	}
+}
+
+// isWrappedByParens reports whether the whole expression is wrapped by a pair of parentheses.
+func isWrappedByParens(expr string) bool {
+	if len(expr) < 2 || expr[0] != '(' || expr[len(expr)-1] != ')' {
+		return false
+	}
+	depth := 0
+	for i := 0; i < len(expr); i++ {
+		switch expr[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 && i != len(expr)-1 {
+				return false
+			}
+		}
+	}
+	return depth == 0
 }
