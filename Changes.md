@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+- support generated columns
+
 ## [v0.1.7] - 2026-09-23
 
 - bump Go 1.27.1 [#263](https://github.com/shogo82148/schemalex-deploy/pull/263)
