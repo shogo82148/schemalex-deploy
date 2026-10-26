@@ -39,7 +39,7 @@ jobs:
               includes.append({'os': 'ubuntu-24.04-arm', 'mysql': v})
           matrix = {
               # OS vs Go versions
-              'os': [ 'ubuntu-24.04-arm', 'xcode27', 'windows-2025' ],
+              'os': [ 'ubuntu-24.04-arm', 'xcode-27', 'windows-2025' ],
               'mysql': mysql[:1],
               'include': includes
           }
