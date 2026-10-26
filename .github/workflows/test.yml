@@ -36,10 +36,10 @@ jobs:
           includes = []
           # MySQL versions compatibility check
           for v in mysql[1:]:
-              includes.append({'os': 'ubuntu-latest', 'mysql': v})
+              includes.append({'os': 'ubuntu-24.04-arm', 'mysql': v})
           matrix = {
               # OS vs Go versions
-              'os': [ 'ubuntu-latest', 'macos-latest', 'windows-latest' ],
+              'os': [ 'ubuntu-24.04-arm', 'xcode27', 'windows-2025' ],
               'mysql': mysql[:1],
               'include': includes
           }
