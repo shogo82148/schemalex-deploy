@@ -1032,6 +1032,24 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 			default:
 				return newParseError(ctx, t, "should NUMBER")
 			}
+		case GENERATED:
+			// GENERATED ALWAYS AS (expr) [VIRTUAL | STORED]
+			ctx.skipWhiteSpaces()
+			if t := ctx.next(); t.Type != ALWAYS {
+				return newParseError(ctx, t, "expected GENERATED ALWAYS")
+			}
+			ctx.skipWhiteSpaces()
+			if t := ctx.next(); t.Type != AS {
+				return newParseError(ctx, t, "expected GENERATED ALWAYS AS")
+			}
+			if err := p.parseGeneratedColumn(ctx, col); err != nil {
+				return err
+			}
+		case AS:
+			// AS (expr) [VIRTUAL | STORED]
+			if err := p.parseGeneratedColumn(ctx, col); err != nil {
+				return err
+			}
 
 		case COMMA:
 			ctx.rewind()
@@ -1498,4 +1516,44 @@ func (p *Parser) eol(ctx *parseCtx) bool {
 	default:
 		return false
 	}
+}
+
+// parseGeneratedColumn parses `(expr) [VIRTUAL | STORED]` of a generated column definition.
+// The expression is stored as it is written in the source.
+// https://dev.mysql.com/doc/refman/8.0/en/create-table-generated-columns.html
+func (p *Parser) parseGeneratedColumn(ctx *parseCtx, col *model.TableColumn) error {
+	ctx.skipWhiteSpaces()
+	t := ctx.next()
+	if t.Type != LPAREN {
+		return newParseError(ctx, t, "expected LPAREN (generated column expression)")
+	}
+	start := t.Pos + 1
+
+	depth := 1
+	var end int
+	for depth > 0 {
+		t := ctx.next()
+		switch t.Type {
+		case LPAREN:
+			depth++
+		case RPAREN:
+			depth--
+			end = t.Pos
+		case EOF:
+			return newParseError(ctx, t, "expected RPAREN (generated column expression)")
+		}
+	}
+	col.Generated.Valid = true
+	col.Generated.Expr = strings.TrimSpace(string(ctx.input[start:end]))
+
+	ctx.skipWhiteSpaces()
+	switch t := ctx.peek(); t.Type {
+	case VIRTUAL:
+		ctx.advance()
+		col.Generated.Stored = false
+	case STORED:
+		ctx.advance()
+		col.Generated.Stored = true
+	}
+	return nil
 }
