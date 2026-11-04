@@ -64,7 +64,7 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - uses: shogo82148/actions-setup-mysql@v1.56.1
+      - uses: shogo82148/actions-setup-mysql@v1.56.2
         with:
           mysql-version: ${{ matrix.mysql }}
           user: ${{ env.SCHEMALEX_DATABASE_USER }}
