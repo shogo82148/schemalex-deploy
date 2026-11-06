@@ -262,6 +262,17 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 		buf.WriteString(col.Collation.Quoted())
 	}
 
+	if col.Generated.Valid {
+		buf.WriteString(" GENERATED ALWAYS AS (")
+		buf.WriteString(col.Generated.Expr)
+		buf.WriteByte(')')
+		if col.Generated.Stored {
+			buf.WriteString(" STORED")
+		} else {
+			buf.WriteString(" VIRTUAL")
+		}
+	}
+
 	if col.AutoUpdate.Valid {
 		buf.WriteString(" ON UPDATE ")
 		buf.WriteString(col.AutoUpdate.Value)
