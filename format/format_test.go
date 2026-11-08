@@ -536,4 +536,56 @@ primary key (id, c)
 			"`id` INT (10) NOT NULL\n" +
 			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4;\n",
 	})
+
+	// Non-reserved keywords are permitted as identifiers without quoting.
+	// https://dev.mysql.com/doc/refman/26.10/en/keywords.html
+	parse("NonReservedKeywordsAsIdentifiers", &Spec{
+		Input: "create table action (" +
+			"date DATE NOT NULL, " +
+			"text TEXT, " +
+			"comment VARCHAR(10) COMMENT 'comment', " +
+			"year YEAR, " +
+			"key date (date), " +
+			"index text_idx (text(10))" +
+			") ENGINE = MEMORY",
+		Expect: "CREATE TABLE `action` (\n" +
+			"`date` DATE NOT NULL,\n" +
+			"`text` TEXT,\n" +
+			"`comment` VARCHAR (10) DEFAULT NULL COMMENT 'comment',\n" +
+			"`year` YEAR DEFAULT NULL,\n" +
+			"INDEX `date` (`date`),\n" +
+			"INDEX `text_idx` (`text`(10))\n" +
+			") ENGINE = MEMORY;\n",
+	})
+	parse("NonReservedKeywordsInForeignKey", &Spec{
+		Input: "create table data (id INT NOT NULL, status INT NOT NULL, " +
+			"constraint fk_status foreign key status (status) references action (date) on delete no action)",
+		Expect: "CREATE TABLE `data` (\n" +
+			"`id` INT (11) NOT NULL,\n" +
+			"`status` INT (11) NOT NULL,\n" +
+			"INDEX `fk_status` (`status`),\n" +
+			"CONSTRAINT `fk_status` FOREIGN KEY `status` (`status`) REFERENCES `action` (`date`) ON DELETE NO ACTION\n" +
+			");\n",
+	})
+	parse("NonReservedKeywordAsLikeTable", &Spec{
+		Input:  "create table data like action",
+		Expect: "CREATE TABLE `data` LIKE `action`;\n",
+	})
+	parse("NonReservedKeywordAsDatabase", &Spec{
+		Input: "create database data",
+	})
+	parse("ReservedWordAsTableName", &Spec{
+		Input: "create table table (id INT)",
+		Error: true,
+	})
+	parse("ReservedWordAsColumnName", &Spec{
+		Input: "create table foo (int INT)",
+		Error: true,
+	})
+	parse("QuotedReservedWordAsColumnName", &Spec{
+		Input: "create table foo (`int` INT)",
+		Expect: "CREATE TABLE `foo` (\n" +
+			"`int` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
 }

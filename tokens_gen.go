@@ -22,10 +22,10 @@ type Token struct {
 }
 
 // Ident returns an identifier.
-// It is only meaningful if the Type is IDENT or BACKTICK_IDENT.
+// It is only meaningful if the Type is IDENT, BACKTICK_IDENT or a non-reserved keyword.
 // The caller must check it.
 func (t Token) Ident() model.Ident {
-	if t.Type != IDENT && t.Type != BACKTICK_IDENT {
+	if t.Type != IDENT && t.Type != BACKTICK_IDENT && !t.Type.IsNonReservedKeyword() {
 		panic(fmt.Sprintf("unexpected type: %s", t.Type))
 	}
 	return model.Ident(t.Value)
@@ -308,6 +308,76 @@ var keywordIdentMap = map[string]TokenType{
 	"WITH":               WITH,
 	"YEAR":               YEAR,
 	"ZEROFILL":           ZEROFILL,
+}
+
+// IsNonReservedKeyword reports whether t is a keyword that is not a reserved word of MySQL.
+// Non-reserved keywords are permitted as identifiers without quoting.
+func (t TokenType) IsNonReservedKeyword() bool {
+	switch t {
+	case ACTION,
+		AUTO_INCREMENT,
+		AVG_ROW_LENGTH,
+		BIT,
+		BOOL,
+		BOOLEAN,
+		BTREE,
+		CHARSET,
+		CHECKSUM,
+		COMMENT,
+		COMPACT,
+		COMPRESSED,
+		CONNECTION,
+		DATA,
+		DATE,
+		DATETIME,
+		DELAY_KEY_WRITE,
+		DIRECTORY,
+		DISK,
+		DYNAMIC,
+		ENGINE,
+		ENUM,
+		FIRST,
+		FIXED,
+		FULL,
+		GEOMETRY,
+		GEOMETRYCOLLECTION,
+		HASH,
+		INSERT_METHOD,
+		JSON,
+		KEY_BLOCK_SIZE,
+		LAST,
+		LINESTRING,
+		MAX_ROWS,
+		MEMORY,
+		MIN_ROWS,
+		MULTILINESTRING,
+		MULTIPOINT,
+		MULTIPOLYGON,
+		NO,
+		NOW,
+		PACK_KEYS,
+		PARSER,
+		PARTIAL,
+		PASSWORD,
+		POINT,
+		POLYGON,
+		REDUNDANT,
+		ROW_FORMAT,
+		SIMPLE,
+		SRID,
+		STATS_AUTO_RECALC,
+		STATS_PERSISTENT,
+		STATS_SAMPLE_PAGES,
+		STORAGE,
+		TABLESPACE,
+		TEMPORARY,
+		TEXT,
+		TIME,
+		TIMESTAMP,
+		YEAR:
+		return true
+	}
+	return false
 }
 
 func (t TokenType) String() string {
