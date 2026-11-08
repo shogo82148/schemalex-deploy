@@ -61,7 +61,10 @@ func _main() error {
 		"// It is only meaningful if the Type is IDENT, BACKTICK_IDENT or a non-reserved keyword.",
 		"// The caller must check it.",
 		"func (t Token) Ident() model.Ident {",
-		"if t.Type != IDENT && t.Type != BACKTICK_IDENT && !t.Type.IsNonReservedKeyword() {",
+		"switch {",
+		"case t.Type == IDENT, t.Type == BACKTICK_IDENT:",
+		"case t.Type.IsKeyword() && !t.Type.IsReservedKeyword():",
+		"default:",
 		`panic(fmt.Sprintf("unexpected type: %s", t.Type))`,
 		"}",
 		"return model.Ident(t.Value)",
@@ -250,20 +253,28 @@ func _main() error {
 	}
 	println("}", "")
 
+	keywords := tokens[20:]
 	println(
-		"// IsNonReservedKeyword reports whether t is a keyword that is not a reserved word of MySQL.",
-		"// Non-reserved keywords are permitted as identifiers without quoting.",
-		"func (t TokenType) IsNonReservedKeyword() bool {",
-		"switch t {",
+		"// IsKeyword reports whether t is a keyword.",
+		"func (t TokenType) IsKeyword() bool {",
+		"return t >= "+keywords[0].Ident+" && t <= "+keywords[len(keywords)-1].Ident,
+		"}",
+		"",
 	)
-	var nonReserved []string
-	for _, tok := range tokens[20:] {
-		if !tok.Reserved {
-			nonReserved = append(nonReserved, tok.Ident)
+
+	var reserved []string
+	for _, tok := range keywords {
+		if tok.Reserved {
+			reserved = append(reserved, tok.Ident)
 		}
 	}
 	println(
-		"case "+strings.Join(nonReserved, ",\n")+":",
+		"// IsReservedKeyword reports whether t is a reserved word of MySQL.",
+		"// Reserved words must be quoted to be used as identifiers,",
+		"// while non-reserved keywords (IsKeyword() && !IsReservedKeyword()) are permitted without quoting.",
+		"func (t TokenType) IsReservedKeyword() bool {",
+		"switch t {",
+		"case "+strings.Join(reserved, ",\n")+":",
 		"return true",
 		"}",
 		"return false",

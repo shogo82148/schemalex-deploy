@@ -95,7 +95,13 @@ func (pctx *parseCtx) next() *Token {
 // Non-reserved keywords are permitted as identifiers without quoting.
 // https://dev.mysql.com/doc/refman/26.10/en/keywords.html
 func isIdent(t *Token) bool {
-	return t.Type == IDENT || t.Type == BACKTICK_IDENT || t.Type.IsNonReservedKeyword()
+	switch {
+	case t.Type == IDENT, t.Type == BACKTICK_IDENT:
+		return true
+	case t.Type.IsKeyword() && !t.Type.IsReservedKeyword():
+		return true
+	}
+	return false
 }
 
 // matchTokenType reports whether t matches typ.
@@ -104,7 +110,7 @@ func matchTokenType(t *Token, typ TokenType) bool {
 	if t.Type == typ {
 		return true
 	}
-	return typ == IDENT && t.Type.IsNonReservedKeyword()
+	return typ == IDENT && t.Type.IsKeyword() && !t.Type.IsReservedKeyword()
 }
 
 // ParseString parses a string containing SQL statements and creates
