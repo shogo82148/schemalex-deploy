@@ -577,6 +577,22 @@ primary key (id, c)
 		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (a + 1",
 		Error: true,
 	})
+	parse("GeneratedColumnEmptyExpression", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS ())",
+		Error: true,
+	})
+	parse("GeneratedColumnEmptyExpressionWithSpaces", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT GENERATED ALWAYS AS (  ) STORED)",
+		Error: true,
+	})
+	parse("GeneratedColumnEmptyExpressionInRedundantParens", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (( )))",
+		Error: true,
+	})
+	parse("GeneratedColumnEmptyExpressionWithComment", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (/* comment */))",
+		Error: true,
+	})
 	parse("GeneratedColumnRedundantParens", &Spec{
 		Input: "CREATE TABLE t (" +
 			"a INT NOT NULL, " +

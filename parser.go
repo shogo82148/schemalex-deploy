@@ -1580,10 +1580,15 @@ func (p *Parser) parseGeneratedColumn(ctx *parseCtx, col *model.TableColumn) err
 
 	// strip the outermost parentheses, and redundant ones inside them.
 	// e.g. SHOW CREATE TABLE returns `((a + b))` for the expression `a + b`.
+	closing := tokens[len(tokens)-1]
 	var start, end int
 	for len(tokens) >= 2 && isWrappedByParenTokens(tokens) {
 		start, end = tokens[0].Pos+1, tokens[len(tokens)-1].Pos
 		tokens = tokens[1 : len(tokens)-1]
+	}
+	if len(tokens) == 0 {
+		// e.g. `AS ()`, `AS (())`, `AS (/* comment */)`
+		return newParseError(ctx, closing, "empty generated column expression")
 	}
 	col.Generated.Valid = true
 	col.Generated.Expr = strings.TrimSpace(string(ctx.input[start:end]))
