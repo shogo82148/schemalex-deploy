@@ -201,14 +201,14 @@ func TestTableColumnNormalize(t *testing.T) {
 			},
 		},
 		{
-			// generated columns never have DEFAULT NULL, and redundant parentheses are removed.
-			beforeStr: "foo INTEGER GENERATED ALWAYS AS ((bar + 1)) VIRTUAL",
+			// generated columns never have DEFAULT NULL.
+			beforeStr: "foo INTEGER GENERATED ALWAYS AS (bar + 1) VIRTUAL",
 			before: &TableColumn{
 				Name: "foo",
 				Type: ColumnTypeInteger,
 				Generated: GeneratedColumn{
 					Valid: true,
-					Expr:  "(bar + 1)",
+					Expr:  "bar + 1",
 				},
 			},
 			afterStr: "foo INT (11) GENERATED ALWAYS AS (bar + 1) VIRTUAL",
@@ -228,29 +228,6 @@ func TestTableColumnNormalize(t *testing.T) {
 			norm := tc.before.Normalize()
 			if diff := cmp.Diff(tc.after, norm); diff != "" {
 				t.Errorf("mismatch (-want/+got)\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestNormalizeGeneratedExpr(t *testing.T) {
-	testCases := []struct {
-		in, want string
-	}{
-		{in: "a + b", want: "a + b"},
-		{in: "(a + b)", want: "a + b"},
-		{in: "((a + b))", want: "a + b"},
-		{in: " ( a + b ) ", want: "a + b"},
-		{in: "(a * b) % 7", want: "(a * b) % 7"},
-		{in: "((a * b) % 7)", want: "(a * b) % 7"},
-		{in: "concat(a, b)", want: "concat(a, b)"},
-		{in: "(concat(a, b))", want: "concat(a, b)"},
-		{in: "(a) + (b)", want: "(a) + (b)"},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.in, func(t *testing.T) {
-			if got := normalizeGeneratedExpr(tc.in); got != tc.want {
-				t.Errorf("normalizeGeneratedExpr(%q) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
 	}

@@ -153,6 +153,16 @@ var specs = []Spec{
 		Expect: []string{},
 	},
 	{
+		Name: "generated column with redundant parentheses and quoted parentheses",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` VARCHAR(16) GENERATED ALWAYS AS ((concat(`a`, ')'))) VIRTUAL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` VARCHAR(16) AS (concat(`a`, ')')) )",
+		},
+		Expect: []string{},
+	},
+	{
 		Name: "change column with comment",
 		Before: []string{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
