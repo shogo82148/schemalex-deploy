@@ -577,6 +577,39 @@ primary key (id, c)
 		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (a + 1",
 		Error: true,
 	})
+	parse("GeneratedColumnRedundantParens", &Spec{
+		Input: "CREATE TABLE t (" +
+			"a INT NOT NULL, " +
+			"b INT AS ( ( a + 1 ) ), " +
+			"c INT AS ((a) + (1)), " +
+			"d INT AS (((a * a) % 7)), " +
+			"e INT AS ((a /* comment */))" +
+			")",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) GENERATED ALWAYS AS (a + 1) VIRTUAL,\n" +
+			"`c` INT (11) GENERATED ALWAYS AS ((a) + (1)) VIRTUAL,\n" +
+			"`d` INT (11) GENERATED ALWAYS AS ((a * a) % 7) VIRTUAL,\n" +
+			"`e` INT (11) GENERATED ALWAYS AS (a /* comment */) VIRTUAL\n" +
+			");\n",
+	})
+	parse("GeneratedColumnQuotedParens", &Spec{
+		// parentheses inside string literals and quoted identifiers are not counted.
+		Input: "CREATE TABLE t (" +
+			"a INT NOT NULL, " +
+			"b VARCHAR(10) AS (('(') = (')')), " +
+			"c VARCHAR(10) AS ((concat(a, ')'))), " +
+			"`)` INT NOT NULL, " +
+			"d INT AS ((`)` + 1))" +
+			")",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` VARCHAR (10) GENERATED ALWAYS AS (('(') = (')')) VIRTUAL,\n" +
+			"`c` VARCHAR (10) GENERATED ALWAYS AS (concat(a, ')')) VIRTUAL,\n" +
+			"`)` INT (11) NOT NULL,\n" +
+			"`d` INT (11) GENERATED ALWAYS AS (`)` + 1) VIRTUAL\n" +
+			");\n",
+	})
 
 	// Non-reserved keywords are permitted as identifiers without quoting.
 	// https://dev.mysql.com/doc/refman/26.10/en/keywords.html

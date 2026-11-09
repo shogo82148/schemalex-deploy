@@ -1526,8 +1526,30 @@ func (p *Parser) eol(ctx *parseCtx) bool {
 	}
 }
 
+// isWrappedByParenTokens reports whether the first token is LPAREN and
+// the last token is the matching RPAREN.
+func isWrappedByParenTokens(tokens []*Token) bool {
+	if tokens[0].Type != LPAREN || tokens[len(tokens)-1].Type != RPAREN {
+		return false
+	}
+	depth := 0
+	for i, t := range tokens {
+		switch t.Type {
+		case LPAREN:
+			depth++
+		case RPAREN:
+			depth--
+			if depth == 0 {
+				return i == len(tokens)-1
+			}
+		}
+	}
+	return false
+}
+
 // parseGeneratedColumn parses `(expr) [VIRTUAL | STORED]` of a generated column definition.
-// The expression is stored as it is written in the source.
+// The expression is stored as it is written in the source,
+// except for redundant outermost parentheses.
 // https://dev.mysql.com/doc/refman/8.0/en/create-table-generated-columns.html
 func (p *Parser) parseGeneratedColumn(ctx *parseCtx, col *model.TableColumn) error {
 	ctx.skipWhiteSpaces()
@@ -1535,10 +1557,12 @@ func (p *Parser) parseGeneratedColumn(ctx *parseCtx, col *model.TableColumn) err
 	if t.Type != LPAREN {
 		return newParseError(ctx, t, "expected LPAREN (generated column expression)")
 	}
-	start := t.Pos + 1
 
+	// collect the tokens up to the matching RPAREN, including the outermost parentheses.
+	// string literals and quoted identifiers are single tokens,
+	// so parentheses inside them are not counted.
+	tokens := []*Token{t}
 	depth := 1
-	var end int
 	for depth > 0 {
 		t := ctx.next()
 		switch t.Type {
@@ -1546,10 +1570,20 @@ func (p *Parser) parseGeneratedColumn(ctx *parseCtx, col *model.TableColumn) err
 			depth++
 		case RPAREN:
 			depth--
-			end = t.Pos
 		case EOF:
 			return newParseError(ctx, t, "expected RPAREN (generated column expression)")
+		case SPACE, COMMENT_IDENT:
+			continue
 		}
+		tokens = append(tokens, t)
+	}
+
+	// strip the outermost parentheses, and redundant ones inside them.
+	// e.g. SHOW CREATE TABLE returns `((a + b))` for the expression `a + b`.
+	var start, end int
+	for len(tokens) >= 2 && isWrappedByParenTokens(tokens) {
+		start, end = tokens[0].Pos+1, tokens[len(tokens)-1].Pos
+		tokens = tokens[1 : len(tokens)-1]
 	}
 	col.Generated.Valid = true
 	col.Generated.Expr = strings.TrimSpace(string(ctx.input[start:end]))
