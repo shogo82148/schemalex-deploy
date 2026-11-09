@@ -537,6 +537,47 @@ primary key (id, c)
 			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4;\n",
 	})
 
+	parse("GeneratedColumnStored", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT GENERATED ALWAYS AS (a + 1) STORED)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) GENERATED ALWAYS AS (a + 1) STORED\n" +
+			");\n",
+	})
+	parse("GeneratedColumnShortForm", &Spec{
+		// GENERATED ALWAYS is optional, and VIRTUAL is the default.
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (a + 1) NOT NULL COMMENT 'generated')",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) GENERATED ALWAYS AS (a + 1) VIRTUAL NOT NULL COMMENT 'generated'\n" +
+			");\n",
+	})
+	parse("GeneratedColumnShowCreateTable", &Spec{
+		// SHOW CREATE TABLE wraps the expression with redundant parentheses.
+		Input: "CREATE TABLE `t` (\n" +
+			"  `a` int NOT NULL,\n" +
+			"  `b` int GENERATED ALWAYS AS ((`a` + 1)) STORED,\n" +
+			"  `c` varchar(64) GENERATED ALWAYS AS (concat(`a`,'(',`a`,')')) VIRTUAL,\n" +
+			"  `d` int GENERATED ALWAYS AS ((`a` * `a`) % 7) VIRTUAL,\n" +
+			"  PRIMARY KEY (`a`)\n" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) GENERATED ALWAYS AS (`a` + 1) STORED,\n" +
+			"`c` VARCHAR (64) GENERATED ALWAYS AS (concat(`a`,'(',`a`,')')) VIRTUAL,\n" +
+			"`d` INT (11) GENERATED ALWAYS AS ((`a` * `a`) % 7) VIRTUAL,\n" +
+			"PRIMARY KEY (`a`)\n" +
+			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4;\n",
+	})
+	parse("GeneratedColumnMissingExpression", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT GENERATED ALWAYS AS STORED)",
+		Error: true,
+	})
+	parse("GeneratedColumnUnclosedParen", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (a + 1",
+		Error: true,
+	})
+
 	// Non-reserved keywords are permitted as identifiers without quoting.
 	// https://dev.mysql.com/doc/refman/26.10/en/keywords.html
 	parse("NonReservedKeywordsAsIdentifiers", &Spec{

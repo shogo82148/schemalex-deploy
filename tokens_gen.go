@@ -63,6 +63,8 @@ const (
 	EQUAL         // =
 	COMMENT_IDENT // // /*   */, --, #
 	ACTION
+	ALWAYS
+	AS
 	ASC
 	AUTO_INCREMENT
 	AVG_ROW_LENGTH
@@ -111,6 +113,7 @@ const (
 	FOREIGN
 	FULL
 	FULLTEXT
+	GENERATED
 	GEOMETRY
 	GEOMETRYCOLLECTION
 	HASH
@@ -164,6 +167,7 @@ const (
 	STATS_PERSISTENT
 	STATS_SAMPLE_PAGES
 	STORAGE
+	STORED
 	TABLE
 	TABLESPACE
 	TEMPORARY
@@ -182,6 +186,7 @@ const (
 	USING
 	VARBINARY
 	VARCHAR
+	VIRTUAL
 	WITH
 	YEAR
 	ZEROFILL
@@ -189,6 +194,8 @@ const (
 
 var keywordIdentMap = map[string]TokenType{
 	"ACTION":             ACTION,
+	"ALWAYS":             ALWAYS,
+	"AS":                 AS,
 	"ASC":                ASC,
 	"AUTO_INCREMENT":     AUTO_INCREMENT,
 	"AVG_ROW_LENGTH":     AVG_ROW_LENGTH,
@@ -237,6 +244,7 @@ var keywordIdentMap = map[string]TokenType{
 	"FOREIGN":            FOREIGN,
 	"FULL":               FULL,
 	"FULLTEXT":           FULLTEXT,
+	"GENERATED":          GENERATED,
 	"GEOMETRY":           GEOMETRY,
 	"GEOMETRYCOLLECTION": GEOMETRYCOLLECTION,
 	"HASH":               HASH,
@@ -290,6 +298,7 @@ var keywordIdentMap = map[string]TokenType{
 	"STATS_PERSISTENT":   STATS_PERSISTENT,
 	"STATS_SAMPLE_PAGES": STATS_SAMPLE_PAGES,
 	"STORAGE":            STORAGE,
+	"STORED":             STORED,
 	"TABLE":              TABLE,
 	"TABLESPACE":         TABLESPACE,
 	"TEMPORARY":          TEMPORARY,
@@ -308,6 +317,7 @@ var keywordIdentMap = map[string]TokenType{
 	"USING":              USING,
 	"VARBINARY":          VARBINARY,
 	"VARCHAR":            VARCHAR,
+	"VIRTUAL":            VIRTUAL,
 	"WITH":               WITH,
 	"YEAR":               YEAR,
 	"ZEROFILL":           ZEROFILL,
@@ -323,7 +333,8 @@ func (t TokenType) IsKeyword() bool {
 // while non-reserved keywords (IsKeyword() && !IsReservedKeyword()) are permitted without quoting.
 func (t TokenType) IsReservedKeyword() bool {
 	switch t {
-	case ASC,
+	case AS,
+		ASC,
 		BIGINT,
 		BINARY,
 		BLOB,
@@ -347,6 +358,7 @@ func (t TokenType) IsReservedKeyword() bool {
 		FLOAT,
 		FOREIGN,
 		FULLTEXT,
+		GENERATED,
 		IF,
 		INDEX,
 		INT,
@@ -370,6 +382,7 @@ func (t TokenType) IsReservedKeyword() bool {
 		SET,
 		SMALLINT,
 		SPATIAL,
+		STORED,
 		TABLE,
 		TINYBLOB,
 		TINYINT,
@@ -383,6 +396,7 @@ func (t TokenType) IsReservedKeyword() bool {
 		USING,
 		VARBINARY,
 		VARCHAR,
+		VIRTUAL,
 		WITH,
 		ZEROFILL:
 		return true
@@ -436,6 +450,10 @@ func (t TokenType) String() string {
 		return "COMMENT_IDENT"
 	case ACTION:
 		return "ACTION"
+	case ALWAYS:
+		return "ALWAYS"
+	case AS:
+		return "AS"
 	case ASC:
 		return "ASC"
 	case AUTO_INCREMENT:
@@ -532,6 +550,8 @@ func (t TokenType) String() string {
 		return "FULL"
 	case FULLTEXT:
 		return "FULLTEXT"
+	case GENERATED:
+		return "GENERATED"
 	case GEOMETRY:
 		return "GEOMETRY"
 	case GEOMETRYCOLLECTION:
@@ -638,6 +658,8 @@ func (t TokenType) String() string {
 		return "STATS_SAMPLE_PAGES"
 	case STORAGE:
 		return "STORAGE"
+	case STORED:
+		return "STORED"
 	case TABLE:
 		return "TABLE"
 	case TABLESPACE:
@@ -674,6 +696,8 @@ func (t TokenType) String() string {
 		return "VARBINARY"
 	case VARCHAR:
 		return "VARCHAR"
+	case VIRTUAL:
+		return "VIRTUAL"
 	case WITH:
 		return "WITH"
 	case YEAR:
