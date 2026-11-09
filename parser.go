@@ -91,6 +91,28 @@ func (pctx *parseCtx) next() *Token {
 	return t
 }
 
+// isIdent reports whether t can be used as an identifier.
+// Non-reserved keywords are permitted as identifiers without quoting.
+// https://dev.mysql.com/doc/refman/26.10/en/keywords.html
+func isIdent(t *Token) bool {
+	switch {
+	case t.Type == IDENT, t.Type == BACKTICK_IDENT:
+		return true
+	case t.Type.IsKeyword() && !t.Type.IsReservedKeyword():
+		return true
+	}
+	return false
+}
+
+// matchTokenType reports whether t matches typ.
+// IDENT also matches non-reserved keywords.
+func matchTokenType(t *Token, typ TokenType) bool {
+	if t.Type == typ {
+		return true
+	}
+	return typ == IDENT && t.Type.IsKeyword() && !t.Type.IsReservedKeyword()
+}
+
 // ParseString parses a string containing SQL statements and creates
 // a mode.Stmts structure.
 // See Parse for details.
@@ -196,13 +218,11 @@ func (p *Parser) parseCreateDatabase(ctx *parseCtx) (*model.Database, error) {
 
 	ctx.skipWhiteSpaces()
 
-	var database *model.Database
-	switch t := ctx.next(); t.Type {
-	case IDENT, BACKTICK_IDENT:
-		database = model.NewDatabase(t.Ident())
-	default:
+	t := ctx.next()
+	if !isIdent(t) {
 		return nil, newParseError(ctx, t, "expected IDENT, BACKTICK_IDENT")
 	}
+	database := model.NewDatabase(t.Ident())
 
 	database.IfNotExists = notexists
 	p.eol(ctx)
@@ -236,12 +256,11 @@ func (p *Parser) parseCreateTable(ctx *parseCtx) (*model.Table, error) {
 		notexists = true
 	}
 
-	switch t := ctx.next(); t.Type {
-	case IDENT, BACKTICK_IDENT:
-		table = model.NewTable(t.Ident())
-	default:
+	t := ctx.next()
+	if !isIdent(t) {
 		return nil, newParseError(ctx, t, "expected IDENT or BACKTICK_IDENT")
 	}
+	table = model.NewTable(t.Ident())
 	table.Temporary = temporary
 	table.IfNotExists = notexists
 
@@ -251,13 +270,12 @@ func (p *Parser) parseCreateTable(ctx *parseCtx) (*model.Table, error) {
 		// CREATE TABLE foo LIKE bar
 		ctx.advance()
 		ctx.skipWhiteSpaces()
-		switch t := ctx.next(); t.Type {
-		case IDENT, BACKTICK_IDENT:
-			table.LikeTable.Valid = true
-			table.LikeTable.Ident = t.Ident()
-		default:
+		t := ctx.next()
+		if !isIdent(t) {
 			return nil, newParseError(ctx, t, "expected table name after LIKE")
 		}
+		table.LikeTable.Valid = true
+		table.LikeTable.Ident = t.Ident()
 
 		ctx.skipWhiteSpaces()
 		switch t := ctx.peek(); t.Type {
@@ -322,12 +340,13 @@ func (p *Parser) parseCreateTableFields(ctx *parseCtx, stmt *model.Table) error 
 			}
 		case CHECK: // TODO
 			return newParseError(ctx, t, "unsupported field: CHECK")
-		case IDENT, BACKTICK_IDENT:
+		default:
+			if !isIdent(t) {
+				return newParseError(ctx, t, "unexpected create table field token: %s", t.Type)
+			}
 			if err := p.parseTableColumn(ctx, stmt); err != nil {
 				return err
 			}
-		default:
-			return newParseError(ctx, t, "unexpected create table field token: %s", t.Type)
 		}
 
 		ctx.skipWhiteSpaces()
@@ -358,8 +377,7 @@ func (p *Parser) parseTableConstraint(ctx *parseCtx, table *model.Table) error {
 	ctx.skipWhiteSpaces()
 
 	var sym string
-	switch t := ctx.peek(); t.Type {
-	case IDENT, BACKTICK_IDENT:
+	if t := ctx.peek(); isIdent(t) {
 		// TODO: should be smarter
 		// (lestrrat): I don't understand. How?
 		sym = t.Value
@@ -455,9 +473,7 @@ func (p *Parser) parseTableForeignKey(ctx *parseCtx, table *model.Table) error {
 
 func (p *Parser) parseTableColumn(ctx *parseCtx, table *model.Table) error {
 	t := ctx.next()
-	switch t.Type {
-	case IDENT, BACKTICK_IDENT:
-	default:
+	if !isIdent(t) {
 		return newParseError(ctx, t, "expected IDENT or BACKTICK_IDENT")
 	}
 
@@ -630,7 +646,7 @@ func (p *Parser) parseCreateTableOptionValue(ctx *parseCtx, table *model.Table, 
 
 	t := ctx.next()
 	for _, typ := range follow {
-		if typ != t.Type {
+		if !matchTokenType(t, typ) {
 			continue
 		}
 		var quotes bool
@@ -893,22 +909,20 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 				return newParseError(ctx, t, "expected SET")
 			}
 			ctx.skipWhiteSpaces()
-			switch v := ctx.next(); v.Type {
-			case IDENT, BACKTICK_IDENT:
-				col.CharacterSet.Valid = true
-				col.CharacterSet.Ident = v.Ident()
-			default:
-				return newParseError(ctx, t, "should IDENT or BACKTICK_IDENT")
+			v := ctx.next()
+			if !isIdent(v) {
+				return newParseError(ctx, v, "should IDENT or BACKTICK_IDENT")
 			}
+			col.CharacterSet.Valid = true
+			col.CharacterSet.Ident = v.Ident()
 		case COLLATE:
 			ctx.skipWhiteSpaces()
-			switch v := ctx.next(); v.Type {
-			case IDENT, BACKTICK_IDENT:
-				col.Collation.Valid = true
-				col.Collation.Ident = v.Ident()
-			default:
-				return newParseError(ctx, t, "should IDENT or BACKTICK_IDENT")
+			v := ctx.next()
+			if !isIdent(v) {
+				return newParseError(ctx, v, "should IDENT or BACKTICK_IDENT")
 			}
+			col.Collation.Valid = true
+			col.Collation.Ident = v.Ident()
 		case UNSIGNED:
 			if !check(coloptUnsigned) {
 				return newParseError(ctx, t, "cannot apply UNSIGNED")
@@ -1270,12 +1284,11 @@ func (p *Parser) parseColumnReference(ctx *parseCtx, index *model.Index) error {
 	r := model.NewReference()
 
 	ctx.skipWhiteSpaces()
-	switch t := ctx.next(); t.Type {
-	case BACKTICK_IDENT, IDENT:
-		r.TableName = t.Ident()
-	default:
+	t := ctx.next()
+	if !isIdent(t) {
 		return newParseError(ctx, t, "expected IDENT or BACKTICK_IDENT")
 	}
+	r.TableName = t.Ident()
 
 	cols, err := p.parseColumnIndexColumns(ctx)
 	if err != nil {
@@ -1329,8 +1342,7 @@ OUTER:
 
 func (p *Parser) parseColumnIndexName(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
-	switch t := ctx.peek(); t.Type {
-	case BACKTICK_IDENT, IDENT:
+	if t := ctx.peek(); isIdent(t) {
 		ctx.advance()
 		index.Name = model.MaybeIdent{
 			Valid: true,
@@ -1386,7 +1398,7 @@ OUTER:
 	for {
 		ctx.skipWhiteSpaces()
 		t := ctx.next()
-		if !(t.Type == IDENT || t.Type == BACKTICK_IDENT) {
+		if !isIdent(t) {
 			return nil, newParseError(ctx, t, "should IDENT or BACKTICK_IDENT")
 		}
 
@@ -1464,14 +1476,10 @@ func (p *Parser) parseColumnIndexOptionValue(ctx *parseCtx, index *model.Index, 
 	ctx.skipWhiteSpaces()
 	t := ctx.next()
 	for _, typ := range follow {
-		if typ != t.Type {
+		if !matchTokenType(t, typ) {
 			continue
 		}
-		var quotes bool
-		switch t.Type {
-		case IDENT, BACKTICK_IDENT:
-			quotes = true
-		}
+		quotes := isIdent(t)
 		index.Options = append(index.Options, model.NewIndexOption(name, t.Value, quotes))
 		return nil
 	}

@@ -32,16 +32,14 @@ jobs:
               'mariadb-11.8',   # LTS
               'mariadb-11.4',   # LTS
               'mariadb-10.11',  # LTS
-              'mariadb-10.6',   # LTS
-              'mariadb-10.5',   # LTS
           ]
           includes = []
           # MySQL versions compatibility check
           for v in mysql[1:]:
-              includes.append({'os': 'ubuntu-latest', 'mysql': v})
+              includes.append({'os': 'ubuntu-24.04-arm', 'mysql': v})
           matrix = {
               # OS vs Go versions
-              'os': [ 'ubuntu-latest', 'macos-latest', 'windows-latest' ],
+              'os': [ 'ubuntu-24.04-arm', 'xcode-27', 'windows-2025' ],
               'mysql': mysql[:1],
               'include': includes
           }
@@ -60,13 +58,13 @@ jobs:
 
     steps:
       - name: Check out code into the Go module directory
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
 
-      - uses: shogo82148/actions-setup-mysql@083ec148d28e62f2b24b8f4541693dfe1d50488d # v1.54.0
+      - uses: shogo82148/actions-setup-mysql@v1.56.2
         with:
           mysql-version: ${{ matrix.mysql }}
           user: ${{ env.SCHEMALEX_DATABASE_USER }}
@@ -78,7 +76,7 @@ jobs:
 
       - name: Send coverage
         if: always()
-        uses: shogo82148/actions-goveralls@77a1912dca42260ee3e97f61bd13ea7ef40baa93 # v1.11.2
+        uses: shogo82148/actions-goveralls@v1.11.5
         with:
           path-to-profile: profile.cov
           flag-name: Go-${{ matrix.go }}-OS-${{ matrix.os }}-MYSQL-${{ matrix.mysql }}
@@ -90,7 +88,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: shogo82148/actions-goveralls@77a1912dca42260ee3e97f61bd13ea7ef40baa93 # v1.11.2
+      - uses: shogo82148/actions-goveralls@v1.11.5
         with:
           parallel-finished: true
 
@@ -98,16 +96,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
 
       - name: Check GoReleaser configure
-        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        uses: goreleaser/goreleaser-action@v7.3.0
         with:
           version: "~> v2"
           args: check
@@ -116,10 +114,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code into the Go module directory
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
 
