@@ -22,10 +22,13 @@ type Token struct {
 }
 
 // Ident returns an identifier.
-// It is only meaningful if the Type is IDENT or BACKTICK_IDENT.
+// It is only meaningful if the Type is IDENT, BACKTICK_IDENT or a non-reserved keyword.
 // The caller must check it.
 func (t Token) Ident() model.Ident {
-	if t.Type != IDENT && t.Type != BACKTICK_IDENT {
+	switch {
+	case t.Type == IDENT, t.Type == BACKTICK_IDENT:
+	case t.Type.IsKeyword() && !t.Type.IsReservedKeyword():
+	default:
 		panic(fmt.Sprintf("unexpected type: %s", t.Type))
 	}
 	return model.Ident(t.Value)
@@ -308,6 +311,83 @@ var keywordIdentMap = map[string]TokenType{
 	"WITH":               WITH,
 	"YEAR":               YEAR,
 	"ZEROFILL":           ZEROFILL,
+}
+
+// IsKeyword reports whether t is a keyword.
+func (t TokenType) IsKeyword() bool {
+	return t >= ACTION && t <= ZEROFILL
+}
+
+// IsReservedKeyword reports whether t is a reserved word of MySQL.
+// Reserved words must be quoted to be used as identifiers,
+// while non-reserved keywords (IsKeyword() && !IsReservedKeyword()) are permitted without quoting.
+func (t TokenType) IsReservedKeyword() bool {
+	switch t {
+	case ASC,
+		BIGINT,
+		BINARY,
+		BLOB,
+		CASCADE,
+		CHAR,
+		CHARACTER,
+		CHECK,
+		COLLATE,
+		CONSTRAINT,
+		CREATE,
+		CURRENT_TIMESTAMP,
+		DATABASE,
+		DECIMAL,
+		DEFAULT,
+		DELETE,
+		DESC,
+		DOUBLE,
+		DROP,
+		EXISTS,
+		FALSE,
+		FLOAT,
+		FOREIGN,
+		FULLTEXT,
+		IF,
+		INDEX,
+		INT,
+		INTEGER,
+		KEY,
+		LIKE,
+		LONGBLOB,
+		LONGTEXT,
+		MATCH,
+		MEDIUMBLOB,
+		MEDIUMINT,
+		MEDIUMTEXT,
+		NOT,
+		NULL,
+		NUMERIC,
+		ON,
+		PRIMARY,
+		REAL,
+		REFERENCES,
+		RESTRICT,
+		SET,
+		SMALLINT,
+		SPATIAL,
+		TABLE,
+		TINYBLOB,
+		TINYINT,
+		TINYTEXT,
+		TRUE,
+		UNION,
+		UNIQUE,
+		UNSIGNED,
+		UPDATE,
+		USE,
+		USING,
+		VARBINARY,
+		VARCHAR,
+		WITH,
+		ZEROFILL:
+		return true
+	}
+	return false
 }
 
 func (t TokenType) String() string {
