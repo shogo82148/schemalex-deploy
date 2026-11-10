@@ -593,6 +593,41 @@ primary key (id, c)
 		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (/* comment */))",
 		Error: true,
 	})
+
+	// options that generated columns cannot have.
+	// MySQL rejects them with "Incorrect usage of ... and generated column" or a syntax error.
+	parse("GeneratedColumnWithDefault", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (a + 1) DEFAULT 1)",
+		Error: true,
+	})
+	parse("GeneratedColumnWithDefaultBefore", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT DEFAULT 1 AS (a + 1))",
+		Error: true,
+	})
+	parse("GeneratedColumnWithAutoIncrement", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (a + 1) AUTO_INCREMENT)",
+		Error: true,
+	})
+	parse("GeneratedColumnWithAutoIncrementBefore", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AUTO_INCREMENT GENERATED ALWAYS AS (a + 1))",
+		Error: true,
+	})
+	parse("GeneratedColumnWithOnUpdate", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b TIMESTAMP AS (now()) ON UPDATE CURRENT_TIMESTAMP)",
+		Error: true,
+	})
+	parse("GeneratedColumnWithOnUpdateBefore", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AS (now()))",
+		Error: true,
+	})
+	parse("GeneratedColumnDuplicated", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (a + 1) AS (a + 2))",
+		Error: true,
+	})
+	parse("GeneratedColumnDuplicatedLongForm", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT GENERATED ALWAYS AS (a + 1) STORED GENERATED ALWAYS AS (a + 2) VIRTUAL)",
+		Error: true,
+	})
 	parse("GeneratedColumnRedundantParens", &Spec{
 		Input: "CREATE TABLE t (" +
 			"a INT NOT NULL, " +
