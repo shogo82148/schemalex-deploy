@@ -191,38 +191,38 @@ var specs = []Spec{
 	{
 		Name: "change non-generated column to virtual generated column",
 		Before: []string{
-			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER )",
 		},
 		After: []string{
-			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) VIRTUAL NOT NULL )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) VIRTUAL )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` DROP COLUMN `b`, ADD COLUMN `b` INT (11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL NOT NULL AFTER `a`",
+			"ALTER TABLE `fuga` DROP COLUMN `b`, ADD COLUMN `b` INT (11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL AFTER `a`",
 		},
 	},
 	{
 		// MySQL can change non-generated <-> STORED by CHANGE COLUMN.
 		Name: "change non-generated column to stored generated column",
 		Before: []string{
-			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER )",
 		},
 		After: []string{
-			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) STORED NOT NULL )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) STORED )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` CHANGE COLUMN `b` `b` INT (11) GENERATED ALWAYS AS (`a` + 1) STORED NOT NULL",
+			"ALTER TABLE `fuga` CHANGE COLUMN `b` `b` INT (11) GENERATED ALWAYS AS (`a` + 1) STORED",
 		},
 	},
 	{
 		Name: "change stored generated column to non-generated column",
 		Before: []string{
-			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) STORED NOT NULL )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) STORED )",
 		},
 		After: []string{
-			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL )",
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER )",
 		},
 		Expect: []string{
-			"ALTER TABLE `fuga` CHANGE COLUMN `b` `b` INT (11) NOT NULL",
+			"ALTER TABLE `fuga` CHANGE COLUMN `b` `b` INT (11) DEFAULT NULL",
 		},
 	},
 	{
