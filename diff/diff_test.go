@@ -163,6 +163,93 @@ var specs = []Spec{
 		Expect: []string{},
 	},
 	{
+		// MySQL cannot change VIRTUAL <-> STORED by CHANGE COLUMN.
+		// the indexes on the column are kept when it is dropped and added in the same ALTER TABLE.
+		Name: "change generated column from virtual to stored",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) VIRTUAL, `c` INTEGER NOT NULL, INDEX `idx_b` (`b`) )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) STORED, `c` INTEGER NOT NULL, INDEX `idx_b` (`b`) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP COLUMN `b`, ADD COLUMN `b` INT (11) GENERATED ALWAYS AS (`a` + 1) STORED AFTER `a`",
+		},
+	},
+	{
+		Name: "change generated column from stored to virtual",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) STORED, INDEX `idx_ab` (`a`, `b`) )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 2) VIRTUAL, INDEX `idx_ab` (`a`, `b`) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP COLUMN `b`, ADD COLUMN `b` INT (11) GENERATED ALWAYS AS (`a` + 2) VIRTUAL AFTER `a`",
+		},
+	},
+	{
+		Name: "change non-generated column to virtual generated column",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) VIRTUAL NOT NULL )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP COLUMN `b`, ADD COLUMN `b` INT (11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL NOT NULL AFTER `a`",
+		},
+	},
+	{
+		// MySQL can change non-generated <-> STORED by CHANGE COLUMN.
+		Name: "change non-generated column to stored generated column",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) STORED NOT NULL )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` CHANGE COLUMN `b` `b` INT (11) GENERATED ALWAYS AS (`a` + 1) STORED NOT NULL",
+		},
+	},
+	{
+		Name: "change stored generated column to non-generated column",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) STORED NOT NULL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER NOT NULL )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` CHANGE COLUMN `b` `b` INT (11) NOT NULL",
+		},
+	},
+	{
+		Name: "change generated column from virtual to stored after a new column",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) VIRTUAL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `x` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) STORED, `y` INTEGER NOT NULL )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP COLUMN `b`, ADD COLUMN `x` INT (11) NOT NULL AFTER `a`, ADD COLUMN `b` INT (11) GENERATED ALWAYS AS (`a` + 1) STORED AFTER `x`, ADD COLUMN `y` INT (11) NOT NULL AFTER `b`",
+		},
+	},
+	{
+		Name: "change first generated column from virtual to stored",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `b` INTEGER AS (1) VIRTUAL, `id` INTEGER NOT NULL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `b` INTEGER AS (1) STORED, `id` INTEGER NOT NULL )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP COLUMN `b`, ADD COLUMN `b` INT (11) GENERATED ALWAYS AS (1) STORED FIRST",
+		},
+	},
+	{
 		Name: "change column with comment",
 		Before: []string{
 			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
@@ -506,6 +593,22 @@ func TestDiff(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestDiff_VirtualToNonGenerated(t *testing.T) {
+	// MySQL cannot change a VIRTUAL generated column into a non-generated column by CHANGE COLUMN,
+	// and dropping and adding the column again loses its values.
+	before := "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER AS (`a` + 1) VIRTUAL );"
+	after := "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL, `b` INTEGER );"
+
+	var buf bytes.Buffer
+	err := diff.Strings(&buf, before, after)
+	if err == nil {
+		t.Fatalf("want error, got nil: %s", buf.String())
+	}
+	if !strings.Contains(err.Error(), "virtual generated column") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 

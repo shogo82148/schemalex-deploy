@@ -23,6 +23,17 @@ func (s set) Difference(t set) set {
 	return u
 }
 
+func (s set) Union(t set) set {
+	u := newSet()
+	for item := range s {
+		u[item] = struct{}{}
+	}
+	for item := range t {
+		u[item] = struct{}{}
+	}
+	return u
+}
+
 func (s set) Intersect(t set) set {
 	u := newSet()
 	if len(s) < len(t) {
