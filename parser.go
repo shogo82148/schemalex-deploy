@@ -956,6 +956,9 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 			col.NullState = model.NullStateNull
 		case ON:
 			// for now, only applicable to ON UPDATE ...
+			if col.Generated.Valid {
+				return newParseError(ctx, t, "generated column cannot have ON UPDATE")
+			}
 			ctx.skipWhiteSpaces()
 			if t := ctx.next(); t.Type != UPDATE {
 				return newParseError(ctx, t, "expected ON UPDATE")
@@ -967,6 +970,9 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 		case DEFAULT:
 			if !check(coloptDefault) {
 				return newParseError(ctx, t, "cannot apply DEFAULT")
+			}
+			if col.Generated.Valid {
+				return newParseError(ctx, t, "generated column cannot have DEFAULT")
 			}
 			ctx.skipWhiteSpaces()
 			switch t := ctx.next(); t.Type {
@@ -995,6 +1001,9 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 		case AUTO_INCREMENT:
 			if !check(coloptAutoIncrement) {
 				return newParseError(ctx, t, "cannot apply AUTO_INCREMENT")
+			}
+			if col.Generated.Valid {
+				return newParseError(ctx, t, "generated column cannot have AUTO_INCREMENT")
 			}
 			col.AutoIncrement = true
 		case UNIQUE:
@@ -1048,6 +1057,9 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 			}
 		case GENERATED:
 			// GENERATED ALWAYS AS (expr) [VIRTUAL | STORED]
+			if err := checkGeneratedColumnOptions(ctx, t, col); err != nil {
+				return err
+			}
 			ctx.skipWhiteSpaces()
 			if t := ctx.next(); t.Type != ALWAYS {
 				return newParseError(ctx, t, "expected GENERATED ALWAYS")
@@ -1061,6 +1073,9 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 			}
 		case AS:
 			// AS (expr) [VIRTUAL | STORED]
+			if err := checkGeneratedColumnOptions(ctx, t, col); err != nil {
+				return err
+			}
 			if err := p.parseGeneratedColumn(ctx, col); err != nil {
 				return err
 			}
@@ -1524,6 +1539,23 @@ func (p *Parser) eol(ctx *parseCtx) bool {
 	default:
 		return false
 	}
+}
+
+// checkGeneratedColumnOptions reports an error if col has options
+// that a generated column cannot have.
+// The options after the generated column clause are checked in parseColumnOption.
+func checkGeneratedColumnOptions(ctx *parseCtx, t *Token, col *model.TableColumn) error {
+	switch {
+	case col.Generated.Valid:
+		return newParseError(ctx, t, "duplicate generated column clause")
+	case col.Default.Valid:
+		return newParseError(ctx, t, "generated column cannot have DEFAULT")
+	case col.AutoIncrement:
+		return newParseError(ctx, t, "generated column cannot have AUTO_INCREMENT")
+	case col.AutoUpdate.Valid:
+		return newParseError(ctx, t, "generated column cannot have ON UPDATE")
+	}
+	return nil
 }
 
 // isWrappedByParenTokens reports whether the first token is LPAREN and
