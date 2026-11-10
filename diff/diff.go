@@ -180,6 +180,12 @@ func (ctx *diffCtx) createTables() error {
 type alterCtx struct {
 	fromColumns set
 	toColumns   set
+
+	// recreateColumns are the columns that exist in both from and to,
+	// but cannot be changed by CHANGE COLUMN.
+	// They are dropped and added again.
+	recreateColumns set
+
 	fromIndexes set
 	toIndexes   set
 	from        *model.Table
@@ -228,7 +234,10 @@ func (ctx *diffCtx) alterTables() error {
 			}
 		}
 
-		alterCtx := newAlterCtx(ctx, beforeStmt, afterStmt, curStmt)
+		alterCtx, err := newAlterCtx(ctx, beforeStmt, afterStmt, curStmt)
+		if err != nil {
+			return fmt.Errorf("failed to generate alter table %q: %w", id, err)
+		}
 		for _, p := range procs {
 			if err := p(alterCtx); err != nil {
 				return fmt.Errorf("failed to generate alter table %q: %w", id, err)
@@ -242,7 +251,7 @@ func (ctx *diffCtx) alterTables() error {
 	return nil
 }
 
-func newAlterCtx(ctx *diffCtx, from, to, cur *model.Table) *alterCtx {
+func newAlterCtx(ctx *diffCtx, from, to, cur *model.Table) (*alterCtx, error) {
 	fromColumns := newSet()
 	for _, col := range from.Columns {
 		fromColumns.Add(col.ID())
@@ -251,6 +260,25 @@ func newAlterCtx(ctx *diffCtx, from, to, cur *model.Table) *alterCtx {
 	toColumns := newSet()
 	for _, col := range to.Columns {
 		toColumns.Add(col.ID())
+	}
+
+	recreateColumns := newSet()
+	for _, columnName := range toColumns.Intersect(fromColumns).ToSlice() {
+		fromCol, ok := from.LookupColumn(columnName)
+		if !ok {
+			return nil, fmt.Errorf("column not found in old schema: %q", columnName)
+		}
+		toCol, ok := to.LookupColumn(columnName)
+		if !ok {
+			return nil, fmt.Errorf("column not found in new schema: %q", columnName)
+		}
+		recreate, err := needsRecreateColumn(fromCol, toCol)
+		if err != nil {
+			return nil, err
+		}
+		if recreate {
+			recreateColumns.Add(columnName)
+		}
 	}
 
 	fromIndexes := newSet()
@@ -264,14 +292,38 @@ func newAlterCtx(ctx *diffCtx, from, to, cur *model.Table) *alterCtx {
 	}
 
 	return &alterCtx{
-		fromColumns: fromColumns,
-		toColumns:   toColumns,
-		fromIndexes: fromIndexes,
-		toIndexes:   toIndexes,
-		from:        from,
-		to:          to,
-		cur:         cur,
+		fromColumns:     fromColumns,
+		toColumns:       toColumns,
+		recreateColumns: recreateColumns,
+		fromIndexes:     fromIndexes,
+		toIndexes:       toIndexes,
+		from:            from,
+		to:              to,
+		cur:             cur,
+	}, nil
+}
+
+// needsRecreateColumn reports whether the column must be dropped and added again
+// to change it from `from` to `to`.
+//
+// MySQL does not support changing a column into or out of a VIRTUAL generated column by CHANGE COLUMN.
+// e.g. VIRTUAL <-> STORED, and non-generated -> VIRTUAL.
+// It fails with "ERROR 3106: 'Changing the STORED status' is not supported for generated columns."
+// https://dev.mysql.com/doc/refman/8.4/en/alter-table-generated-columns.html
+//
+// Dropping and adding the column again works for them, because the values of generated columns are computed.
+// However, it loses the values when changing a VIRTUAL generated column into a non-generated column,
+// so it is reported as an error.
+func needsRecreateColumn(from, to *model.TableColumn) (bool, error) {
+	fromVirtual := from.Generated.Valid && !from.Generated.Stored
+	toVirtual := to.Generated.Valid && !to.Generated.Stored
+	if fromVirtual == toVirtual {
+		return false, nil
 	}
+	if !to.Generated.Valid {
+		return false, fmt.Errorf("cannot change the virtual generated column %q into a non-generated column: it is not supported by MySQL, and dropping and adding the column again loses its values", from.Name)
+	}
+	return true, nil
 }
 
 // begin begins a new alter specification.
@@ -294,7 +346,7 @@ func (ctx *alterCtx) writeIdent(ident model.Ident) {
 }
 
 func (ctx *alterCtx) dropTableColumns() error {
-	columnNames := ctx.fromColumns.Difference(ctx.toColumns)
+	columnNames := ctx.fromColumns.Difference(ctx.toColumns).Union(ctx.recreateColumns)
 
 	for _, columnName := range columnNames.ToSlice() {
 		ctx.begin()
@@ -316,7 +368,7 @@ func (ctx *alterCtx) addTableColumns() error {
 	// we always start adding with a column that has a either no before
 	// columns, or one that already exists in the database
 	var firstColumn *model.TableColumn
-	for _, columnName := range ctx.toColumns.Difference(ctx.fromColumns).ToSlice() {
+	for _, columnName := range ctx.toColumns.Difference(ctx.fromColumns).Union(ctx.recreateColumns).ToSlice() {
 		// find the before-column for each.
 		col, ok := ctx.to.LookupColumn(columnName)
 		if !ok {
@@ -344,7 +396,7 @@ func (ctx *alterCtx) addTableColumns() error {
 	var columnNames []string
 	// Find columns that have before columns which existed in both
 	// from and to tables
-	for _, columnName := range ctx.toColumns.Intersect(ctx.fromColumns).ToSlice() {
+	for _, columnName := range ctx.toColumns.Intersect(ctx.fromColumns).Difference(ctx.recreateColumns).ToSlice() {
 		if nextColumnName, ok := beforeToNext[columnName]; ok {
 			delete(beforeToNext, columnName)
 			delete(nextToBefore, nextColumnName)
@@ -402,7 +454,7 @@ func (ctx *alterCtx) writeAddColumn(columnNames ...string) error {
 }
 
 func (ctx *alterCtx) alterTableColumns() error {
-	columnNames := ctx.toColumns.Intersect(ctx.fromColumns)
+	columnNames := ctx.toColumns.Intersect(ctx.fromColumns).Difference(ctx.recreateColumns)
 	for _, columnName := range columnNames.ToSlice() {
 		beforeColumnStmt, ok := ctx.from.LookupColumn(columnName)
 		if !ok {
