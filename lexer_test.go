@@ -94,6 +94,37 @@ func TestLexToken(t *testing.T) {
 			input: `'ho\'ge'`,
 			token: Token{Value: `ho'ge`, Type: SINGLE_QUOTE_IDENT},
 		},
+		{
+			input: `"ho\"ge"`,
+			token: Token{Value: `ho"ge`, Type: DOUBLE_QUOTE_IDENT},
+		},
+		// a backslash escapes any character, including another backslash.
+		// escape sequences other than the quote are kept as they are.
+		{
+			input: `'\\'`,
+			token: Token{Value: `\\`, Type: SINGLE_QUOTE_IDENT},
+		},
+		{
+			input: `'a\\', b`,
+			token: Token{Value: `a\\`, Type: SINGLE_QUOTE_IDENT},
+		},
+		{
+			input: `'\\\''`,
+			token: Token{Value: `\\'`, Type: SINGLE_QUOTE_IDENT},
+		},
+		{
+			input: `'a\nb'`,
+			token: Token{Value: `a\nb`, Type: SINGLE_QUOTE_IDENT},
+		},
+		{
+			input: `"\\"`,
+			token: Token{Value: `\\`, Type: DOUBLE_QUOTE_IDENT},
+		},
+		// a backslash is not an escape character in quoted identifiers.
+		{
+			input: "`a\\`",
+			token: Token{Value: `a\`, Type: BACKTICK_IDENT},
+		},
 	}
 
 	for _, spec := range specs {
