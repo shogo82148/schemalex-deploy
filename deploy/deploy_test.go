@@ -188,3 +188,140 @@ func TestImport(t *testing.T) {
 		}
 	})
 }
+
+// https://github.com/shogo82148/schemalex-deploy/issues/309
+// MySQL rewrites the expressions of generated columns into its own form,
+// e.g. `a + 1` into `(`a` + 1)`.
+// It should not produce CHANGE COLUMN for equivalent expressions after importing the schema.
+func TestImportGeneratedColumns(t *testing.T) {
+	database.SkipIfNoTestDatabase(t)
+
+	tests := []struct {
+		name string
+		ddl  string
+	}{
+		{
+			name: "arithmetic",
+			ddl: `CREATE TABLE t (
+				id INTEGER NOT NULL AUTO_INCREMENT,
+				a INTEGER NOT NULL,
+				b INTEGER AS (a + 1),
+				c INTEGER AS (b * 2) STORED,
+				PRIMARY KEY (id),
+				INDEX idx_b (b)
+			);
+`,
+		},
+		{
+			name: "string literals",
+			ddl: `CREATE TABLE t (
+				s VARCHAR(10) NOT NULL,
+				x VARCHAR(20) AS (concat(s, 'x')) STORED,
+				y VARCHAR(20) AS (CONCAT(s, "y", ')'))
+			);
+`,
+		},
+		{
+			name: "json functions",
+			ddl: `CREATE TABLE t (
+				doc JSON,
+				id INTEGER AS (json_unquote(json_extract(doc, '$.id')))
+			);
+`,
+		},
+		{
+			// MariaDB does not support the ->> operator.
+			name: "json operator",
+			ddl: `CREATE TABLE t (
+				doc JSON,
+				id INTEGER AS (doc->>'$.id')
+			);
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			rawDB, cleanup := database.SetupTestDB()
+			defer cleanup()
+			db := &DB{
+				db: rawDB,
+			}
+
+			if _, err := db.db.ExecContext(ctx, tt.ddl); err != nil {
+				t.Skipf("skip because the error: %v", err)
+			}
+
+			sqlText, err := db.LoadSchema(ctx)
+			if err != nil {
+				t.Fatalf("failed to load schema: %v", err)
+			}
+			if err := db.Import(ctx, sqlText); err != nil {
+				t.Fatalf("failed to import: %v", err)
+			}
+
+			plan, err := db.Plan(ctx, tt.ddl)
+			if err != nil {
+				t.Fatalf("failed to plan: %v", err)
+			}
+			if len(plan.Stmts) > 0 {
+				t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+			}
+		})
+	}
+
+	t.Run("changed expression", func(t *testing.T) {
+		ctx := t.Context()
+		rawDB, cleanup := database.SetupTestDB()
+		defer cleanup()
+		db := &DB{
+			db: rawDB,
+		}
+
+		const before = `CREATE TABLE t (
+			a INTEGER NOT NULL,
+			b INTEGER AS (a + 1),
+			c INTEGER AS (a + 2) STORED
+		);
+`
+		if _, err := db.db.ExecContext(ctx, before); err != nil {
+			t.Fatal(err)
+		}
+		sqlText, err := db.LoadSchema(ctx)
+		if err != nil {
+			t.Fatalf("failed to load schema: %v", err)
+		}
+		if err := db.Import(ctx, sqlText); err != nil {
+			t.Fatalf("failed to import: %v", err)
+		}
+
+		// change only the expression of c.
+		const after = `CREATE TABLE t (
+			a INTEGER NOT NULL,
+			b INTEGER AS (a + 1),
+			c INTEGER AS (a + 3) STORED
+		);
+`
+		plan, err := db.Plan(ctx, after)
+		if err != nil {
+			t.Fatalf("failed to plan: %v", err)
+		}
+		want := "ALTER TABLE `t` CHANGE COLUMN `c` `c` INT (11) GENERATED ALWAYS AS (a + 3) STORED"
+		if len(plan.Stmts) != 1 || string(plan.Stmts[0]) != want {
+			t.Errorf("want %q, got %q", want, plan.Stmts)
+		}
+
+		// deploy the plan, and then no diff is detected.
+		if err := db.Deploy(ctx, plan); err != nil {
+			t.Fatalf("failed to deploy: %v", err)
+		}
+		plan, err = db.Plan(ctx, after)
+		if err != nil {
+			t.Fatalf("failed to plan: %v", err)
+		}
+		if len(plan.Stmts) > 0 {
+			t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+		}
+	})
+}
