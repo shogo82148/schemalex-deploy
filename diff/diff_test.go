@@ -804,7 +804,7 @@ func TestDiff_Integrated(t *testing.T) {
 				if err := row.Scan(&tmp, &create2); err != nil {
 					t.Fatal(err)
 				}
-				if diff := cmp.Diff(tables1, tables2); diff != "" {
+				if diff := cmp.Diff(create1, create2); diff != "" {
 					t.Errorf("table %s definition is unmatched: (-migrated/+directly)\n%s", tbl, diff)
 				}
 			}
@@ -1015,7 +1015,7 @@ func TestDiffWithAutoNamedObjects_Integrated(t *testing.T) {
 				if err := row.Scan(&tmp, &create2); err != nil {
 					t.Fatal(err)
 				}
-				if diff := cmp.Diff(tables1, tables2); diff != "" {
+				if diff := cmp.Diff(create1, create2); diff != "" {
 					t.Errorf("table %s definition is unmatched: (-migrated/+directly)\n%s", tbl, diff)
 				}
 			}
