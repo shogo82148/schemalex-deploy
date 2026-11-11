@@ -713,4 +713,97 @@ primary key (id, c)
 			"`int` INT (11) DEFAULT NULL\n" +
 			");\n",
 	})
+
+	// quotes in string literals are escaped.
+	parse("QuoteInDefault", &Spec{
+		Input: "CREATE TABLE t (a VARCHAR(10) DEFAULT 'it''s', b VARCHAR(10) DEFAULT 'it\\'s')",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` VARCHAR (10) DEFAULT 'it''s',\n" +
+			"`b` VARCHAR (10) DEFAULT 'it''s'\n" +
+			");\n",
+	})
+	parse("QuoteInDoubleQuotedDefault", &Spec{
+		Input: `CREATE TABLE t (a VARCHAR(10) DEFAULT "'", b VARCHAR(10) DEFAULT "say ""hi"" \"x\"")`,
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` VARCHAR (10) DEFAULT '''',\n" +
+			"`b` VARCHAR (10) DEFAULT 'say \"hi\" \"x\"'\n" +
+			");\n",
+	})
+	parse("EscapedQuoteInDoubleQuotedDefault", &Spec{
+		// the lexer keeps \' in a double-quoted string as it is,
+		// so the value is written in double quotes.
+		Input: `CREATE TABLE t (a VARCHAR(10) DEFAULT "it\'s ""x""")`,
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` VARCHAR (10) DEFAULT \"it\\'s \"\"x\"\"\"\n" +
+			");\n",
+	})
+	parse("EscapeSequenceInDefault", &Spec{
+		Input: `CREATE TABLE t (a VARCHAR(10) DEFAULT 'a\n''b')`,
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` VARCHAR (10) DEFAULT 'a\\n''b'\n" +
+			");\n",
+	})
+	parse("QuoteInComment", &Spec{
+		Input: "CREATE TABLE t (a INT COMMENT 'it''s')",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL COMMENT 'it''s'\n" +
+			");\n",
+	})
+	parse("QuoteInEnum", &Spec{
+		Input: `CREATE TABLE t (a ENUM('it''s', "b'"))`,
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` ENUM ('it''s','b''') DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("QuoteInSet", &Spec{
+		Input: "CREATE TABLE t (a SET('it''s', 'b'))",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` SET ('it''s','b') DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("QuoteInTableComment", &Spec{
+		Input: `CREATE TABLE t (a INT) COMMENT = "it's"`,
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			") COMMENT = 'it''s';\n",
+	})
+}
+
+func TestFormatRoundTrip(t *testing.T) {
+	tests := []string{
+		"CREATE TABLE t (a VARCHAR(10) DEFAULT 'it''s')",
+		"CREATE TABLE t (a VARCHAR(10) DEFAULT 'it\\'s')",
+		`CREATE TABLE t (a VARCHAR(10) DEFAULT "'")`,
+		`CREATE TABLE t (a VARCHAR(10) DEFAULT "it\'s")`,
+		`CREATE TABLE t (a VARCHAR(10) DEFAULT "say ""hi"" \"x\"")`,
+		`CREATE TABLE t (a VARCHAR(10) DEFAULT 'a\n''b')`,
+		"CREATE TABLE t (a INT COMMENT 'it''s')",
+		`CREATE TABLE t (a ENUM('it''s', "b'") DEFAULT 'it''s')`,
+		"CREATE TABLE t (a SET('it''s', 'b'))",
+		`CREATE TABLE t (a INT) COMMENT = "it's"`,
+		"CREATE TABLE t (a INT) COMMENT = 'it''s'",
+	}
+	for _, ddl0 := range tests {
+		t.Run(ddl0, func(t *testing.T) {
+			p := schemalex.New()
+			stmts0, err := p.ParseString(ddl0)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var buf strings.Builder
+			if err := SQL(&buf, stmts0); err != nil {
+				t.Fatal(err)
+			}
+			ddl1 := buf.String()
+
+			stmts1, err := p.ParseString(ddl1)
+			if err != nil {
+				t.Fatalf("failed to parse %q: %v", ddl1, err)
+			}
+			if diff := cmp.Diff(stmts0, stmts1); diff != "" {
+				t.Errorf("(-want/+got):\n%s", diff)
+			}
+		})
+	}
 }
