@@ -1,6 +1,7 @@
 package schemalex
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strconv"
@@ -58,6 +59,9 @@ type parseCtx struct {
 	input  []byte
 	lexsrc []*Token
 	idx    int
+
+	// executableCommentMarkers is the set of the tokens that open or close executable comments.
+	executableCommentMarkers map[*Token]struct{}
 }
 
 func newParseCtx() *parseCtx {
@@ -122,60 +126,172 @@ func (p *Parser) ParseString(src string) (model.Stmts, error) {
 // model.Stmts structure.
 // If it encounters errors while parsing, the returned error will be a
 // ParseError type.
+//
+// The content of executable comments (`/*! ... */` and `/*!NNNNN ... */`) is parsed as SQL,
+// regardless of the version number, i.e. the latest MySQL is assumed.
+// If an executable comment contains syntax that is not supported,
+// the comment is ignored as an ordinary comment.
+// This allows parsing the output of SHOW CREATE TABLE and mysqldump,
+// which use executable comments for syntax such as PARTITION BY and INVISIBLE.
 func (p *Parser) Parse(src []byte) (model.Stmts, error) {
+	l := newLexer(src)
+	l.run()
+
 	ctx := newParseCtx()
 	ctx.input = src
-	ctx.lexsrc = lex(src)
+	ctx.lexsrc = l.out
+	ctx.executableCommentMarkers = l.executableCommentMarkers
 
-	var stmts model.Stmts
-LOOP:
+	type parsedStmt struct {
+		stmt       model.Stmt
+		start, end int // the range of the tokens of the statement
+	}
+	var parsed []parsedStmt
 	for {
 		ctx.skipWhiteSpaces()
-		switch t := ctx.peek(); t.Type {
-		case CREATE:
-			stmt, err := p.parseCreate(ctx)
-			if err != nil {
-				if myerrors.IsIgnorable(err) {
-					// this is ignorable.
-					continue
-				}
-				if pe, ok := err.(ParseError); ok {
-					return nil, pe
-				}
-				return nil, fmt.Errorf("failed to parse create: %w", err)
+		start := ctx.idx
+		stmt, err := p.parseStatement(ctx)
+		if err == errEndOfStatements {
+			break
+		}
+		if err != nil {
+			begin, ok := ctx.ignoreExecutableComment(err)
+			if !ok {
+				return nil, err
 			}
-			stmts = append(stmts, stmt)
-		case COMMENT_IDENT:
-			ctx.advance()
-		case DROP, SET, USE:
-			// We don't do anything about these
-		S1:
-			for {
-				switch t := ctx.peek(); t.Type {
-				case SEMICOLON:
-					ctx.advance()
-					fallthrough
-				case EOF:
-					break S1
-				default:
-					ctx.advance()
-				}
+
+			// the statements that overlap with the ignored comment need to be parsed again.
+			ctx.idx = min(begin, start)
+			for len(parsed) > 0 && parsed[len(parsed)-1].end > begin {
+				ctx.idx = min(ctx.idx, parsed[len(parsed)-1].start)
+				parsed = parsed[:len(parsed)-1]
 			}
-		case SEMICOLON:
-			// you could have statements where it's just empty, followed by a
-			// semicolon. These are just empty lines, so we just skip and go
-			// process the next statement
-			ctx.advance()
 			continue
-		case EOF:
-			ctx.advance()
-			break LOOP
-		default:
-			return nil, newParseError(ctx, t, "expected CREATE, COMMENT_IDENT, SEMICOLON or EOF")
+		}
+		if stmt != nil {
+			parsed = append(parsed, parsedStmt{stmt: stmt, start: start, end: ctx.idx})
 		}
 	}
 
+	var stmts model.Stmts
+	for _, s := range parsed {
+		stmts = append(stmts, s.stmt)
+	}
 	return stmts, nil
+}
+
+// errEndOfStatements is returned by parseStatement when it reaches the end of the input.
+var errEndOfStatements = errors.New("end of statements")
+
+// parseStatement parses a statement.
+// It returns nil statement if the statement is ignored.
+func (p *Parser) parseStatement(ctx *parseCtx) (model.Stmt, error) {
+	switch t := ctx.peek(); t.Type {
+	case CREATE:
+		stmt, err := p.parseCreate(ctx)
+		if err != nil {
+			if myerrors.IsIgnorable(err) {
+				// this is ignorable.
+				return nil, nil
+			}
+			if pe, ok := err.(ParseError); ok {
+				return nil, pe
+			}
+			return nil, fmt.Errorf("failed to parse create: %w", err)
+		}
+		return stmt, nil
+	case DROP, SET, USE:
+		// We don't do anything about these
+		for {
+			switch t := ctx.peek(); t.Type {
+			case SEMICOLON:
+				ctx.advance()
+				return nil, nil
+			case EOF:
+				return nil, nil
+			default:
+				ctx.advance()
+			}
+		}
+	case SEMICOLON:
+		// you could have statements where it's just empty, followed by a
+		// semicolon. These are just empty lines, so we just skip and go
+		// process the next statement
+		ctx.advance()
+		return nil, nil
+	case EOF:
+		ctx.advance()
+		return nil, errEndOfStatements
+	default:
+		return nil, newParseError(ctx, t, "expected CREATE, COMMENT_IDENT, SEMICOLON or EOF")
+	}
+}
+
+// isExecutableCommentMarker reports whether t opens or closes an executable comment.
+func (pctx *parseCtx) isExecutableCommentMarker(t *Token) bool {
+	_, ok := pctx.executableCommentMarkers[t]
+	return ok
+}
+
+// ignoreExecutableComment finds the executable comment where err was encountered,
+// and replaces it with an ordinary comment.
+// It returns the index of the replaced comment token.
+// It returns false if err was not encountered in an executable comment.
+func (pctx *parseCtx) ignoreExecutableComment(err error) (int, bool) {
+	var pe *parseError
+	if !errors.As(err, &pe) {
+		return 0, false
+	}
+
+	// find the executable comment that contains pe.pos.
+	begin, end := -1, -1
+	open := -1
+	for i, t := range pctx.lexsrc {
+		if !pctx.isExecutableCommentMarker(t) {
+			continue
+		}
+		if open < 0 {
+			if t.Pos > pe.pos {
+				// the comments after the error are not related.
+				break
+			}
+			open = i
+			continue
+		}
+		// t closes the comment opened at open.
+		if pe.pos < t.Pos+len(t.Value) {
+			begin, end = open, i
+			break
+		}
+		open = -1
+	}
+	if begin < 0 {
+		if open < 0 {
+			return 0, false
+		}
+		// the comment is not closed until the end of the input.
+		begin, end = open, len(pctx.lexsrc)-1
+		if pctx.lexsrc[end].Type == EOF {
+			end--
+		}
+	}
+
+	// replace the tokens from begin to end with an ordinary comment.
+	// the values of the tokens may be unescaped, so use the position of the next token as the end.
+	first := pctx.lexsrc[begin]
+	endPos := len(pctx.input)
+	if end+1 < len(pctx.lexsrc) {
+		endPos = pctx.lexsrc[end+1].Pos
+	}
+	comment := &Token{
+		Type:  COMMENT_IDENT,
+		Value: string(pctx.input[first.Pos:endPos]),
+		Pos:   first.Pos,
+		Line:  first.Line,
+		Col:   first.Col,
+	}
+	pctx.lexsrc = append(pctx.lexsrc[:begin], append([]*Token{comment}, pctx.lexsrc[end+1:]...)...)
+	return begin, true
 }
 
 func (p *Parser) parseCreate(ctx *parseCtx) (model.Stmt, error) {
@@ -355,7 +471,7 @@ func (p *Parser) parseCreateTableFields(ctx *parseCtx, stmt *model.Table) error 
 				return err
 			}
 			// partition option
-			if !p.eol(ctx) {
+			if t, ok := p.eol(ctx); !ok {
 				return newParseError(ctx, t, "expected EOL")
 			}
 			return nil
@@ -1533,15 +1649,19 @@ func (p *Parser) parseIdents(ctx *parseCtx, idents ...TokenType) ([]string, erro
 	return strs, nil
 }
 
-// TODO: revisit what exactly this eol is meant to do
-func (p *Parser) eol(ctx *parseCtx) bool {
+// eol consumes the end of the statement: a SEMICOLON or EOF.
+// It returns the unexpected token if the statement does not end.
+func (p *Parser) eol(ctx *parseCtx) (*Token, bool) {
 	ctx.skipWhiteSpaces()
-	switch t := ctx.next(); t.Type {
-	case EOF, SEMICOLON:
+	switch t := ctx.peek(); t.Type {
+	case SEMICOLON:
 		ctx.advance()
-		return true
+		return t, true
+	case EOF:
+		// leave EOF for the caller
+		return t, true
 	default:
-		return false
+		return t, false
 	}
 }
 
@@ -1583,6 +1703,32 @@ func isWrappedByParenTokens(tokens []*Token) bool {
 	return false
 }
 
+// removeExecutableCommentMarkers returns input[start:end] without the markers of executable comments,
+// i.e. `/*!`, `/*!NNNNN` and `*/`, so that the content of the comments remains.
+// The spaces around the removed markers are squashed.
+func removeExecutableCommentMarkers(input []byte, start, end int, markers []*Token) string {
+	var buf strings.Builder
+	pos := start
+	squash := false
+	write := func(b []byte) {
+		if squash && buf.Len() > 0 && isSpace(rune(buf.String()[buf.Len()-1])) {
+			b = bytes.TrimLeft(b, " \t\r\n")
+		}
+		buf.Write(b)
+	}
+	for _, m := range markers {
+		mStart, mEnd := m.Pos, m.Pos+len(m.Value)
+		if mStart < start || mEnd > end {
+			continue
+		}
+		write(input[pos:mStart])
+		pos = mEnd
+		squash = true
+	}
+	write(input[pos:end])
+	return buf.String()
+}
+
 // parseGeneratedColumn parses `(expr) [VIRTUAL | STORED]` of a generated column definition.
 // The expression is stored as it is written in the source,
 // except for redundant outermost parentheses.
@@ -1598,6 +1744,7 @@ func (p *Parser) parseGeneratedColumn(ctx *parseCtx, col *model.TableColumn) err
 	// string literals and quoted identifiers are single tokens,
 	// so parentheses inside them are not counted.
 	tokens := []*Token{t}
+	var markers []*Token // the markers of executable comments in the expression
 	depth := 1
 	for depth > 0 {
 		t := ctx.next()
@@ -1609,6 +1756,9 @@ func (p *Parser) parseGeneratedColumn(ctx *parseCtx, col *model.TableColumn) err
 		case EOF:
 			return newParseError(ctx, t, "expected RPAREN (generated column expression)")
 		case SPACE, COMMENT_IDENT:
+			if ctx.isExecutableCommentMarker(t) {
+				markers = append(markers, t)
+			}
 			continue
 		}
 		tokens = append(tokens, t)
@@ -1623,11 +1773,11 @@ func (p *Parser) parseGeneratedColumn(ctx *parseCtx, col *model.TableColumn) err
 		tokens = tokens[1 : len(tokens)-1]
 	}
 	if len(tokens) == 0 {
-		// e.g. `AS ()`, `AS (())`, `AS (/* comment */)`
+		// e.g. `AS ()`, `AS (())`, `AS (/* comment */)`, `AS (/*! */)`
 		return newParseError(ctx, closing, "empty generated column expression")
 	}
 	col.Generated.Valid = true
-	col.Generated.Expr = strings.TrimSpace(string(ctx.input[start:end]))
+	col.Generated.Expr = strings.TrimSpace(removeExecutableCommentMarkers(ctx.input, start, end, markers))
 
 	ctx.skipWhiteSpaces()
 	switch t := ctx.peek(); t.Type {

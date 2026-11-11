@@ -594,6 +594,38 @@ primary key (id, c)
 		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (/* comment */))",
 		Error: true,
 	})
+	parse("GeneratedColumnEmptyExpressionWithExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (/*!80000 */))",
+		Error: true,
+	})
+	parse("GeneratedColumnInExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (/*! a + 1 */))",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) GENERATED ALWAYS AS (a + 1) VIRTUAL\n" +
+			");\n",
+	})
+	parse("GeneratedColumnInVersionedExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (/*!80000 (a + 1) */) STORED)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) GENERATED ALWAYS AS (a + 1) STORED\n" +
+			");\n",
+	})
+	parse("GeneratedColumnPartlyInExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (a /*! + 1 */))",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) GENERATED ALWAYS AS (a + 1) VIRTUAL\n" +
+			");\n",
+	})
+	parse("GeneratedColumnWithExecutableCommentClause", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT /*!50700 AS (a + 1) STORED */)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) GENERATED ALWAYS AS (a + 1) STORED\n" +
+			");\n",
+	})
 
 	// options that generated columns cannot have.
 	// MySQL rejects them with "Incorrect usage of ... and generated column" or a syntax error.
@@ -848,6 +880,97 @@ primary key (id, c)
 		Expect: "CREATE TABLE `t` (\n" +
 			"`a` INT (11) DEFAULT NULL\n" +
 			") COMMENT = 'it''s';\n",
+	})
+
+	// https://github.com/shogo82148/schemalex-deploy/issues/312
+	// The content of executable comments is parsed as SQL.
+	// The version number is ignored, i.e. the latest MySQL is assumed.
+	// https://dev.mysql.com/doc/refman/26.10/en/comments.html
+	parse("StatementsWithoutSpaces", &Spec{
+		Input: "CREATE TABLE a (x INT);CREATE TABLE b (y INT)",
+		Expect: "CREATE TABLE `a` (\n" +
+			"`x` INT (11) DEFAULT NULL\n" +
+			");\n" +
+			"CREATE TABLE `b` (\n" +
+			"`y` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("ExecutableCommentColumnOptions", &Spec{
+		Input: "CREATE TABLE t (a INT /*! NOT NULL */, b INT /*!99999 DEFAULT 1 */, c INT /*!100000 COMMENT 'c' */)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) DEFAULT 1,\n" +
+			"`c` INT (11) DEFAULT NULL COMMENT 'c'\n" +
+			");\n",
+	})
+	parse("ExecutableCommentStatement", &Spec{
+		Input: "/*!40101 CREATE TABLE t (a INT) */;",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("ExecutableCommentTableOptions", &Spec{
+		Input: "CREATE TABLE t (a INT) /*!50000 ENGINE=InnoDB */ /*!50100 DEFAULT CHARSET=utf8mb4 */",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4;\n",
+	})
+	parse("MariaDBExecutableComment", &Spec{
+		// MySQL treats MariaDB-specific executable comments as ordinary comments.
+		Input: "CREATE TABLE t (a INT /*M!100100 NOT NULL */)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+
+	// Executable comments containing unsupported syntax are ignored as ordinary comments,
+	// so that the output of SHOW CREATE TABLE and mysqldump can be parsed.
+	parse("UnsupportedSyntaxInExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT, b INT /*!80023 INVISIBLE */, KEY idx_a (a) /*!80000 INVISIBLE */)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"`b` INT (11) DEFAULT NULL,\n" +
+			"INDEX `idx_a` (`a`)\n" +
+			");\n",
+	})
+	parse("UnsupportedSyntaxInExecutableCommentIgnoresWholeComment", &Spec{
+		Input: "CREATE TABLE t (a INT /*!80023 NOT NULL INVISIBLE */)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("UnsupportedStatementInExecutableComment", &Spec{
+		// a part of mysqldump output for views.
+		Input: "/*!50001 DROP VIEW IF EXISTS `v`*/;\n" +
+			"/*!50001 SET @saved_cs_client          = @@character_set_client */;\n" +
+			"/*!50001 CREATE ALGORITHM=UNDEFINED */\n" +
+			"/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */\n" +
+			"/*!50001 VIEW `v` AS select 1 AS `a` */;\n" +
+			"/*!50001 SET character_set_client      = @saved_cs_client */;\n" +
+			"CREATE TABLE t (a INT);",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("StatementsInIgnoredExecutableComment", &Spec{
+		// the whole comment is ignored, including the statements before the unsupported one.
+		Input: "/*!50001 CREATE TABLE a (x INT); CREATE VIEW v AS SELECT 1 */;\n" +
+			"CREATE TABLE b (y INT);",
+		Expect: "CREATE TABLE `b` (\n" +
+			"`y` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("UnsupportedSyntaxOutsideExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT, KEY idx_a (a) INVISIBLE)",
+		Error: true,
+	})
+	parse("PartitionOutsideExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT) PARTITION BY HASH(a)",
+		Error: true,
+	})
+	parse("UnterminatedExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT /*! NOT NULL",
+		Error: true,
 	})
 }
 

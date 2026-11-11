@@ -151,3 +151,115 @@ func TestLexToken(t *testing.T) {
 		})
 	}
 }
+
+func TestLexExecutableComment(t *testing.T) {
+	type tok struct {
+		Type  TokenType
+		Value string
+	}
+	testCases := []struct {
+		input string
+		want  []tok
+	}{
+		{
+			// the content of an executable comment is lexed as SQL.
+			input: "/*! NOT NULL */",
+			want: []tok{
+				{COMMENT_IDENT, "/*!"},
+				{SPACE, " "},
+				{NOT, "NOT"},
+				{SPACE, " "},
+				{NULL, "NULL"},
+				{SPACE, " "},
+				{COMMENT_IDENT, "*/"},
+				{EOF, ""},
+			},
+		},
+		{
+			// a 5-digit version number.
+			input: "/*!80000 INVISIBLE*/",
+			want: []tok{
+				{COMMENT_IDENT, "/*!80000"},
+				{SPACE, " "},
+				{IDENT, "INVISIBLE"},
+				{COMMENT_IDENT, "*/"},
+				{EOF, ""},
+			},
+		},
+		{
+			// a 6-digit version number.
+			input: "/*!100000NULL*/",
+			want: []tok{
+				{COMMENT_IDENT, "/*!100000"},
+				{NULL, "NULL"},
+				{COMMENT_IDENT, "*/"},
+				{EOF, ""},
+			},
+		},
+		{
+			// 7 digits: the first 5 digits are the version number.
+			input: "/*!1000000*/",
+			want: []tok{
+				{COMMENT_IDENT, "/*!10000"},
+				{NUMBER, "00"},
+				{COMMENT_IDENT, "*/"},
+				{EOF, ""},
+			},
+		},
+		{
+			// less than 5 digits is not a version number.
+			input: "/*!1234*/",
+			want: []tok{
+				{COMMENT_IDENT, "/*!"},
+				{NUMBER, "1234"},
+				{COMMENT_IDENT, "*/"},
+				{EOF, ""},
+			},
+		},
+		{
+			// "*/" in a string literal does not close the comment.
+			input: "/*! '*/' */",
+			want: []tok{
+				{COMMENT_IDENT, "/*!"},
+				{SPACE, " "},
+				{SINGLE_QUOTE_IDENT, "*/"},
+				{SPACE, " "},
+				{COMMENT_IDENT, "*/"},
+				{EOF, ""},
+			},
+		},
+		{
+			// ordinary comments, optimizer hints and MariaDB-specific comments are not executable comments.
+			input: "/* a */ /*+ b */ /*M!100100 c */",
+			want: []tok{
+				{COMMENT_IDENT, "/* a */"},
+				{SPACE, " "},
+				{COMMENT_IDENT, "/*+ b */"},
+				{SPACE, " "},
+				{COMMENT_IDENT, "/*M!100100 c */"},
+				{EOF, ""},
+			},
+		},
+		{
+			// "*/" outside of executable comments is not a comment.
+			input: "*/",
+			want: []tok{
+				{ILLEGAL, "*"},
+				{SLASH, "/"},
+				{EOF, ""},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.input, func(t *testing.T) {
+			var got []tok
+			for _, t := range lex([]byte(tc.input)) {
+				got = append(got, tok{t.Type, t.Value})
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("tokens mismatch: (-want/+got):\n%s", diff)
+			}
+		})
+	}
+}

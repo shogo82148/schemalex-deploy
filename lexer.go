@@ -30,12 +30,27 @@ type lexer struct {
 	start position // position where we last emitted
 	cur   position // current position including read-ahead
 	width int
+
+	// inExecutableComment is true while the lexer is in an executable comment.
+	inExecutableComment bool
+
+	// executableCommentMarkers is the set of the tokens that open or close executable comments.
+	executableCommentMarkers map[*Token]struct{}
 }
 
 func lex(input []byte) []*Token {
 	l := newLexer(input)
 	l.run()
 	return l.out
+}
+
+// emitExecutableCommentMarker emits a COMMENT_IDENT token that opens or closes an executable comment.
+func (l *lexer) emitExecutableCommentMarker() {
+	l.emit(COMMENT_IDENT)
+	if l.executableCommentMarkers == nil {
+		l.executableCommentMarkers = make(map[*Token]struct{})
+	}
+	l.executableCommentMarkers[l.out[len(l.out)-1]] = struct{}{}
 }
 
 func newLexer(input []byte) *lexer {
@@ -144,11 +159,30 @@ OUTER:
 		case '/':
 			switch c := l.peek(); c {
 			case '*':
+				l.advance()
+				if !l.inExecutableComment && l.peek() == '!' {
+					// an executable comment: `/*! ... */` or `/*!NNNNN ... */`
+					// its content is lexed as SQL.
+					l.advance()
+					l.skipVersionNumber()
+					l.inExecutableComment = true
+					l.emitExecutableCommentMarker()
+					continue OUTER
+				}
 				l.runCComment()
 				l.emit(COMMENT_IDENT)
 			default:
 				l.emit(SLASH)
 			}
+		case '*':
+			if l.inExecutableComment && l.peek() == '/' {
+				// the end of the executable comment
+				l.advance()
+				l.inExecutableComment = false
+				l.emitExecutableCommentMarker()
+				continue OUTER
+			}
+			l.emit(ILLEGAL)
 		case '-':
 			switch r1 := l.peek(); {
 			case r1 == '-':
@@ -324,6 +358,31 @@ func (l *lexer) runQuote(pair rune, backslash bool) error {
 				return nil
 			}
 		}
+	}
+}
+
+// skipVersionNumber skips the version number of an executable comment.
+// The version number is 5 or 6 digits, e.g. `/*!80000 ... */` or `/*!100000 ... */`.
+// As MySQL does, 6 digits are a version number only if they are not followed by another digit,
+// otherwise the first 5 digits are the version number.
+// Less than 5 digits are not a version number, but a part of the content.
+// https://dev.mysql.com/doc/refman/26.10/en/comments.html
+func (l *lexer) skipVersionNumber() {
+	// the version number is ASCII, so we can look ahead the input bytes directly.
+	// there must be no read-ahead runes here.
+	rest := l.input[l.cur.pos:]
+	n := 0
+	for n < 7 && n < len(rest) && rest[n] >= '0' && rest[n] <= '9' {
+		n++
+	}
+	switch {
+	case n < 5:
+		return
+	case n != 6:
+		n = 5
+	}
+	for range n {
+		l.advance()
 	}
 }
 
