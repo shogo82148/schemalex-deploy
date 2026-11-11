@@ -56,7 +56,9 @@ func SetupTestDB() (*sql.DB, func()) {
 		panic(err)
 	}
 	dbName := "schemalex_test_" + hex.EncodeToString(b[:])
-	_, err = db1.ExecContext(ctx, "CREATE DATABASE "+util.Backquote(dbName))
+	// specify the character set explicitly,
+	// because the default character set depends on the server, e.g. latin1 in MariaDB 11.4 and earlier.
+	_, err = db1.ExecContext(ctx, "CREATE DATABASE "+util.Backquote(dbName)+" DEFAULT CHARACTER SET utf8mb4")
 	if err != nil {
 		panic(err)
 	}

@@ -35,6 +35,7 @@ const (
 	coloptAutoIncrement = coloptEverythingElse
 	coloptKey           = coloptEverythingElse
 	coloptComment       = coloptEverythingElse
+	coloptVisibility    = coloptEverythingElse
 )
 
 const (
@@ -1047,6 +1048,12 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 				return newParseError(ctx, t, "generated column cannot have AUTO_INCREMENT")
 			}
 			col.AutoIncrement = true
+		case VISIBLE, INVISIBLE:
+			// https://dev.mysql.com/doc/refman/26.10/en/invisible-columns.html
+			if !check(coloptVisibility) {
+				return newParseError(ctx, t, "cannot apply %s", t.Type)
+			}
+			col.Invisible = t.Type == INVISIBLE
 		case UNIQUE:
 			if !check(coloptKey) {
 				return newParseError(ctx, t, "cannot apply UNIQUE KEY")
@@ -1203,9 +1210,8 @@ func (p *Parser) parseColumnIndexCommon(ctx *parseCtx, index *model.Index) error
 	}
 	index.Columns = append(index.Columns, cols...)
 
-	// Doing this AGAIN, because apparently you can specify the index_type
-	// before or after the column declarations
-	if err := p.parseColumnIndexType(ctx, index); err != nil {
+	// the index_type can be specified before or after the column declarations
+	if err := p.parseColumnIndexOptions(ctx, index); err != nil {
 		return err
 	}
 
@@ -1273,6 +1279,9 @@ func (p *Parser) parseColumnIndexSpatialKey(ctx *parseCtx, index *model.Index) e
 	}
 	index.Columns = append(index.Columns, cols...)
 
+	if err := p.parseColumnIndexOptions(ctx, index); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1505,28 +1514,43 @@ OUTER:
 	return cols, nil
 }
 
+// parseColumnIndexOptions parses the index options after the index columns.
+// https://dev.mysql.com/doc/refman/26.10/en/create-table.html
 func (p *Parser) parseColumnIndexOptions(ctx *parseCtx, index *model.Index) error {
-	ctx.skipWhiteSpaces()
-	t := ctx.peek()
-	if t.Type == RPAREN || t.Type == COMMA {
-		return nil
-	}
 	// TODO: support for other index options.
-	switch t.Type {
-	case WITH:
-		ctx.advance()
+	for {
 		ctx.skipWhiteSpaces()
-		if t := ctx.peek(); t.Type != PARSER {
-			return newParseError(ctx, t, "expected PARSER")
+		t := ctx.peek()
+		switch {
+		case t.Type == USING && (index.Kind == model.IndexKindPrimaryKey || index.Kind == model.IndexKindUnique || index.Kind == model.IndexKindNormal):
+			if err := p.parseColumnIndexType(ctx, index); err != nil {
+				return err
+			}
+		case t.Type == WITH && index.Kind == model.IndexKindFullText:
+			ctx.advance()
+			ctx.skipWhiteSpaces()
+			if t := ctx.peek(); t.Type != PARSER {
+				return newParseError(ctx, t, "expected PARSER")
+			}
+			ctx.advance()
+			if err := p.parseColumnIndexOptionValue(ctx, index, "WITH PARSER", IDENT, BACKTICK_IDENT); err != nil {
+				return err
+			}
+		case t.Type == VISIBLE:
+			// https://dev.mysql.com/doc/refman/26.10/en/invisible-indexes.html
+			ctx.advance()
+			index.Invisible = false
+		case t.Type == INVISIBLE:
+			if index.Kind == model.IndexKindPrimaryKey {
+				// MySQL rejects it with "A primary key index cannot be invisible".
+				return newParseError(ctx, t, "primary key cannot be invisible")
+			}
+			ctx.advance()
+			index.Invisible = true
+		default:
+			return nil
 		}
-		ctx.advance()
-		if err := p.parseColumnIndexOptionValue(ctx, index, "WITH PARSER", IDENT, BACKTICK_IDENT); err != nil {
-			return err
-		}
-	default:
-		return newParseError(ctx, t, "unsupported type in index option specification")
 	}
-	return nil
 }
 
 func (p *Parser) parseColumnIndexOptionValue(ctx *parseCtx, index *model.Index, name string, follow ...TokenType) error {

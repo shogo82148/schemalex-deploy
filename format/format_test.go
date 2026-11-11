@@ -483,8 +483,6 @@ primary key (id, c)
 	})
 	parse("GithubIssue62", &Spec{
 		// see https://github.com/schemalex/schemalex/issues/62
-		// INVISIBLE in the executable comment is not supported.
-		// https://github.com/shogo82148/schemalex-deploy/issues/312
 		Input: "DROP TABLE IF EXISTS `some_table`;\r\n" +
 			"/*!40101 SET @saved_cs_client     = @@character_set_client */;\r\n" +
 			"SET character_set_client = utf8mb4 ;\r\n" +
@@ -498,7 +496,17 @@ primary key (id, c)
 			"  KEY `user_id_idx` (`user_id`),\r\n" +
 			"  CONSTRAINT `some_table__user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE SET NULL\r\n" +
 			") ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;",
-		Error: true,
+		Expect: "CREATE TABLE `some_table` (\n" +
+			"`id` INT (10) UNSIGNED NOT NULL AUTO_INCREMENT,\n" +
+			"`user_id` VARCHAR (32) DEFAULT NULL,\n" +
+			"`context` JSON DEFAULT NULL,\n" +
+			"`created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,\n" +
+			"PRIMARY KEY (`id`),\n" +
+			"INDEX `created_at` (`created_at` DESC) INVISIBLE,\n" +
+			"INDEX `user_id_idx` (`user_id`),\n" +
+			"INDEX `some_table__user_id` (`user_id`),\n" +
+			"CONSTRAINT `some_table__user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE SET NULL\n" +
+			") ENGINE = InnoDB, AUTO_INCREMENT = 19, DEFAULT CHARACTER SET = utf8mb4, DEFAULT COLLATE = utf8mb4_0900_ai_ci;\n",
 	})
 	parse("DefaultNow", &Spec{
 		Input: "create table `test_log` (`created_at` DATETIME default NOW())",
@@ -914,14 +922,6 @@ primary key (id, c)
 	})
 
 	// Unsupported syntax in executable comments is an error, as it is outside of them.
-	parse("UnsupportedSyntaxInExecutableComment", &Spec{
-		Input: "CREATE TABLE t (a INT, KEY idx_a (a) /*!80000 INVISIBLE */)",
-		Error: true,
-	})
-	parse("UnsupportedSyntaxOutsideExecutableComment", &Spec{
-		Input: "CREATE TABLE t (a INT, KEY idx_a (a) INVISIBLE)",
-		Error: true,
-	})
 	parse("PartitionInExecutableComment", &Spec{
 		Input: "CREATE TABLE t (a INT) /*!50100 PARTITION BY HASH(a) */",
 		Error: true,
@@ -966,10 +966,88 @@ primary key (id, c)
 		Input: "/*! 'abc */; CREATE TABLE t (a INT);",
 		Error: true,
 	})
+
+	// https://github.com/shogo82148/schemalex-deploy/issues/320
+	// https://dev.mysql.com/doc/refman/26.10/en/invisible-indexes.html
+	// https://dev.mysql.com/doc/refman/26.10/en/invisible-columns.html
+	parse("InvisibleIndex", &Spec{
+		Input: "CREATE TABLE t (a INT, b INT, c TEXT, d INT, " +
+			"KEY idx_a (a) INVISIBLE, " +
+			"UNIQUE KEY uniq_b (b) USING BTREE INVISIBLE, " +
+			"FULLTEXT KEY ft (c) INVISIBLE WITH PARSER ngram, " +
+			"KEY idx_d (d) VISIBLE)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"`b` INT (11) DEFAULT NULL,\n" +
+			"`c` TEXT,\n" +
+			"`d` INT (11) DEFAULT NULL,\n" +
+			"INDEX `idx_a` (`a`) INVISIBLE,\n" +
+			"UNIQUE INDEX `uniq_b` USING BTREE (`b`) INVISIBLE,\n" +
+			"FULLTEXT INDEX `ft` (`c`) WITH PARSER `ngram` INVISIBLE,\n" +
+			"INDEX `idx_d` (`d`)\n" +
+			");\n",
+	})
+	parse("InvisibleIndexLastOneWins", &Spec{
+		Input: "CREATE TABLE t (a INT, b INT, KEY idx_a (a) VISIBLE INVISIBLE, KEY idx_b (b) INVISIBLE VISIBLE)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"`b` INT (11) DEFAULT NULL,\n" +
+			"INDEX `idx_a` (`a`) INVISIBLE,\n" +
+			"INDEX `idx_b` (`b`)\n" +
+			");\n",
+	})
+	parse("InvisiblePrimaryKey", &Spec{
+		// MySQL rejects it with "A primary key index cannot be invisible".
+		Input: "CREATE TABLE t (a INT, PRIMARY KEY (a) INVISIBLE)",
+		Error: true,
+	})
+	parse("VisiblePrimaryKey", &Spec{
+		Input: "CREATE TABLE t (a INT NOT NULL, PRIMARY KEY (a) VISIBLE)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"PRIMARY KEY (`a`)\n" +
+			");\n",
+	})
+	parse("InvisibleForeignKey", &Spec{
+		// foreign keys do not have the visibility.
+		Input: "CREATE TABLE t (a INT, FOREIGN KEY (a) REFERENCES u (a) INVISIBLE)",
+		Error: true,
+	})
+	parse("InvisibleColumn", &Spec{
+		Input: "CREATE TABLE t (id INT NOT NULL AUTO_INCREMENT INVISIBLE PRIMARY KEY, a INT VISIBLE, b INT INVISIBLE COMMENT 'b', c INT AS (a + 1) STORED INVISIBLE)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`id` INT (11) NOT NULL AUTO_INCREMENT INVISIBLE,\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"`b` INT (11) DEFAULT NULL INVISIBLE COMMENT 'b',\n" +
+			"`c` INT (11) GENERATED ALWAYS AS (a + 1) STORED INVISIBLE,\n" +
+			"PRIMARY KEY (`id`)\n" +
+			");\n",
+	})
+	parse("InvisibleInShowCreateTable", &Spec{
+		// the output of SHOW CREATE TABLE in MySQL 26.10.
+		Input: "CREATE TABLE `t` (\n" +
+			"  `id` int NOT NULL AUTO_INCREMENT /*!80023 INVISIBLE */,\n" +
+			"  `a` int DEFAULT NULL,\n" +
+			"  `body` text,\n" +
+			"  PRIMARY KEY (`id`),\n" +
+			"  KEY `idx_a` (`a`) /*!80000 INVISIBLE */,\n" +
+			"  FULLTEXT KEY `ft` (`body`) /*!80000 INVISIBLE */ /*!50100 WITH PARSER `ngram` */ \n" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`id` INT (11) NOT NULL AUTO_INCREMENT INVISIBLE,\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"`body` TEXT,\n" +
+			"PRIMARY KEY (`id`),\n" +
+			"INDEX `idx_a` (`a`) INVISIBLE,\n" +
+			"FULLTEXT INDEX `ft` (`body`) WITH PARSER `ngram` INVISIBLE\n" +
+			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4, DEFAULT COLLATE = utf8mb4_0900_ai_ci;\n",
+	})
 }
 
 func TestFormatRoundTrip(t *testing.T) {
 	tests := []string{
+		"CREATE TABLE t (a INT, b INT INVISIBLE, KEY (a) INVISIBLE, KEY (b) VISIBLE)",
+		"CREATE TABLE t (a TEXT, FULLTEXT KEY (a) WITH PARSER ngram INVISIBLE)",
 		"CREATE TABLE t (a VARCHAR(10) DEFAULT 'it''s')",
 		"CREATE TABLE t (a VARCHAR(10) DEFAULT 'it\\'s')",
 		`CREATE TABLE t (a VARCHAR(10) DEFAULT "'")`,

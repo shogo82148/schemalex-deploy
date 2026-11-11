@@ -75,6 +75,10 @@ type TableColumn struct {
 	ZeroFill      bool
 	SRID          MaybeInteger
 	Generated     GeneratedColumn
+
+	// Invisible is true if the column is hidden from `SELECT *`.
+	// https://dev.mysql.com/doc/refman/26.10/en/invisible-columns.html
+	Invisible bool
 }
 
 // NewTableColumn creates a new TableColumn with the given name

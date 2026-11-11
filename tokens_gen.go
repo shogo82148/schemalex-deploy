@@ -122,6 +122,7 @@ const (
 	INSERT_METHOD
 	INT
 	INTEGER
+	INVISIBLE
 	JSON
 	KEY_BLOCK_SIZE
 	KEY
@@ -187,6 +188,7 @@ const (
 	VARBINARY
 	VARCHAR
 	VIRTUAL
+	VISIBLE
 	WITH
 	YEAR
 	ZEROFILL
@@ -253,6 +255,7 @@ var keywordIdentMap = map[string]TokenType{
 	"INSERT_METHOD":      INSERT_METHOD,
 	"INT":                INT,
 	"INTEGER":            INTEGER,
+	"INVISIBLE":          INVISIBLE,
 	"JSON":               JSON,
 	"KEY_BLOCK_SIZE":     KEY_BLOCK_SIZE,
 	"KEY":                KEY,
@@ -318,6 +321,7 @@ var keywordIdentMap = map[string]TokenType{
 	"VARBINARY":          VARBINARY,
 	"VARCHAR":            VARCHAR,
 	"VIRTUAL":            VIRTUAL,
+	"VISIBLE":            VISIBLE,
 	"WITH":               WITH,
 	"YEAR":               YEAR,
 	"ZEROFILL":           ZEROFILL,
@@ -568,6 +572,8 @@ func (t TokenType) String() string {
 		return "INT"
 	case INTEGER:
 		return "INTEGER"
+	case INVISIBLE:
+		return "INVISIBLE"
 	case JSON:
 		return "JSON"
 	case KEY_BLOCK_SIZE:
@@ -698,6 +704,8 @@ func (t TokenType) String() string {
 		return "VARCHAR"
 	case VIRTUAL:
 		return "VIRTUAL"
+	case VISIBLE:
+		return "VISIBLE"
 	case WITH:
 		return "WITH"
 	case YEAR:

@@ -181,7 +181,7 @@ func TestLexExecutableComment(t *testing.T) {
 			want: []tok{
 				{COMMENT_IDENT, "/*!80000"},
 				{SPACE, " "},
-				{IDENT, "INVISIBLE"},
+				{INVISIBLE, "INVISIBLE"},
 				{COMMENT_IDENT, "*/"},
 				{EOF, ""},
 			},
