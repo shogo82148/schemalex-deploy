@@ -972,6 +972,42 @@ primary key (id, c)
 		Input: "CREATE TABLE t (a INT /*! NOT NULL",
 		Error: true,
 	})
+	parse("UnterminatedExecutableCommentAfterStatement", &Spec{
+		Input: "/*! CREATE TABLE t (a INT)",
+		Error: true,
+	})
+	parse("UnterminatedStringInExecutableComment", &Spec{
+		// MySQL also rejects it, because the string literal does not end at "*/".
+		Input: "/*! 'abc */; CREATE TABLE t (a INT);",
+		Error: true,
+	})
+	parse("DuplicatedIndexTypeInExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT, INDEX i USING BTREE (a) /*! USING HASH */)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"INDEX `i` USING BTREE (`a`)\n" +
+			");\n",
+	})
+	parse("IncompleteClauseInExecutableComment", &Spec{
+		// the error is found at the token after the comment.
+		Input: "CREATE TABLE t (a INT /*! NOT */)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("UnsupportedSyntaxAfterExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT /*! NOT NULL */ INVISIBLE)",
+		Error: true,
+	})
+	parse("MysqldumpCreateDatabase", &Spec{
+		Input: "CREATE DATABASE /*!32312 IF NOT EXISTS*/ `zz_db` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;\n" +
+			"\n" +
+			"USE `zz_db`;\n" +
+			"CREATE TABLE t (a INT);",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
 }
 
 func TestFormatRoundTrip(t *testing.T) {

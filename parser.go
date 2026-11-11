@@ -141,6 +141,12 @@ func (p *Parser) Parse(src []byte) (model.Stmts, error) {
 	ctx.input = src
 	ctx.lexsrc = l.out
 	ctx.executableCommentMarkers = l.executableCommentMarkers
+	if l.inExecutableComment {
+		// MySQL rejects it, e.g. `/*! CREATE TABLE t (a INT)`.
+		// it is also the case where a string literal in the comment is not terminated,
+		// e.g. `/*! 'abc */`, because the string literal does not end at "*/".
+		return nil, newParseError(ctx, l.executableCommentOpener, "unterminated executable comment")
+	}
 
 	type parsedStmt struct {
 		stmt       model.Stmt
@@ -233,47 +239,46 @@ func (pctx *parseCtx) isExecutableCommentMarker(t *Token) bool {
 	return ok
 }
 
-// ignoreExecutableComment finds the executable comment where err was encountered,
+// ignoreExecutableComment finds the executable comment that caused err,
 // and replaces it with an ordinary comment.
+// The comment is the one that contains the position of err,
+// or the one that is followed by the position of err with only spaces and comments between them,
+// e.g. `a INT /*! NOT */)` is reported at ")".
 // It returns the index of the replaced comment token.
-// It returns false if err was not encountered in an executable comment.
+// It returns false if no executable comment caused err.
 func (pctx *parseCtx) ignoreExecutableComment(err error) (int, bool) {
 	var pe *parseError
 	if !errors.As(err, &pe) {
 		return 0, false
 	}
 
-	// find the executable comment that contains pe.pos.
-	begin, end := -1, -1
-	open := -1
+	begin, end := -1, -1 // the comment that caused err
+	open := -1           // the opener of the current comment
 	for i, t := range pctx.lexsrc {
+		if open < 0 && t.Pos >= pe.pos {
+			break
+		}
 		if !pctx.isExecutableCommentMarker(t) {
+			if open < 0 && t.Type != SPACE && t.Type != COMMENT_IDENT {
+				// the previous comment is not followed by the error.
+				begin, end = -1, -1
+			}
 			continue
 		}
 		if open < 0 {
-			if t.Pos > pe.pos {
-				// the comments after the error are not related.
-				break
-			}
 			open = i
 			continue
 		}
 		// t closes the comment opened at open.
+		begin, end = open, i
+		open = -1
 		if pe.pos < t.Pos+len(t.Value) {
-			begin, end = open, i
+			// the comment contains the error.
 			break
 		}
-		open = -1
 	}
 	if begin < 0 {
-		if open < 0 {
-			return 0, false
-		}
-		// the comment is not closed until the end of the input.
-		begin, end = open, len(pctx.lexsrc)-1
-		if pctx.lexsrc[end].Type == EOF {
-			end--
-		}
+		return 0, false
 	}
 
 	// replace the tokens from begin to end with an ordinary comment.
@@ -1489,7 +1494,8 @@ func (p *Parser) parseColumnIndexName(ctx *parseCtx, index *model.Index) error {
 
 func (p *Parser) parseColumnIndexType(ctx *parseCtx, index *model.Index) error {
 	ctx.skipWhiteSpaces()
-	if t := ctx.peek(); t.Type != USING {
+	t := ctx.peek()
+	if t.Type != USING {
 		return nil
 	}
 	ctx.advance()
@@ -1504,7 +1510,7 @@ func (p *Parser) parseColumnIndexType(ctx *parseCtx, index *model.Index) error {
 		default:
 			panic(fmt.Sprintf("unexpected index type: %v", index.Type))
 		}
-		return fmt.Errorf(`statement already has index type declared (%s)`, typ)
+		return newParseError(ctx, t, "statement already has index type declared (%s)", typ)
 	}
 
 	ctx.skipWhiteSpaces()

@@ -187,11 +187,32 @@ func TestLexExecutableComment(t *testing.T) {
 			},
 		},
 		{
-			// a 6-digit version number.
-			input: "/*!100000NULL*/",
+			// a 6-digit version number must be followed by a whitespace.
+			input: "/*!100000 NULL*/",
 			want: []tok{
 				{COMMENT_IDENT, "/*!100000"},
+				{SPACE, " "},
 				{NULL, "NULL"},
+				{COMMENT_IDENT, "*/"},
+				{EOF, ""},
+			},
+		},
+		{
+			// otherwise, the first 5 digits are the version number.
+			input: "/*!100000+1*/",
+			want: []tok{
+				{COMMENT_IDENT, "/*!10000"},
+				{NUMBER, "0"},
+				{NUMBER, "+1"},
+				{COMMENT_IDENT, "*/"},
+				{EOF, ""},
+			},
+		},
+		{
+			input: "/*!100000*/",
+			want: []tok{
+				{COMMENT_IDENT, "/*!10000"},
+				{NUMBER, "0"},
 				{COMMENT_IDENT, "*/"},
 				{EOF, ""},
 			},

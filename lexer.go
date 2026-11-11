@@ -34,6 +34,9 @@ type lexer struct {
 	// inExecutableComment is true while the lexer is in an executable comment.
 	inExecutableComment bool
 
+	// executableCommentOpener is the token that opens the last executable comment.
+	executableCommentOpener *Token
+
 	// executableCommentMarkers is the set of the tokens that open or close executable comments.
 	executableCommentMarkers map[*Token]struct{}
 }
@@ -167,6 +170,7 @@ OUTER:
 					l.skipVersionNumber()
 					l.inExecutableComment = true
 					l.emitExecutableCommentMarker()
+					l.executableCommentOpener = l.out[len(l.out)-1]
 					continue OUTER
 				}
 				l.runCComment()
@@ -363,7 +367,7 @@ func (l *lexer) runQuote(pair rune, backslash bool) error {
 
 // skipVersionNumber skips the version number of an executable comment.
 // The version number is 5 or 6 digits, e.g. `/*!80000 ... */` or `/*!100000 ... */`.
-// As MySQL does, 6 digits are a version number only if they are not followed by another digit,
+// As MySQL does, 6 digits are a version number only if they are followed by a whitespace,
 // otherwise the first 5 digits are the version number.
 // Less than 5 digits are not a version number, but a part of the content.
 // https://dev.mysql.com/doc/refman/26.10/en/comments.html
@@ -372,13 +376,13 @@ func (l *lexer) skipVersionNumber() {
 	// there must be no read-ahead runes here.
 	rest := l.input[l.cur.pos:]
 	n := 0
-	for n < 7 && n < len(rest) && rest[n] >= '0' && rest[n] <= '9' {
+	for n < 6 && n < len(rest) && rest[n] >= '0' && rest[n] <= '9' {
 		n++
 	}
 	switch {
 	case n < 5:
 		return
-	case n != 6:
+	case n == 6 && (len(rest) == 6 || !isSpace(rune(rest[6]))):
 		n = 5
 	}
 	for range n {
