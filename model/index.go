@@ -51,6 +51,11 @@ type Index struct {
 	Columns        []*IndexColumn
 	Reference      *Reference
 	Options        []*IndexOption
+
+	// Invisible is true if the index is invisible to the optimizer.
+	// It is not a part of ID, because the visibility can be changed without rebuilding the index.
+	// https://dev.mysql.com/doc/refman/26.10/en/invisible-indexes.html
+	Invisible bool
 }
 
 // NewIndex creates a new index with the given index kind.

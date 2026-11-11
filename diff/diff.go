@@ -204,6 +204,7 @@ func (ctx *diffCtx) alterTables() error {
 		(*alterCtx).addTableColumns,
 		(*alterCtx).alterTableColumns,
 		(*alterCtx).addTableIndexes,
+		(*alterCtx).alterTableIndexes,
 	}
 
 	ids := ctx.toSet.Intersect(ctx.fromSet)
@@ -500,7 +501,7 @@ func (ctx *alterCtx) dropTableIndexes() error {
 
 		indexName := getIndexName(indexStmt)
 		if !indexName.Valid {
-			name, err := ctx.guessDropTableIndexName(indexStmt)
+			name, err := ctx.guessTableIndexName(indexStmt)
 			if err != nil {
 				return err
 			}
@@ -560,10 +561,51 @@ func (ctx *alterCtx) addTableIndexes() error {
 	return nil
 }
 
-func (ctx *alterCtx) guessDropTableIndexName(indexStmt *model.Index) (name model.Ident, err error) {
+// alterTableIndexes changes the visibility of the indexes that exist in both from and to.
+// The visibility can be changed without rebuilding the index.
+// https://dev.mysql.com/doc/refman/26.10/en/invisible-indexes.html
+func (ctx *alterCtx) alterTableIndexes() error {
+	indexes := ctx.toIndexes.Intersect(ctx.fromIndexes)
+	for _, index := range indexes.ToSlice() {
+		beforeIndexStmt, ok := ctx.from.LookupIndex(index)
+		if !ok {
+			return fmt.Errorf("index not found in old schema: %q", index)
+		}
+		afterIndexStmt, ok := ctx.to.LookupIndex(index)
+		if !ok {
+			return fmt.Errorf("index not found in new schema: %q", index)
+		}
+		if beforeIndexStmt.Invisible == afterIndexStmt.Invisible {
+			continue
+		}
+
+		indexName := getIndexName(beforeIndexStmt)
+		if !indexName.Valid {
+			name, err := ctx.guessTableIndexName(beforeIndexStmt)
+			if err != nil {
+				return err
+			}
+			indexName.Valid = true
+			indexName.Ident = name
+		}
+
+		ctx.begin()
+		ctx.writeString("ALTER INDEX ")
+		ctx.writeIdent(indexName.Ident)
+		if afterIndexStmt.Invisible {
+			ctx.writeString(" INVISIBLE")
+		} else {
+			ctx.writeString(" VISIBLE")
+		}
+	}
+	return nil
+}
+
+// guessTableIndexName guesses the name of the index that does not have its name, from the current schema.
+func (ctx *alterCtx) guessTableIndexName(indexStmt *model.Index) (name model.Ident, err error) {
 	cur := ctx.cur
 	if cur == nil {
-		return "", fmt.Errorf("can not drop index without name: %q", indexStmt.ID())
+		return "", fmt.Errorf("can not find the name of the index: %q", indexStmt.ID())
 	}
 
 	// Guess the name from the current schema
@@ -589,7 +631,7 @@ LOOP:
 
 		return name.Ident, nil // found
 	}
-	return "", fmt.Errorf("can not drop index without name: %q", indexStmt.ID())
+	return "", fmt.Errorf("can not find the name of the index: %q", indexStmt.ID())
 }
 
 func getIndexName(idx *model.Index) model.MaybeIdent {

@@ -337,6 +337,10 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 		buf.WriteString(" AUTO_INCREMENT")
 	}
 
+	if col.Invisible {
+		buf.WriteString(" INVISIBLE")
+	}
+
 	if col.Unique {
 		buf.WriteString(" UNIQUE KEY")
 	}
@@ -437,6 +441,10 @@ func formatIndex(ctx *fmtCtx, index *model.Index) error {
 				buf.WriteString(opt.Value)
 			}
 		}
+	}
+
+	if index.Invisible {
+		buf.WriteString(" INVISIBLE")
 	}
 
 	if ref := index.Reference; ref != nil {

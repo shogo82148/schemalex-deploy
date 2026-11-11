@@ -557,6 +557,106 @@ CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 )`},
 		Expect: []string{},
 	},
+	{
+		Name: "add an invisible index",
+		Tests: []string{
+			// MariaDB does not support invisible indexes.
+			"CREATE TABLE `hoge` ( `a` INTEGER, INDEX `idx_a` (`a`) INVISIBLE )",
+		},
+		Before: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER )",
+		},
+		After: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, INDEX `idx_a` (`a`) INVISIBLE )",
+		},
+		Expect: []string{
+			"ALTER TABLE `hoge` ADD INDEX `idx_a` (`a`) INVISIBLE",
+		},
+	},
+	{
+		Name: "make an index invisible",
+		Tests: []string{
+			// MariaDB does not support invisible indexes.
+			"CREATE TABLE `hoge` ( `a` INTEGER, INDEX `idx_a` (`a`) INVISIBLE )",
+		},
+		Before: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, INDEX `idx_a` (`a`) )",
+		},
+		After: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, INDEX `idx_a` (`a`) INVISIBLE )",
+		},
+		Expect: []string{
+			"ALTER TABLE `hoge` ALTER INDEX `idx_a` INVISIBLE",
+		},
+	},
+	{
+		Name: "make an index visible",
+		Tests: []string{
+			// MariaDB does not support invisible indexes.
+			"CREATE TABLE `hoge` ( `a` INTEGER, INDEX `idx_a` (`a`) INVISIBLE )",
+		},
+		Before: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER, UNIQUE INDEX `uniq_a` (`a`) INVISIBLE, INDEX `idx_b` (`b`) INVISIBLE )",
+		},
+		After: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER, UNIQUE INDEX `uniq_a` (`a`), INDEX `idx_b` (`b`) VISIBLE )",
+		},
+		Expect: []string{
+			"ALTER TABLE `hoge` ALTER INDEX `idx_b` VISIBLE, ALTER INDEX `uniq_a` VISIBLE",
+		},
+	},
+	{
+		Name: "change the columns and the visibility of an index",
+		Tests: []string{
+			// MariaDB does not support invisible indexes.
+			"CREATE TABLE `hoge` ( `a` INTEGER, INDEX `idx_a` (`a`) INVISIBLE )",
+		},
+		Before: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER, INDEX `idx` (`a`) )",
+		},
+		After: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER, INDEX `idx` (`a`, `b`) INVISIBLE )",
+		},
+		Expect: []string{
+			"ALTER TABLE `hoge` DROP INDEX `idx`, ADD INDEX `idx` (`a`, `b`) INVISIBLE",
+		},
+	},
+	{
+		Name: "add an invisible column",
+		Before: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER )",
+		},
+		After: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER INVISIBLE )",
+		},
+		Expect: []string{
+			"ALTER TABLE `hoge` ADD COLUMN `b` INT (11) DEFAULT NULL INVISIBLE AFTER `a`",
+		},
+	},
+	{
+		Name: "make a column invisible",
+		Before: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER )",
+		},
+		After: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER INVISIBLE )",
+		},
+		Expect: []string{
+			"ALTER TABLE `hoge` CHANGE COLUMN `b` `b` INT (11) DEFAULT NULL INVISIBLE",
+		},
+	},
+	{
+		Name: "make a column visible",
+		Before: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER INVISIBLE )",
+		},
+		After: []string{
+			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER VISIBLE )",
+		},
+		Expect: []string{
+			"ALTER TABLE `hoge` CHANGE COLUMN `b` `b` INT (11) DEFAULT NULL",
+		},
+	},
 }
 
 func joinQueries(queries []string) string {
@@ -761,6 +861,27 @@ var autoSpecs = []AutoNamedSpec{
 			"ALTER TABLE `fuga` " +
 				"DROP FOREIGN KEY `fuga_ibfk_1`, " +
 				"ADD INDEX `fid` (`fid`)",
+		},
+	},
+	{
+		Name: "make an anonymous index invisible",
+		Tests: []string{
+			// MariaDB does not support invisible indexes.
+			"CREATE TABLE `fuga` ( `id` INTEGER, INDEX (`id`) INVISIBLE )",
+		},
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`) )",
+		},
+		Current: []string{"CREATE TABLE `fuga` (" +
+			"`id` int NOT NULL," +
+			"KEY `id` (`id`)" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`) INVISIBLE )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ALTER INDEX `id` INVISIBLE",
 		},
 	},
 }
