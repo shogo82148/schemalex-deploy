@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/shogo82148/schemalex-deploy"
+	"github.com/shogo82148/schemalex-deploy/model"
 )
 
 type Spec struct {
@@ -789,6 +790,59 @@ primary key (id, c)
 			"`a` SET ('it''s','b') DEFAULT NULL\n" +
 			");\n",
 	})
+	parse("EnumWithoutValues", &Spec{
+		Input: "CREATE TABLE t (a ENUM)",
+		Error: true,
+	})
+	parse("EnumWithEmptyValues", &Spec{
+		Input: "CREATE TABLE t (a ENUM())",
+		Error: true,
+	})
+	parse("SetWithoutValues", &Spec{
+		Input: "CREATE TABLE t (a SET)",
+		Error: true,
+	})
+	parse("QuotedNumberDefault", &Spec{
+		Input: "CREATE TABLE t (a INT DEFAULT '-1', b DOUBLE DEFAULT '1.5e-3', c BOOL DEFAULT '1')",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT -1,\n" +
+			"`b` DOUBLE DEFAULT 1.5E-3,\n" +
+			"`c` TINYINT (1) DEFAULT 1\n" +
+			");\n",
+	})
+	parse("QuotedNonNumberDefault", &Spec{
+		// MySQL rejects these defaults, but keep the quotes to make valid SQL.
+		Input: "CREATE TABLE t (a INT DEFAULT '', b INT DEFAULT 'abc', c BOOL DEFAULT 'true')",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT '',\n" +
+			"`b` INT (11) DEFAULT 'abc',\n" +
+			"`c` TINYINT (1) DEFAULT 'true'\n" +
+			");\n",
+	})
+	parse("NulInColumnName", &Spec{
+		Input: "CREATE TABLE t (a\x00 TEXT)",
+		Error: true,
+	})
+	parse("NulInDefault", &Spec{
+		Input: "CREATE TABLE t (a VARCHAR(10) DEFAULT 'a\x00b')",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` VARCHAR (10) DEFAULT 'a\x00b'\n" +
+			");\n",
+	})
+	parse("PrimaryKeyAndUniqueColumn", &Spec{
+		Input: "CREATE TABLE t (a INT PRIMARY KEY UNIQUE)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"PRIMARY KEY (`a`),\n" +
+			"UNIQUE INDEX `a` (`a`)\n" +
+			");\n",
+	})
+	parse("QuotedTableOptionIdent", &Spec{
+		Input: "CREATE TABLE t (a INT) ENGINE `InnoDB`, DEFAULT CHARSET `my charset`",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			") ENGINE = InnoDB, DEFAULT CHARACTER SET = `my charset`;\n",
+	})
 	parse("QuoteInTableComment", &Spec{
 		Input: `CREATE TABLE t (a INT) COMMENT = "it's"`,
 		Expect: "CREATE TABLE `t` (\n" +
@@ -810,6 +864,25 @@ func TestFormatRoundTrip(t *testing.T) {
 		"CREATE TABLE t (a SET('it''s', 'b'))",
 		`CREATE TABLE t (a INT) COMMENT = "it's"`,
 		"CREATE TABLE t (a INT) COMMENT = 'it''s'",
+		"CREATE TABLE t (a INT DEFAULT '')",
+		"CREATE TABLE t (a INT DEFAULT 'abc')",
+		"CREATE TABLE t (a INT DEFAULT '1e5')",
+		"CREATE TABLE t (a INT DEFAULT '+1')",
+		"CREATE TABLE t (a BOOL DEFAULT A)",
+		"CREATE TABLE t (a BOOL DEFAULT 'true')",
+		"CREATE TABLE t (a BOOL DEFAULT '1')",
+		"CREATE TABLE t (a BOOL DEFAULT TRUE)",
+		"CREATE TABLE t (a TINYINT(1) DEFAULT TRUE)",
+		"CREATE TABLE t (a VARCHAR(10) DEFAULT 'a\x00b')",
+		"CREATE TABLE `a\x00b` (`c\x00d` INT)",
+		"CREATE TABLE t (a INT PRIMARY KEY UNIQUE)",
+		"CREATE TABLE t (a INT UNIQUE PRIMARY KEY)",
+		"CREATE TABLE t (a INT) ENGINE ``",
+		"CREATE TABLE t (a INT) ENGINE `TABLE`",
+		"CREATE TABLE t (a INT) ENGINE `default`",
+		"CREATE TABLE t (a INT) ENGINE `my engine`",
+		"CREATE TABLE t (a INT) ENGINE `a``b`",
+		"CREATE TABLE t (a INT) DEFAULT CHARACTER SET `utf8mb4` COLLATE `utf8mb4 bin`",
 	}
 	for _, ddl0 := range tests {
 		t.Run(ddl0, func(t *testing.T) {
@@ -831,6 +904,23 @@ func TestFormatRoundTrip(t *testing.T) {
 			}
 			if diff := cmp.Diff(stmts0, stmts1); diff != "" {
 				t.Errorf("(-want/+got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestFormatEnumWithoutValues(t *testing.T) {
+	tests := []*model.TableColumn{
+		{Name: "a", Type: model.ColumnTypeEnum},
+		{Name: "a", Type: model.ColumnTypeSet},
+	}
+	for _, col := range tests {
+		t.Run(col.Type.String(), func(t *testing.T) {
+			table := model.NewTable("t")
+			table.Columns = append(table.Columns, col)
+			var buf strings.Builder
+			if err := SQL(&buf, table); err == nil {
+				t.Errorf("want error, got %q", buf.String())
 			}
 		})
 	}

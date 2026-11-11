@@ -222,6 +222,68 @@ func TestTableColumnNormalize(t *testing.T) {
 				},
 			},
 		},
+		{
+			beforeStr: "foo INT DEFAULT '1e5'",
+			before: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeInt,
+				Default: DefaultValue{Valid: true, Value: "1e5", Quoted: true},
+			},
+			afterStr: "foo INT (11) DEFAULT 1E5",
+			after: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeInt,
+				Length:  NewLength("11"),
+				Default: DefaultValue{Valid: true, Value: "1E5", Quoted: false},
+			},
+		},
+		{
+			// the quotes are kept, because DEFAULT without a value is invalid.
+			beforeStr: "foo INT DEFAULT ''",
+			before: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeInt,
+				Default: DefaultValue{Valid: true, Value: "", Quoted: true},
+			},
+			afterStr: "foo INT (11) DEFAULT ''",
+			after: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeInt,
+				Length:  NewLength("11"),
+				Default: DefaultValue{Valid: true, Value: "", Quoted: true},
+			},
+		},
+		{
+			// BOOL is TINYINT(1), so the quotes are removed in the same way.
+			beforeStr: "foo BOOL DEFAULT '1'",
+			before: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeBool,
+				Default: DefaultValue{Valid: true, Value: "1", Quoted: true},
+			},
+			afterStr: "foo TINYINT (1) DEFAULT 1",
+			after: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeTinyInt,
+				Length:  NewLength("1"),
+				Default: DefaultValue{Valid: true, Value: "1", Quoted: false},
+			},
+		},
+		{
+			beforeStr: "foo BOOL DEFAULT 'a'",
+			before: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeBool,
+				Default: DefaultValue{Valid: true, Value: "a", Quoted: true},
+			},
+			afterStr: "foo TINYINT (1) DEFAULT 'a'",
+			after: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeTinyInt,
+				Length:  NewLength("1"),
+				Default: DefaultValue{Valid: true, Value: "a", Quoted: true},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("from %q to %q", tc.beforeStr, tc.afterStr), func(t *testing.T) {
@@ -230,5 +292,41 @@ func TestTableColumnNormalize(t *testing.T) {
 				t.Errorf("mismatch (-want/+got)\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestIsNumberLiteral(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"0", true},
+		{"123", true},
+		{"-1", true},
+		{"+1", true},
+		{"1.5", true},
+		{"1.", true},
+		{".5", true},
+		{"1e5", true},
+		{"1E-5", true},
+		{"-1.5e10", true},
+		{"", false},
+		{".", false},
+		{"-", false},
+		{"+", false},
+		{"-.5", false},
+		{"+.5", false},
+		{"1e", false},
+		{"1e+5", false},
+		{"1.2.3", false},
+		{"abc", false},
+		{"1a", false},
+		{" 1", false},
+		{"TRUE", false},
+	}
+	for _, tt := range tests {
+		if got := isNumberLiteral(tt.input); got != tt.want {
+			t.Errorf("isNumberLiteral(%q) = %v, want %v", tt.input, got, tt.want)
+		}
 	}
 }

@@ -71,8 +71,8 @@ func (t *Table) Normalize() *Table {
 
 		// column_definition [UNIQUE [KEY] | [PRIMARY] KEY]
 		// they mean same as INDEX or CONSTRAINT
-		switch {
-		case ncol.Primary:
+		// a column may have both of them, e.g. `id INT PRIMARY KEY UNIQUE`.
+		if ncol.Primary {
 			// we have to move off the index declaration from the
 			// primary key column to an index associated with the table
 			index := NewIndex(IndexKindPrimaryKey, t.ID())
@@ -81,7 +81,8 @@ func (t *Table) Normalize() *Table {
 			index.Columns = append(index.Columns, idxCol)
 			additionalIndexes = append(additionalIndexes, index)
 			ncol.Primary = false
-		case ncol.Unique:
+		}
+		if ncol.Unique {
 			index := NewIndex(IndexKindUnique, t.ID())
 			// if you do not assign a name, the index is assigned the same name as the first indexed column
 			index.Name.Valid = true

@@ -125,6 +125,19 @@ func TestLexToken(t *testing.T) {
 			input: "`a\\`",
 			token: Token{Value: `a\`, Type: BACKTICK_IDENT},
 		},
+		// a NUL character is not the end of the input.
+		{
+			input: "'a\x00b'",
+			token: Token{Value: "a\x00b", Type: SINGLE_QUOTE_IDENT},
+		},
+		{
+			input: "`a\x00b`",
+			token: Token{Value: "a\x00b", Type: BACKTICK_IDENT},
+		},
+		{
+			input: "\x00",
+			token: Token{Value: "\x00", Type: ILLEGAL},
+		},
 	}
 
 	for _, spec := range specs {
