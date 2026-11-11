@@ -222,9 +222,11 @@ func TestImportGeneratedColumns(t *testing.T) {
 `,
 		},
 		{
+			// MariaDB adds CHECK (json_valid(...)) to JSON columns, which is not supported.
+			// json_extract accepts strings, so use TEXT instead of JSON.
 			name: "json functions",
 			ddl: `CREATE TABLE t (
-				doc JSON,
+				doc TEXT,
 				id INTEGER AS (json_unquote(json_extract(doc, '$.id')))
 			);
 `,
