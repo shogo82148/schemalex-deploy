@@ -29,9 +29,6 @@ type parseError struct {
 	col     int
 	message string
 	eof     bool
-
-	// pos is the byte offset in the input where the error was encountered.
-	pos int
 }
 
 // File returns the file name (if applicable) where the error was encountered
@@ -90,14 +87,7 @@ func newParseError(ctx *parseCtx, t *Token, msg string, args ...any) error {
 
 	// We're going to append a marker here
 
-	pos := t.Pos
-	if t == eofToken {
-		// eofToken does not have the position.
-		pos = len(ctx.input)
-	}
-
 	return &parseError{
-		pos:     pos,
 		context: fmt.Sprintf(`"%s" <---- AROUND HERE`, ctx.input[ctxbegin:t.Pos]),
 		line:    t.Line,
 		col:     t.Col,

@@ -483,6 +483,8 @@ primary key (id, c)
 	})
 	parse("GithubIssue62", &Spec{
 		// see https://github.com/schemalex/schemalex/issues/62
+		// INVISIBLE in the executable comment is not supported.
+		// https://github.com/shogo82148/schemalex-deploy/issues/312
 		Input: "DROP TABLE IF EXISTS `some_table`;\r\n" +
 			"/*!40101 SET @saved_cs_client     = @@character_set_client */;\r\n" +
 			"SET character_set_client = utf8mb4 ;\r\n" +
@@ -496,17 +498,7 @@ primary key (id, c)
 			"  KEY `user_id_idx` (`user_id`),\r\n" +
 			"  CONSTRAINT `some_table__user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE SET NULL\r\n" +
 			") ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;",
-		Expect: "CREATE TABLE `some_table` (\n" +
-			"`id` INT (10) UNSIGNED NOT NULL AUTO_INCREMENT,\n" +
-			"`user_id` VARCHAR (32) DEFAULT NULL,\n" +
-			"`context` JSON DEFAULT NULL,\n" +
-			"`created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,\n" +
-			"PRIMARY KEY (`id`),\n" +
-			"INDEX `created_at` (`created_at` DESC),\n" +
-			"INDEX `user_id_idx` (`user_id`),\n" +
-			"INDEX `some_table__user_id` (`user_id`),\n" +
-			"CONSTRAINT `some_table__user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE SET NULL\n" +
-			") ENGINE = InnoDB, AUTO_INCREMENT = 19, DEFAULT CHARACTER SET = utf8mb4, DEFAULT COLLATE = utf8mb4_0900_ai_ci;\n",
+		Error: true,
 	})
 	parse("DefaultNow", &Spec{
 		Input: "create table `test_log` (`created_at` DATETIME default NOW())",
@@ -516,6 +508,8 @@ primary key (id, c)
 	})
 
 	parse("GithubIssue79", &Spec{
+		// PARTITION BY in the executable comment is not supported.
+		// https://github.com/shogo82148/schemalex-deploy/issues/312
 		Input: "CREATE TABLE `test_tb` (" +
 			"  `t_id` char(17) NOT NULL," +
 			"  `t_type` smallint(6) NOT NULL," +
@@ -525,11 +519,7 @@ primary key (id, c)
 			"(PARTITION p_1 VALUES IN (1) ENGINE = InnoDB," +
 			" PARTITION p_100 VALUES IN (100) ENGINE = InnoDB) */;" +
 			"/*!40101 SET character_set_client = @saved_cs_client */;",
-		Expect: "CREATE TABLE `test_tb` (\n" +
-			"`t_id` CHAR (17) NOT NULL,\n" +
-			"`t_type` SMALLINT (6) NOT NULL,\n" +
-			"`cur_date` DATETIME NOT NULL\n" +
-			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8;\n",
+		Error: true,
 	})
 	parse("WhiteSpacesBetweenTableOptionsAndSemicolon", &Spec{
 		Input: "CREATE TABLE foo (id INT(10) NOT NULL) ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4 \n/**/ ;",
@@ -923,49 +913,44 @@ primary key (id, c)
 			");\n",
 	})
 
-	// Executable comments containing unsupported syntax are ignored as ordinary comments,
-	// so that the output of SHOW CREATE TABLE and mysqldump can be parsed.
+	// Unsupported syntax in executable comments is an error, as it is outside of them.
 	parse("UnsupportedSyntaxInExecutableComment", &Spec{
-		Input: "CREATE TABLE t (a INT, b INT /*!80023 INVISIBLE */, KEY idx_a (a) /*!80000 INVISIBLE */)",
-		Expect: "CREATE TABLE `t` (\n" +
-			"`a` INT (11) DEFAULT NULL,\n" +
-			"`b` INT (11) DEFAULT NULL,\n" +
-			"INDEX `idx_a` (`a`)\n" +
-			");\n",
-	})
-	parse("UnsupportedSyntaxInExecutableCommentIgnoresWholeComment", &Spec{
-		Input: "CREATE TABLE t (a INT /*!80023 NOT NULL INVISIBLE */)",
-		Expect: "CREATE TABLE `t` (\n" +
-			"`a` INT (11) DEFAULT NULL\n" +
-			");\n",
-	})
-	parse("UnsupportedStatementInExecutableComment", &Spec{
-		// a part of mysqldump output for views.
-		Input: "/*!50001 DROP VIEW IF EXISTS `v`*/;\n" +
-			"/*!50001 SET @saved_cs_client          = @@character_set_client */;\n" +
-			"/*!50001 CREATE ALGORITHM=UNDEFINED */\n" +
-			"/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */\n" +
-			"/*!50001 VIEW `v` AS select 1 AS `a` */;\n" +
-			"/*!50001 SET character_set_client      = @saved_cs_client */;\n" +
-			"CREATE TABLE t (a INT);",
-		Expect: "CREATE TABLE `t` (\n" +
-			"`a` INT (11) DEFAULT NULL\n" +
-			");\n",
-	})
-	parse("StatementsInIgnoredExecutableComment", &Spec{
-		// the whole comment is ignored, including the statements before the unsupported one.
-		Input: "/*!50001 CREATE TABLE a (x INT); CREATE VIEW v AS SELECT 1 */;\n" +
-			"CREATE TABLE b (y INT);",
-		Expect: "CREATE TABLE `b` (\n" +
-			"`y` INT (11) DEFAULT NULL\n" +
-			");\n",
+		Input: "CREATE TABLE t (a INT, KEY idx_a (a) /*!80000 INVISIBLE */)",
+		Error: true,
 	})
 	parse("UnsupportedSyntaxOutsideExecutableComment", &Spec{
 		Input: "CREATE TABLE t (a INT, KEY idx_a (a) INVISIBLE)",
 		Error: true,
 	})
+	parse("PartitionInExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT) /*!50100 PARTITION BY HASH(a) */",
+		Error: true,
+	})
 	parse("PartitionOutsideExecutableComment", &Spec{
 		Input: "CREATE TABLE t (a INT) PARTITION BY HASH(a)",
+		Error: true,
+	})
+	parse("UnsupportedStatementInExecutableComment", &Spec{
+		// a part of mysqldump output for views.
+		Input: "/*!50001 CREATE ALGORITHM=UNDEFINED */\n" +
+			"/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */\n" +
+			"/*!50001 VIEW `v` AS select 1 AS `a` */;\n" +
+			"CREATE TABLE t (a INT);",
+		Error: true,
+	})
+	parse("MysqldumpCreateDatabase", &Spec{
+		// the options of CREATE DATABASE are not supported.
+		Input: "CREATE DATABASE /*!32312 IF NOT EXISTS*/ `zz_db` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;\n" +
+			"USE `zz_db`;\n" +
+			"CREATE TABLE t (a INT);",
+		Error: true,
+	})
+	parse("IncompleteClauseInExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT /*! NOT */)",
+		Error: true,
+	})
+	parse("DuplicatedIndexTypeInExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT, INDEX i USING BTREE (a) /*! USING HASH */)",
 		Error: true,
 	})
 	parse("UnterminatedExecutableComment", &Spec{
@@ -980,33 +965,6 @@ primary key (id, c)
 		// MySQL also rejects it, because the string literal does not end at "*/".
 		Input: "/*! 'abc */; CREATE TABLE t (a INT);",
 		Error: true,
-	})
-	parse("DuplicatedIndexTypeInExecutableComment", &Spec{
-		Input: "CREATE TABLE t (a INT, INDEX i USING BTREE (a) /*! USING HASH */)",
-		Expect: "CREATE TABLE `t` (\n" +
-			"`a` INT (11) DEFAULT NULL,\n" +
-			"INDEX `i` USING BTREE (`a`)\n" +
-			");\n",
-	})
-	parse("IncompleteClauseInExecutableComment", &Spec{
-		// the error is found at the token after the comment.
-		Input: "CREATE TABLE t (a INT /*! NOT */)",
-		Expect: "CREATE TABLE `t` (\n" +
-			"`a` INT (11) DEFAULT NULL\n" +
-			");\n",
-	})
-	parse("UnsupportedSyntaxAfterExecutableComment", &Spec{
-		Input: "CREATE TABLE t (a INT /*! NOT NULL */ INVISIBLE)",
-		Error: true,
-	})
-	parse("MysqldumpCreateDatabase", &Spec{
-		Input: "CREATE DATABASE /*!32312 IF NOT EXISTS*/ `zz_db` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;\n" +
-			"\n" +
-			"USE `zz_db`;\n" +
-			"CREATE TABLE t (a INT);",
-		Expect: "CREATE TABLE `t` (\n" +
-			"`a` INT (11) DEFAULT NULL\n" +
-			");\n",
 	})
 }
 

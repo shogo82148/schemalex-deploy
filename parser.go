@@ -129,10 +129,7 @@ func (p *Parser) ParseString(src string) (model.Stmts, error) {
 //
 // The content of executable comments (`/*! ... */` and `/*!NNNNN ... */`) is parsed as SQL,
 // regardless of the version number, i.e. the latest MySQL is assumed.
-// If an executable comment contains syntax that is not supported,
-// the comment is ignored as an ordinary comment.
-// This allows parsing the output of SHOW CREATE TABLE and mysqldump,
-// which use executable comments for syntax such as PARTITION BY and INVISIBLE.
+// Unsupported syntax in executable comments is an error, as it is outside of them.
 func (p *Parser) Parse(src []byte) (model.Stmts, error) {
 	l := newLexer(src)
 	l.run()
@@ -148,40 +145,19 @@ func (p *Parser) Parse(src []byte) (model.Stmts, error) {
 		return nil, newParseError(ctx, l.executableCommentOpener, "unterminated executable comment")
 	}
 
-	type parsedStmt struct {
-		stmt       model.Stmt
-		start, end int // the range of the tokens of the statement
-	}
-	var parsed []parsedStmt
+	var stmts model.Stmts
 	for {
 		ctx.skipWhiteSpaces()
-		start := ctx.idx
 		stmt, err := p.parseStatement(ctx)
 		if err == errEndOfStatements {
 			break
 		}
 		if err != nil {
-			begin, ok := ctx.ignoreExecutableComment(err)
-			if !ok {
-				return nil, err
-			}
-
-			// the statements that overlap with the ignored comment need to be parsed again.
-			ctx.idx = min(begin, start)
-			for len(parsed) > 0 && parsed[len(parsed)-1].end > begin {
-				ctx.idx = min(ctx.idx, parsed[len(parsed)-1].start)
-				parsed = parsed[:len(parsed)-1]
-			}
-			continue
+			return nil, err
 		}
 		if stmt != nil {
-			parsed = append(parsed, parsedStmt{stmt: stmt, start: start, end: ctx.idx})
+			stmts = append(stmts, stmt)
 		}
-	}
-
-	var stmts model.Stmts
-	for _, s := range parsed {
-		stmts = append(stmts, s.stmt)
 	}
 	return stmts, nil
 }
@@ -237,66 +213,6 @@ func (p *Parser) parseStatement(ctx *parseCtx) (model.Stmt, error) {
 func (pctx *parseCtx) isExecutableCommentMarker(t *Token) bool {
 	_, ok := pctx.executableCommentMarkers[t]
 	return ok
-}
-
-// ignoreExecutableComment finds the executable comment that caused err,
-// and replaces it with an ordinary comment.
-// The comment is the one that contains the position of err,
-// or the one that is followed by the position of err with only spaces and comments between them,
-// e.g. `a INT /*! NOT */)` is reported at ")".
-// It returns the index of the replaced comment token.
-// It returns false if no executable comment caused err.
-func (pctx *parseCtx) ignoreExecutableComment(err error) (int, bool) {
-	var pe *parseError
-	if !errors.As(err, &pe) {
-		return 0, false
-	}
-
-	begin, end := -1, -1 // the comment that caused err
-	open := -1           // the opener of the current comment
-	for i, t := range pctx.lexsrc {
-		if open < 0 && t.Pos >= pe.pos {
-			break
-		}
-		if !pctx.isExecutableCommentMarker(t) {
-			if open < 0 && t.Type != SPACE && t.Type != COMMENT_IDENT {
-				// the previous comment is not followed by the error.
-				begin, end = -1, -1
-			}
-			continue
-		}
-		if open < 0 {
-			open = i
-			continue
-		}
-		// t closes the comment opened at open.
-		begin, end = open, i
-		open = -1
-		if pe.pos < t.Pos+len(t.Value) {
-			// the comment contains the error.
-			break
-		}
-	}
-	if begin < 0 {
-		return 0, false
-	}
-
-	// replace the tokens from begin to end with an ordinary comment.
-	// the values of the tokens may be unescaped, so use the position of the next token as the end.
-	first := pctx.lexsrc[begin]
-	endPos := len(pctx.input)
-	if end+1 < len(pctx.lexsrc) {
-		endPos = pctx.lexsrc[end+1].Pos
-	}
-	comment := &Token{
-		Type:  COMMENT_IDENT,
-		Value: string(pctx.input[first.Pos:endPos]),
-		Pos:   first.Pos,
-		Line:  first.Line,
-		Col:   first.Col,
-	}
-	pctx.lexsrc = append(pctx.lexsrc[:begin], append([]*Token{comment}, pctx.lexsrc[end+1:]...)...)
-	return begin, true
 }
 
 func (p *Parser) parseCreate(ctx *parseCtx) (model.Stmt, error) {
