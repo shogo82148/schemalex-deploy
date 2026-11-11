@@ -273,20 +273,28 @@ func unescapeQuotes(s string, quot rune, backslash bool) string {
 
 	var buf strings.Builder
 	buf.Grow(len(s))
-	runes := []rune(s)
-	for i := 0; i < len(runes); i++ {
-		r := runes[i]
+	rdr := strings.NewReader(s)
+	for {
+		r, _, err := rdr.ReadRune()
+		if err != nil {
+			break
+		}
 		switch {
-		case r == quot && i+1 < len(runes) && runes[i+1] == quot:
-			// a doubled quote
-			i++
-		case r == '\\' && backslash && i+1 < len(runes):
-			i++
-			if runes[i] != quot {
-				// keep the escape sequence as it is
-				buf.WriteRune(r)
+		case r == quot:
+			// a doubled quote: skip the second one.
+			// the lexer guarantees that it exists.
+			_, _, _ = rdr.ReadRune()
+		case r == '\\' && backslash:
+			r2, _, err := rdr.ReadRune()
+			if err != nil {
+				break
 			}
-			r = runes[i]
+			if r2 == quot {
+				r = quot
+			} else {
+				buf.WriteRune(r)
+				r = r2
+			}
 		}
 		buf.WriteRune(r)
 	}
