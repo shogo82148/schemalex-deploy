@@ -6,6 +6,7 @@ import (
 	"io"
 	"strconv"
 
+	"github.com/shogo82148/schemalex-deploy/internal/keywords"
 	"github.com/shogo82148/schemalex-deploy/internal/util"
 	"github.com/shogo82148/schemalex-deploy/model"
 )
@@ -94,9 +95,13 @@ func formatTableOption(ctx *fmtCtx, option *model.TableOption) error {
 	var buf bytes.Buffer
 	buf.WriteString(option.Key)
 	buf.WriteString(" = ")
-	if option.NeedQuotes {
+	switch {
+	case option.NeedQuotes:
 		writeString(&buf, option.Value)
-	} else {
+	case isIdentOption(option.Key) && !isPlainIdent(option.Value):
+		// the value was a quoted identifier, e.g. ENGINE = `my engine`.
+		buf.WriteString(model.Ident(option.Value).Quoted())
+	default:
 		buf.WriteString(option.Value)
 	}
 
@@ -104,6 +109,32 @@ func formatTableOption(ctx *fmtCtx, option *model.TableOption) error {
 		return err
 	}
 	return nil
+}
+
+// isIdentOption reports whether the value of the table option is an identifier.
+func isIdentOption(key string) bool {
+	switch key {
+	case "ENGINE", "DEFAULT CHARACTER SET", "DEFAULT COLLATE":
+		return true
+	}
+	return false
+}
+
+// isPlainIdent reports whether s can be written as an identifier without quotes.
+func isPlainIdent(s string) bool {
+	if s == "" || keywords.IsReserved(s) {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case 'a' <= c && c <= 'z', 'A' <= c && c <= 'Z':
+		case i > 0 && ('0' <= c && c <= '9' || c == '_'):
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func formatTable(ctx *fmtCtx, table *model.Table) error {
@@ -206,6 +237,9 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 
 	switch col.Type {
 	case model.ColumnTypeEnum:
+		if len(col.EnumValues) == 0 {
+			return fmt.Errorf("format: ENUM column %s has no values", col.Name.Quoted())
+		}
 		buf.WriteString(" (")
 		for _, enumValue := range col.EnumValues {
 			writeString(&buf, enumValue)
@@ -214,6 +248,9 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 		buf.Truncate(buf.Len() - 1)
 		buf.WriteByte(')')
 	case model.ColumnTypeSet:
+		if len(col.SetValues) == 0 {
+			return fmt.Errorf("format: SET column %s has no values", col.Name.Quoted())
+		}
 		buf.WriteString(" (")
 		for _, setValue := range col.SetValues {
 			writeString(&buf, setValue)

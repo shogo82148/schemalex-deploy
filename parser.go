@@ -19,7 +19,6 @@ const (
 	coloptBinary
 	coloptCharacterSet
 	coloptCollate
-	coloptEnumValues
 
 	// Everything else, meaning after this position, you can put anything
 	// you want. e.g. these are allowed
@@ -45,7 +44,6 @@ const (
 	coloptFlagTime            = coloptSize
 	coloptFlagChar            = coloptSize | coloptBinary | coloptCharacterSet | coloptCollate
 	coloptFlagBinary          = coloptSize
-	coloptFlagEnum            = coloptEnumValues
 )
 
 // Parser is responsible to parse a set of SQL statements
@@ -580,7 +578,18 @@ func (p *Parser) parseTableColumnSpec(ctx *parseCtx, col *model.TableColumn) err
 		colopt = coloptFlagChar
 	case ENUM:
 		coltyp = model.ColumnTypeEnum
-		colopt = coloptFlagEnum
+		colopt = coloptFlagNone
+		ctx.skipWhiteSpaces()
+		if t := ctx.next(); t.Type != LPAREN {
+			return newParseError(ctx, t, "expected LPAREN")
+		}
+		err := ctx.parseSetOrEnum(func(enum []string) *model.TableColumn {
+			col.EnumValues = enum
+			return col
+		})
+		if err != nil {
+			return err
+		}
 	case SET:
 		coltyp = model.ColumnTypeSet
 		colopt = coloptFlagNone
@@ -895,13 +904,8 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 				l.Decimals.Valid = true
 				l.Decimals.Value = tscale
 				col.Length = l
-			} else if check(coloptEnumValues) {
-				ctx.parseSetOrEnum(func(enum []string) *model.TableColumn {
-					col.EnumValues = enum
-					return col
-				})
 			} else {
-				return newParseError(ctx, t, "cannot apply coloptSize, coloptDecimalSize, coloptDecimalOptionalSize, coloptEnumValues")
+				return newParseError(ctx, t, "cannot apply coloptSize, coloptDecimalSize, coloptDecimalOptionalSize")
 			}
 		case CHARACTER:
 			ctx.skipWhiteSpaces()

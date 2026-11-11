@@ -131,7 +131,6 @@ func (t *TableColumn) NativeLength() *Length {
 func (t *TableColumn) Normalize() *TableColumn {
 	var length *Length
 	var synonym ColumnType
-	var removeQuotes bool
 	var setDefaultNull bool
 
 	if t.Length == nil {
@@ -151,27 +150,34 @@ func (t *TableColumn) Normalize() *TableColumn {
 		nullState = NullStateNone
 	}
 
-	if t.Default.Valid {
+	defaultValue := t.Default
+	if defaultValue.Valid {
+		switch t.Type {
+		case ColumnTypeBool, ColumnTypeBoolean:
+			switch defaultValue.Value {
+			case "TRUE":
+				defaultValue.Value = "1"
+				defaultValue.Quoted = false
+			case "FALSE":
+				defaultValue.Value = "0"
+				defaultValue.Quoted = false
+			}
+		}
+
 		switch t.Type {
 		case ColumnTypeTinyInt, ColumnTypeSmallInt,
 			ColumnTypeMediumInt, ColumnTypeInt,
 			ColumnTypeInteger, ColumnTypeBigInt,
 			ColumnTypeFloat, ColumnTypeDouble,
-			ColumnTypeDecimal, ColumnTypeNumeric, ColumnTypeReal:
-			// If numeric type then trim quote
-			if t.Default.Quoted {
-				removeQuotes = true
-			}
-		case ColumnTypeBool, ColumnTypeBoolean:
-			switch t.Default.Value {
-			case "TRUE":
-				t.Default.Valid = true
-				t.Default.Value = "1"
-				t.Default.Quoted = false
-			case "FALSE":
-				t.Default.Valid = true
-				t.Default.Value = "0"
-				t.Default.Quoted = false
+			ColumnTypeDecimal, ColumnTypeNumeric, ColumnTypeReal,
+			ColumnTypeBool, ColumnTypeBoolean:
+			// If numeric type then trim quote.
+			// BOOL and BOOLEAN are synonyms for TINYINT(1), so they are treated in the same way.
+			// Keep the quotes if the value is not a number, e.g. DEFAULT '',
+			// because writing it without the quotes makes invalid SQL.
+			if defaultValue.Quoted && isNumberLiteral(defaultValue.Value) {
+				defaultValue.Value = strings.ToUpper(defaultValue.Value)
+				defaultValue.Quoted = false
 			}
 		}
 	} else {
@@ -198,12 +204,7 @@ func (t *TableColumn) Normalize() *TableColumn {
 	}
 
 	col.NullState = nullState
-
-	if removeQuotes {
-		col.Default.Valid = true
-		col.Default.Value = t.Default.Value
-		col.Default.Quoted = false
-	}
+	col.Default = defaultValue
 
 	if setDefaultNull {
 		col.Default.Valid = true
@@ -212,4 +213,47 @@ func (t *TableColumn) Normalize() *TableColumn {
 	}
 
 	return &col
+}
+
+// isNumberLiteral reports whether s is a number literal that the lexer reads as a single NUMBER token.
+// e.g. 1, -1, +1, 1.5, .5, 1e10, 1e-10
+func isNumberLiteral(s string) bool {
+	isDigit := func(b byte) bool { return '0' <= b && b <= '9' }
+	digits := func(i int) int {
+		for i < len(s) && isDigit(s[i]) {
+			i++
+		}
+		return i
+	}
+
+	i := 0
+	if i < len(s) && (s[i] == '+' || s[i] == '-') {
+		// a sign must be followed by a digit.
+		i++
+		if i >= len(s) || !isDigit(s[i]) {
+			return false
+		}
+	}
+
+	start := i
+	i = digits(i)
+	if i < len(s) && s[i] == '.' {
+		i = digits(i + 1)
+	}
+	if i == start || s[start:i] == "." {
+		return false
+	}
+
+	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
+		i++
+		if i < len(s) && s[i] == '-' {
+			i++
+		}
+		e := i
+		i = digits(i)
+		if i == e {
+			return false
+		}
+	}
+	return i == len(s)
 }

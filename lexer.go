@@ -6,7 +6,9 @@ import (
 	"unicode/utf8"
 )
 
-const eof = rune(0)
+// eof is returned by the lexer at the end of the input.
+// It must not be a valid rune, so that a NUL character in the input is not mistaken for the end of the input.
+const eof = rune(-1)
 
 type lrune struct {
 	r rune

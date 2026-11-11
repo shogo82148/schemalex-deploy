@@ -1,6 +1,11 @@
 package schemalex
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/shogo82148/schemalex-deploy/internal/keywords"
+)
 
 func TestTokenTypeKeyword(t *testing.T) {
 	testCases := []struct {
@@ -37,5 +42,20 @@ func TestTokenTypeKeyword(t *testing.T) {
 				t.Errorf("%s.IsReservedKeyword() = %t, want %t", tc.typ, got, tc.reserved)
 			}
 		})
+	}
+}
+
+// keywords.IsReserved must agree with the lexer.
+func TestKeywordsIsReserved(t *testing.T) {
+	for name, typ := range keywordIdentMap {
+		if got, want := keywords.IsReserved(name), typ.IsReservedKeyword(); got != want {
+			t.Errorf("keywords.IsReserved(%q) = %v, want %v", name, got, want)
+		}
+		if got, want := keywords.IsReserved(strings.ToLower(name)), typ.IsReservedKeyword(); got != want {
+			t.Errorf("keywords.IsReserved(%q) = %v, want %v", strings.ToLower(name), got, want)
+		}
+	}
+	if keywords.IsReserved("InnoDB") {
+		t.Error("InnoDB must not be reserved")
 	}
 }
