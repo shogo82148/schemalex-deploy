@@ -95,9 +95,7 @@ func formatTableOption(ctx *fmtCtx, option *model.TableOption) error {
 	buf.WriteString(option.Key)
 	buf.WriteString(" = ")
 	if option.NeedQuotes {
-		buf.WriteByte('\'')
-		buf.WriteString(option.Value)
-		buf.WriteByte('\'')
+		writeString(&buf, option.Value)
 	} else {
 		buf.WriteString(option.Value)
 	}
@@ -210,9 +208,7 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 	case model.ColumnTypeEnum:
 		buf.WriteString(" (")
 		for _, enumValue := range col.EnumValues {
-			buf.WriteByte('\'')
-			buf.WriteString(enumValue)
-			buf.WriteByte('\'')
+			writeString(&buf, enumValue)
 			buf.WriteByte(',')
 		}
 		buf.Truncate(buf.Len() - 1)
@@ -220,9 +216,7 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 	case model.ColumnTypeSet:
 		buf.WriteString(" (")
 		for _, setValue := range col.SetValues {
-			buf.WriteByte('\'')
-			buf.WriteString(setValue)
-			buf.WriteByte('\'')
+			writeString(&buf, setValue)
 			buf.WriteByte(',')
 		}
 		buf.Truncate(buf.Len() - 1)
@@ -296,9 +290,7 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 	if col.Default.Valid {
 		buf.WriteString(" DEFAULT ")
 		if col.Default.Quoted {
-			buf.WriteByte('\'')
-			buf.WriteString(col.Default.Value)
-			buf.WriteByte('\'')
+			writeString(&buf, col.Default.Value)
 		} else {
 			buf.WriteString(col.Default.Value)
 		}
@@ -319,9 +311,8 @@ func formatTableColumn(ctx *fmtCtx, col *model.TableColumn) error {
 	}
 
 	if col.Comment.Valid {
-		buf.WriteString(" COMMENT '")
-		buf.WriteString(col.Comment.Value)
-		buf.WriteByte('\'')
+		buf.WriteString(" COMMENT ")
+		writeString(&buf, col.Comment.Value)
 	}
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {
@@ -487,4 +478,54 @@ func writeReferenceOption(buf *bytes.Buffer, prefix string, opt model.ReferenceO
 	default:
 		panic(fmt.Errorf("unknown reference option: %d", int(opt)))
 	}
+}
+
+// writeString writes s to buf as a quoted string literal.
+//
+// s is a string value from the lexer:
+// the escaped quotes that enclosed it are unescaped,
+// and the other backslash escape sequences are kept as they are.
+// So writeString copies the backslash escape sequences as they are,
+// and escapes the quotes by doubling them.
+//
+// A value from a single-quoted string never contains \', but a value from
+// a double-quoted string may contain it (e.g. "it\'s").
+// It can't be written in single quotes without changing the value,
+// so writeString writes it in double quotes.
+func writeString(buf *bytes.Buffer, s string) {
+	quot := byte('\'')
+	if hasEscapedQuote(s, quot) {
+		quot = '"'
+	}
+
+	buf.WriteByte(quot)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '\\' && i+1 < len(s):
+			// a backslash escape sequence
+			buf.WriteByte(c)
+			i++
+			buf.WriteByte(s[i])
+		case c == quot:
+			buf.WriteByte(quot)
+			buf.WriteByte(quot)
+		default:
+			buf.WriteByte(c)
+		}
+	}
+	buf.WriteByte(quot)
+}
+
+// hasEscapedQuote reports whether s contains the backslash escape sequence of quot.
+func hasEscapedQuote(s string, quot byte) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			i++
+			if s[i] == quot {
+				return true
+			}
+		}
+	}
+	return false
 }
