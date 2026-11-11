@@ -1,7 +1,6 @@
 package schemalex
 
 import (
-	"bytes"
 	"errors"
 	"strings"
 	"unicode/utf8"
@@ -62,11 +61,11 @@ func (l *lexer) emit(typ TokenType) {
 		t.Value = l.str()
 		switch typ {
 		case SINGLE_QUOTE_IDENT:
-			t.Value = unescapeQuotes(t.Value, '\'')
+			t.Value = unescapeQuotes(t.Value, '\'', true)
 		case DOUBLE_QUOTE_IDENT:
-			t.Value = unescapeQuotes(t.Value, '"')
+			t.Value = unescapeQuotes(t.Value, '"', true)
 		case BACKTICK_IDENT:
-			t.Value = unescapeQuotes(t.Value, '`')
+			t.Value = unescapeQuotes(t.Value, '`', false)
 		}
 	}
 
@@ -120,21 +119,21 @@ OUTER:
 			l.emit(EOF)
 			return
 		case '`':
-			if err := l.runQuote('`'); err != nil {
+			if err := l.runQuote('`', false); err != nil {
 				l.emit(ILLEGAL)
 				return
 			}
 
 			l.emit(BACKTICK_IDENT)
 		case '"':
-			if err := l.runQuote('"'); err != nil {
+			if err := l.runQuote('"', true); err != nil {
 				l.emit(ILLEGAL)
 				return
 			}
 
 			l.emit(DOUBLE_QUOTE_IDENT)
 		case '\'':
-			if err := l.runQuote('\''); err != nil {
+			if err := l.runQuote('\'', true); err != nil {
 				l.emit(ILLEGAL)
 				return
 			}
@@ -263,25 +262,38 @@ OUTER:
 	return IDENT
 }
 
-func unescapeQuotes(s string, quot rune) string {
-	var buf bytes.Buffer
-	max := utf8.RuneCountInString(s)
+// unescapeQuotes removes the surrounding quotes from s and unescapes the quotes in it.
+// A doubled quote is unescaped to a single quote.
+// If backslash is true, a backslash escapes the next character:
+// a backslash-escaped quote is unescaped, and the other escape sequences are kept as they are.
+func unescapeQuotes(s string, quot rune, backslash bool) string {
+	// assume the first rune and the last rune are quot
+	w := utf8.RuneLen(quot)
+	s = s[w : len(s)-w]
+
+	var buf strings.Builder
+	buf.Grow(len(s))
 	rdr := strings.NewReader(s)
-	for i := 0; i < max; i++ {
-		r, _, _ := rdr.ReadRune()
-
-		// assume first rune and last rune are quot
-		if i == 0 || i == max-1 {
-			continue
+	for {
+		r, _, err := rdr.ReadRune()
+		if err != nil {
+			break
 		}
-
-		switch r {
-		case '\\', quot: // possible escape sequence
-			if r2, _, _ := rdr.ReadRune(); r2 == quot {
-				i++
+		switch {
+		case r == quot:
+			// a doubled quote: skip the second one.
+			// the lexer guarantees that it exists.
+			_, _, _ = rdr.ReadRune()
+		case r == '\\' && backslash:
+			r2, _, err := rdr.ReadRune()
+			if err != nil {
+				break
+			}
+			if r2 == quot {
 				r = quot
 			} else {
-				rdr.UnreadRune()
+				buf.WriteRune(r)
+				r = r2
 			}
 		}
 		buf.WriteRune(r)
@@ -289,14 +301,18 @@ func unescapeQuotes(s string, quot rune) string {
 	return buf.String()
 }
 
-func (l *lexer) runQuote(pair rune) error {
+// runQuote reads a quoted string or identifier until the closing quote.
+// If backslash is true, a backslash escapes the next character.
+// https://dev.mysql.com/doc/refman/26.10/en/string-literals.html
+// https://dev.mysql.com/doc/refman/26.10/en/identifiers.html
+func (l *lexer) runQuote(pair rune, backslash bool) error {
 	for {
 		r := l.next()
 		if r == eof {
 			return errors.New(`unexpected eof`)
-		} else if r == '\\' {
-			if l.peek() == pair {
-				l.next()
+		} else if r == '\\' && backslash {
+			if l.next() == eof {
+				return errors.New(`unexpected eof`)
 			}
 		} else if r == pair {
 			if l.peek() == pair {

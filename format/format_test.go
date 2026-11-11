@@ -662,6 +662,34 @@ primary key (id, c)
 			");\n",
 	})
 
+	// https://github.com/shogo82148/schemalex-deploy/issues/308
+	parse("EscapedBackslashInDefault", &Spec{
+		Input: `CREATE TABLE t (a VARCHAR(10) DEFAULT '\\')`,
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` VARCHAR (10) DEFAULT '\\\\'\n" +
+			");\n",
+	})
+	parse("EscapedBackslashInComment", &Spec{
+		Input: `CREATE TABLE t (a VARCHAR(10) COMMENT 'a\\', b INT)`,
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` VARCHAR (10) DEFAULT NULL COMMENT 'a\\\\',\n" +
+			"`b` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("EscapedBackslashInGeneratedColumn", &Spec{
+		Input: `CREATE TABLE t (a INT, b VARCHAR(10) AS (concat(a,'\\',')')))`,
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"`b` VARCHAR (10) GENERATED ALWAYS AS (concat(a,'\\\\',')')) VIRTUAL\n" +
+			");\n",
+	})
+	parse("BackslashInQuotedIdentifier", &Spec{
+		Input: "CREATE TABLE `a\\` (`b\\` INT)",
+		Expect: "CREATE TABLE `a\\` (\n" +
+			"`b\\` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+
 	// Non-reserved keywords are permitted as identifiers without quoting.
 	// https://dev.mysql.com/doc/refman/26.10/en/keywords.html
 	parse("NonReservedKeywordsAsIdentifiers", &Spec{
