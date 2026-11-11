@@ -651,7 +651,8 @@ CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER INVISIBLE )",
 		},
 		After: []string{
-			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER VISIBLE )",
+			// MariaDB does not support the VISIBLE keyword for columns.
+			"CREATE TABLE `hoge` ( `a` INTEGER, `b` INTEGER )",
 		},
 		Expect: []string{
 			"ALTER TABLE `hoge` CHANGE COLUMN `b` `b` INT (11) DEFAULT NULL",
