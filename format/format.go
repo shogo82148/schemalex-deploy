@@ -201,6 +201,11 @@ func formatTable(ctx *fmtCtx, table *model.Table) error {
 				i++
 			}
 		}
+
+		if table.Partition.Valid {
+			buf.WriteByte('\n')
+			buf.WriteString(table.Partition.Value)
+		}
 	}
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {

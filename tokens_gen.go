@@ -75,6 +75,7 @@ const (
 	BOOL
 	BOOLEAN
 	BTREE
+	BY
 	CASCADE
 	CHAR
 	CHARACTER
@@ -150,6 +151,7 @@ const (
 	PACK_KEYS
 	PARSER
 	PARTIAL
+	PARTITION
 	PASSWORD
 	POINT
 	POLYGON
@@ -208,6 +210,7 @@ var keywordIdentMap = map[string]TokenType{
 	"BOOL":               BOOL,
 	"BOOLEAN":            BOOLEAN,
 	"BTREE":              BTREE,
+	"BY":                 BY,
 	"CASCADE":            CASCADE,
 	"CHAR":               CHAR,
 	"CHARACTER":          CHARACTER,
@@ -283,6 +286,7 @@ var keywordIdentMap = map[string]TokenType{
 	"PACK_KEYS":          PACK_KEYS,
 	"PARSER":             PARSER,
 	"PARTIAL":            PARTIAL,
+	"PARTITION":          PARTITION,
 	"PASSWORD":           PASSWORD,
 	"POINT":              POINT,
 	"POLYGON":            POLYGON,
@@ -342,6 +346,7 @@ func (t TokenType) IsReservedKeyword() bool {
 		BIGINT,
 		BINARY,
 		BLOB,
+		BY,
 		CASCADE,
 		CHAR,
 		CHARACTER,
@@ -379,6 +384,7 @@ func (t TokenType) IsReservedKeyword() bool {
 		NULL,
 		NUMERIC,
 		ON,
+		PARTITION,
 		PRIMARY,
 		REAL,
 		REFERENCES,
@@ -478,6 +484,8 @@ func (t TokenType) String() string {
 		return "BOOLEAN"
 	case BTREE:
 		return "BTREE"
+	case BY:
+		return "BY"
 	case CASCADE:
 		return "CASCADE"
 	case CHAR:
@@ -628,6 +636,8 @@ func (t TokenType) String() string {
 		return "PARSER"
 	case PARTIAL:
 		return "PARTIAL"
+	case PARTITION:
+		return "PARTITION"
 	case PASSWORD:
 		return "PASSWORD"
 	case POINT:
