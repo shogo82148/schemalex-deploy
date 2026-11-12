@@ -189,11 +189,14 @@ type alterCtx struct {
 	// They are dropped and added again.
 	recreateColumns set
 
-	fromIndexes set
-	toIndexes   set
-	from        *model.Table
-	to          *model.Table
-	buf         strings.Builder
+	// fromIndexes and toIndexes are the keys of the indexes, see indexKeys.
+	fromIndexes      set
+	toIndexes        set
+	fromIndexesByKey map[string]*model.Index
+	toIndexesByKey   map[string]*model.Index
+	from             *model.Table
+	to               *model.Table
+	buf              strings.Builder
 
 	// cur is the current model deployed to MySQL actually.
 	// it may be nil.
@@ -292,27 +295,43 @@ func newAlterCtx(ctx *diffCtx, from, to, cur *model.Table) (*alterCtx, error) {
 		}
 	}
 
-	fromIndexes := newSet()
-	for _, idx := range from.Indexes {
-		fromIndexes.Add(idx.ID())
-	}
-
-	toIndexes := newSet()
-	for _, idx := range to.Indexes {
-		toIndexes.Add(idx.ID())
-	}
+	fromIndexes, fromIndexesByKey := indexKeys(from.Indexes)
+	toIndexes, toIndexesByKey := indexKeys(to.Indexes)
 
 	return &alterCtx{
-		fromColumns:     fromColumns,
-		toColumns:       toColumns,
-		recreateColumns: recreateColumns,
-		fromIndexes:     fromIndexes,
-		toIndexes:       toIndexes,
-		from:            from,
-		to:              to,
-		cur:             cur,
-		tableNormalizer: ctx.tableNormalizer,
+		fromColumns:      fromColumns,
+		toColumns:        toColumns,
+		recreateColumns:  recreateColumns,
+		fromIndexes:      fromIndexes,
+		toIndexes:        toIndexes,
+		fromIndexesByKey: fromIndexesByKey,
+		toIndexesByKey:   toIndexesByKey,
+		from:             from,
+		to:               to,
+		cur:              cur,
+		tableNormalizer:  ctx.tableNormalizer,
 	}, nil
+}
+
+// indexKeys returns the keys that identify the indexes, and the indexes by their keys.
+// Usually the key is the ID of the index.
+// However, some indexes have the same ID, e.g. anonymous indexes with the same definition such as `INDEX (a), INDEX (a)`.
+// They are distinguished by their order: the first one is keyed by its ID, and the n-th one by "<ID>#<n>".
+func indexKeys(indexes []*model.Index) (set, map[string]*model.Index) {
+	keys := newSet()
+	byKey := make(map[string]*model.Index, len(indexes))
+	count := make(map[string]int, len(indexes))
+	for _, idx := range indexes {
+		id := idx.ID()
+		count[id]++
+		key := id
+		if n := count[id]; n > 1 {
+			key = fmt.Sprintf("%s#%d", id, n)
+		}
+		keys.Add(key)
+		byKey[key] = idx
+	}
+	return keys, byKey
 }
 
 // needsRecreateColumn reports whether the column must be dropped and added again
@@ -547,7 +566,7 @@ func (ctx *alterCtx) dropTableIndexes() error {
 	// because cannot drop index if needed in a foreign key constraint
 	lazy := make([]model.Ident, 0, indexes.Cardinality())
 	for _, index := range indexes.ToSlice() {
-		indexStmt, ok := ctx.from.LookupIndex(index)
+		indexStmt, ok := ctx.fromIndexesByKey[index]
 		if !ok {
 			return fmt.Errorf("index not found in old schema: %q", index)
 		}
@@ -593,9 +612,9 @@ func (ctx *alterCtx) addTableIndexes() error {
 	// because cannot add index if create implicitly index by foreign key.
 	lazy := make([]*model.Index, 0, indexes.Cardinality())
 	for _, index := range indexes.ToSlice() {
-		indexStmt, ok := ctx.to.LookupIndex(index)
+		indexStmt, ok := ctx.toIndexesByKey[index]
 		if !ok {
-			return fmt.Errorf("index not found in old schema: %q", index)
+			return fmt.Errorf("index not found in new schema: %q", index)
 		}
 		if indexStmt.Kind == model.IndexKindForeignKey {
 			lazy = append(lazy, indexStmt)
@@ -626,11 +645,11 @@ func (ctx *alterCtx) addTableIndexes() error {
 func (ctx *alterCtx) alterTableIndexes() error {
 	indexes := ctx.toIndexes.Intersect(ctx.fromIndexes)
 	for _, index := range indexes.ToSlice() {
-		beforeIndexStmt, ok := ctx.from.LookupIndex(index)
+		beforeIndexStmt, ok := ctx.fromIndexesByKey[index]
 		if !ok {
 			return fmt.Errorf("index not found in old schema: %q", index)
 		}
-		afterIndexStmt, ok := ctx.to.LookupIndex(index)
+		afterIndexStmt, ok := ctx.toIndexesByKey[index]
 		if !ok {
 			return fmt.Errorf("index not found in new schema: %q", index)
 		}
@@ -667,6 +686,18 @@ func (ctx *alterCtx) guessTableIndexName(indexStmt *model.Index) (name model.Ide
 		return "", fmt.Errorf("can not find the name of the index: %q", indexStmt.ID())
 	}
 
+	// MySQL names anonymous indexes with the same definition in order, e.g. `a`, `a_2`, ...
+	// so the n-th one in the "from" corresponds to the n-th candidate in the current schema.
+	nth := 0
+	for _, idx := range ctx.from.Indexes {
+		if idx == indexStmt {
+			break
+		}
+		if !getIndexName(idx).Valid && equalIndex(idx, indexStmt) {
+			nth++
+		}
+	}
+
 	// Guess the name from the current schema
 LOOP:
 	for _, idx := range cur.Indexes {
@@ -688,6 +719,10 @@ LOOP:
 			}
 		}
 
+		if nth > 0 {
+			nth--
+			continue
+		}
 		return name.Ident, nil // found
 	}
 	return "", fmt.Errorf("can not find the name of the index: %q", indexStmt.ID())
