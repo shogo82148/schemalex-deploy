@@ -183,6 +183,24 @@ func TestUnmarshal(t *testing.T) {
 				},
 			},
 		},
+
+		// dashes and underscores are interchangeable, and the later one takes precedence.
+		{
+			in: "[client]\nssl-mode=DISABLED\nssl_mode=REQUIRED\n",
+			want: MyCnf{
+				"client": map[string]string{
+					"ssl_mode": "REQUIRED",
+				},
+			},
+		},
+		{
+			in: "[client]\nssl_mode=REQUIRED\nssl-mode=DISABLED\n",
+			want: MyCnf{
+				"client": map[string]string{
+					"ssl-mode": "DISABLED",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

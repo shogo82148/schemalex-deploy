@@ -1,6 +1,8 @@
 package mycnf
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 
@@ -78,6 +80,33 @@ func TestLoad(t *testing.T) {
 		},
 		"mysqldump": {
 			"quick": "",
+		},
+	}
+	if diff := cmp.Diff(cnf, want); diff != "" {
+		t.Errorf("unexpected result (-got +want):\n%s", diff)
+	}
+}
+
+func TestLoad_dashesAndUnderscores(t *testing.T) {
+	// the option in the later file takes precedence,
+	// even if it is written with the other separator.
+	dir := t.TempDir()
+	global := filepath.Join(dir, "global.cnf")
+	user := filepath.Join(dir, "user.cnf")
+	if err := os.WriteFile(global, []byte("[client]\nssl-mode=DISABLED\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(user, []byte("[client]\nssl_mode=REQUIRED\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cnf, err := load([]string{global, user})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := MyCnf{
+		"client": {
+			"ssl_mode": "REQUIRED",
 		},
 	}
 	if diff := cmp.Diff(cnf, want); diff != "" {
