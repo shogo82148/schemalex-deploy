@@ -339,6 +339,59 @@ primary key (id, c)
 		Input: "CREATE TABLE TEMPORARY foo (a INT)",
 		Error: true,
 	})
+	// https://github.com/shogo82148/schemalex-deploy/issues/323
+	parse("PartitionInExecutableComment", &Spec{
+		// SHOW CREATE TABLE returns the partitioning clause in an executable comment.
+		Input: "CREATE TABLE `t` (\n  `id` int NOT NULL\n) ENGINE=InnoDB\n" +
+			"/*!50100 PARTITION BY HASH (`id`)\nPARTITIONS 2 */",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`id` INT (11) NOT NULL\n" +
+			") ENGINE = InnoDB\n" +
+			"PARTITION BY HASH (`id`)\nPARTITIONS 2;\n",
+	})
+	parse("PartitionWithoutTableOptions", &Spec{
+		Input: "CREATE TABLE t (id INT) PARTITION BY RANGE (id) (PARTITION p0 VALUES LESS THAN (10), PARTITION p1 VALUES LESS THAN MAXVALUE);" +
+			"CREATE TABLE u (id INT)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`id` INT (11) DEFAULT NULL\n" +
+			")\n" +
+			"PARTITION BY RANGE (id) (PARTITION p0 VALUES LESS THAN (10), PARTITION p1 VALUES LESS THAN MAXVALUE);\n" +
+			"CREATE TABLE `u` (\n" +
+			"`id` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("PartitionWithExecutableComment", &Spec{
+		Input: "CREATE TABLE t (id INT) PARTITION BY HASH (id) /*!50100 PARTITIONS 2 */",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`id` INT (11) DEFAULT NULL\n" +
+			")\n" +
+			"PARTITION BY HASH (id) PARTITIONS 2;\n",
+	})
+	parse("PartitionWithTrailingComment", &Spec{
+		// the trailing comment is removed, otherwise it comments out the semicolon in the output.
+		Input: "CREATE TABLE t (id INT) PARTITION BY HASH (id) -- comment\n;",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`id` INT (11) DEFAULT NULL\n" +
+			")\n" +
+			"PARTITION BY HASH (id);\n",
+	})
+	parse("PartitionWithoutBy", &Spec{
+		Input: "CREATE TABLE t (id INT) PARTITION HASH (id)",
+		Error: true,
+	})
+	parse("PartitionEmpty", &Spec{
+		Input: "CREATE TABLE t (id INT) PARTITION BY;",
+		Error: true,
+	})
+	parse("PartitionUnclosedParen", &Spec{
+		Input: "CREATE TABLE t (id INT) PARTITION BY HASH (id;",
+		Error: true,
+	})
+	parse("PartitionUnopenedParen", &Spec{
+		Input: "CREATE TABLE t (id INT) PARTITION BY HASH (id));",
+		Error: true,
+	})
+
 	parse("TableNamedTemporary", &Spec{
 		// TEMPORARY is not a reserved word, so it can be used as a table name.
 		Input: "CREATE TABLE temporary (a INT)",
@@ -550,8 +603,8 @@ primary key (id, c)
 	})
 
 	parse("GithubIssue79", &Spec{
-		// PARTITION BY in the executable comment is not supported.
-		// https://github.com/shogo82148/schemalex-deploy/issues/312
+		// the partitioning clause in the executable comment is kept.
+		// https://github.com/shogo82148/schemalex-deploy/issues/323
 		Input: "CREATE TABLE `test_tb` (" +
 			"  `t_id` char(17) NOT NULL," +
 			"  `t_type` smallint(6) NOT NULL," +
@@ -561,7 +614,14 @@ primary key (id, c)
 			"(PARTITION p_1 VALUES IN (1) ENGINE = InnoDB," +
 			" PARTITION p_100 VALUES IN (100) ENGINE = InnoDB) */;" +
 			"/*!40101 SET character_set_client = @saved_cs_client */;",
-		Error: true,
+		Expect: "CREATE TABLE `test_tb` (\n" +
+			"`t_id` CHAR (17) NOT NULL,\n" +
+			"`t_type` SMALLINT (6) NOT NULL,\n" +
+			"`cur_date` DATETIME NOT NULL\n" +
+			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8\n" +
+			"PARTITION BY LIST (`t_type`)" +
+			"(PARTITION p_1 VALUES IN (1) ENGINE = InnoDB," +
+			" PARTITION p_100 VALUES IN (100) ENGINE = InnoDB);\n",
 	})
 	parse("WhiteSpacesBetweenTableOptionsAndSemicolon", &Spec{
 		Input: "CREATE TABLE foo (id INT(10) NOT NULL) ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4 \n/**/ ;",
@@ -649,6 +709,14 @@ primary key (id, c)
 		Expect: "CREATE TABLE `t` (\n" +
 			"`a` INT (11) NOT NULL,\n" +
 			"`b` INT (11) GENERATED ALWAYS AS (a + 1) VIRTUAL\n" +
+			");\n",
+	})
+	parse("GeneratedColumnExecutableCommentSeparatesTokens", &Spec{
+		// the markers separate the tokens, so `a/*!*/MOD/*!*/2` is `a MOD 2`, not `aMOD2`.
+		Input: "CREATE TABLE t (a INT NOT NULL, b INT AS (a/*!*/MOD/*!*/2))",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) GENERATED ALWAYS AS (a MOD 2) VIRTUAL\n" +
 			");\n",
 	})
 	parse("GeneratedColumnWithExecutableCommentClause", &Spec{
@@ -956,14 +1024,6 @@ primary key (id, c)
 	})
 
 	// Unsupported syntax in executable comments is an error, as it is outside of them.
-	parse("PartitionInExecutableComment", &Spec{
-		Input: "CREATE TABLE t (a INT) /*!50100 PARTITION BY HASH(a) */",
-		Error: true,
-	})
-	parse("PartitionOutsideExecutableComment", &Spec{
-		Input: "CREATE TABLE t (a INT) PARTITION BY HASH(a)",
-		Error: true,
-	})
 	parse("UnsupportedStatementInExecutableComment", &Spec{
 		// a part of mysqldump output for views.
 		Input: "/*!50001 CREATE ALGORITHM=UNDEFINED */\n" +
@@ -1114,6 +1174,8 @@ func TestFormatRoundTrip(t *testing.T) {
 		"CREATE TABLE t (a INT) DEFAULT CHARACTER SET `utf8mb4` COLLATE `utf8mb4 bin`",
 		"CREATE TEMPORARY TABLE t (a INT)",
 		"CREATE TEMPORARY TABLE IF NOT EXISTS t LIKE u",
+		"CREATE TABLE t (id INT) ENGINE InnoDB PARTITION BY HASH (id) PARTITIONS 2",
+		"CREATE TABLE t (id INT) PARTITION BY RANGE (id) (PARTITION p0 VALUES LESS THAN (10), PARTITION p1 VALUES LESS THAN MAXVALUE)",
 	}
 	for _, ddl0 := range tests {
 		t.Run(ddl0, func(t *testing.T) {

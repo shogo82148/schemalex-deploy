@@ -11,6 +11,12 @@ type Table struct {
 	Columns     []*TableColumn
 	Indexes     []*Index
 	Options     []*TableOption
+
+	// Partition is the partitioning clause of the table, e.g. `PARTITION BY HASH (id) PARTITIONS 2`.
+	// It is kept as it is written, except for the markers of executable comments.
+	// The diff uses it only to create the table, and ignores its changes.
+	// https://dev.mysql.com/doc/refman/26.10/en/partitioning.html
+	Partition MaybeString
 }
 
 // NewTable create a new table with the given name

@@ -660,6 +660,30 @@ CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 			"ALTER TABLE `hoge` CHANGE COLUMN `b` `b` INT (11) DEFAULT NULL",
 		},
 	},
+
+	// https://github.com/shogo82148/schemalex-deploy/issues/323
+	{
+		Name:   "create a partitioned table",
+		Before: []string{},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL ) PARTITION BY HASH (`id`) PARTITIONS 2",
+		},
+		Expect: []string{
+			"CREATE TABLE `fuga` (\n`id` INT (11) NOT NULL\n)\nPARTITION BY HASH (`id`) PARTITIONS 2",
+		},
+	},
+	{
+		Name: "add a column to a partitioned table",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL ) PARTITION BY HASH (`id`) PARTITIONS 2",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL ) PARTITION BY HASH (`id`) PARTITIONS 2",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `id`",
+		},
+	},
 }
 
 func joinQueries(queries []string) string {
@@ -1164,6 +1188,50 @@ func showTables(ctx context.Context, tx *sql.Tx) ([]string, error) {
 		return nil, fmt.Errorf("some error occurred during iteration: %w", err)
 	}
 	return tables, nil
+}
+
+// The changes of the partitioning are ignored,
+// because SHOW CREATE TABLE rewrites the partitioning clause,
+// and partitions may be added or removed outside of the schema, e.g. the partitions by date.
+// https://github.com/shogo82148/schemalex-deploy/issues/323
+func TestDiff_IgnorePartitionChanges(t *testing.T) {
+	tests := []struct {
+		name   string
+		before string
+		after  string
+	}{
+		{
+			name:   "partition a table",
+			before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			after:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL ) PARTITION BY HASH (`id`) PARTITIONS 2",
+		},
+		{
+			name:   "remove partitioning",
+			before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL ) PARTITION BY HASH (`id`) PARTITIONS 2",
+			after:  "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+		},
+		{
+			name: "rewritten by SHOW CREATE TABLE",
+			before: "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL ) " +
+				"PARTITION BY RANGE (id) (PARTITION p0 VALUES LESS THAN (10), PARTITION p1 VALUES LESS THAN MAXVALUE)",
+			after: "CREATE TABLE `fuga` ( `id` int NOT NULL ) ENGINE=InnoDB\n" +
+				"/*!50100 PARTITION BY RANGE (`id`)\n" +
+				"(PARTITION p0 VALUES LESS THAN (10) ENGINE = InnoDB,\n" +
+				" PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = InnoDB) */",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := diff.Strings(&buf, tt.before, tt.after); err != nil {
+				t.Fatal(err)
+			}
+			if buf.Len() > 0 {
+				t.Errorf("want no diff, but got %q", buf.String())
+			}
+		})
+	}
 }
 
 // https://github.com/shogo82148/schemalex-deploy/issues/309

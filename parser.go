@@ -80,6 +80,14 @@ func (pctx *parseCtx) peek() *Token {
 	return pctx.lexsrc[pctx.idx]
 }
 
+// peekPos returns the position of the next token in the input.
+func (pctx *parseCtx) peekPos() int {
+	if pctx.idx >= len(pctx.lexsrc) {
+		return len(pctx.input)
+	}
+	return pctx.lexsrc[pctx.idx].Pos
+}
+
 func (pctx *parseCtx) advance() {
 	pctx.idx++
 }
@@ -396,7 +404,12 @@ func (p *Parser) parseCreateTableFields(ctx *parseCtx, stmt *model.Table) error 
 			if err := p.parseCreateTableOptions(ctx, stmt); err != nil {
 				return err
 			}
-			// partition option
+			ctx.skipWhiteSpaces()
+			if ctx.peek().Type == PARTITION {
+				if err := p.parsePartition(ctx, stmt); err != nil {
+					return err
+				}
+			}
 			if t, ok := p.eol(ctx); !ok {
 				return newParseError(ctx, t, "expected EOL")
 			}
@@ -718,13 +731,17 @@ func (p *Parser) parseCreateTableOptions(ctx *parseCtx, table *model.Table) erro
 		// no table options, end of input
 		ctx.advance()
 		return nil
-	case SEMICOLON:
-		// no table options, end of statement
+	case SEMICOLON, PARTITION:
+		// no table options, end of statement or the partitioning clause
 		return nil
 	}
 
 	for {
 		ctx.skipWhiteSpaces()
+		if ctx.peek().Type == PARTITION {
+			// end of table options, the partitioning clause follows
+			return nil
+		}
 		switch t := ctx.next(); t.Type {
 		case ENGINE:
 			if err := p.parseCreateTableOptionValue(ctx, table, "ENGINE", IDENT, BACKTICK_IDENT); err != nil {
@@ -1653,16 +1670,89 @@ func isWrappedByParenTokens(tokens []*Token) bool {
 	return false
 }
 
+// parsePartition parses the partitioning clause `PARTITION BY ...` up to the end of the statement.
+// The clause is kept as it is written, except for the markers of executable comments,
+// because SHOW CREATE TABLE returns it in an executable comment, e.g. `/*!50100 PARTITION BY HASH (id) PARTITIONS 2 */`.
+// https://dev.mysql.com/doc/refman/26.10/en/create-table.html#create-table-partitioning
+func (p *Parser) parsePartition(ctx *parseCtx, table *model.Table) error {
+	first := ctx.next()
+	if first.Type != PARTITION {
+		return newParseError(ctx, first, "expected PARTITION")
+	}
+	ctx.skipWhiteSpaces()
+	by := ctx.next()
+	if by.Type != BY {
+		return newParseError(ctx, by, "expected BY")
+	}
+
+	// collect the tokens up to the end of the statement.
+	// string literals and quoted identifiers are single tokens,
+	// so parentheses and semicolons inside them are not counted.
+	var markers []*Token // the markers of executable comments in the clause
+	depth := 0
+	// end is the end of the last token, excluding the spaces and the comments after it,
+	// e.g. a trailing "-- comment" would comment out the semicolon after the clause in the output.
+	end := ctx.peekPos()
+	empty := true
+LOOP:
+	for {
+		t := ctx.peek()
+		significant := true
+		switch t.Type {
+		case LPAREN:
+			depth++
+		case RPAREN:
+			if depth == 0 {
+				return newParseError(ctx, t, "unexpected RPAREN in the partitioning clause")
+			}
+			depth--
+		case SEMICOLON, EOF:
+			if depth > 0 {
+				return newParseError(ctx, t, "expected RPAREN in the partitioning clause")
+			}
+			break LOOP
+		case ILLEGAL:
+			// e.g. an unterminated string literal.
+			return newParseError(ctx, t, "unexpected token in the partitioning clause")
+		case SPACE:
+			significant = false
+		case COMMENT_IDENT:
+			significant = false
+			if ctx.isExecutableCommentMarker(t) {
+				markers = append(markers, t)
+			}
+		}
+		ctx.advance()
+		if significant {
+			end = ctx.peekPos()
+			empty = false
+		}
+	}
+	if empty {
+		return newParseError(ctx, by, "expected the partitioning type after PARTITION BY")
+	}
+
+	table.Partition.Valid = true
+	table.Partition.Value = strings.TrimSpace(removeExecutableCommentMarkers(ctx.input, first.Pos, end, markers))
+	return nil
+}
+
 // removeExecutableCommentMarkers returns input[start:end] without the markers of executable comments,
 // i.e. `/*!`, `/*!NNNNN` and `*/`, so that the content of the comments remains.
-// The spaces around the removed markers are squashed.
+// The spaces around the removed markers are squashed,
+// and a space is inserted instead of a marker between non-space characters, because the markers separate tokens.
 func removeExecutableCommentMarkers(input []byte, start, end int, markers []*Token) string {
 	var buf strings.Builder
 	pos := start
 	squash := false
 	write := func(b []byte) {
-		if squash && buf.Len() > 0 && isSpace(rune(buf.String()[buf.Len()-1])) {
-			b = bytes.TrimLeft(b, " \t\r\n")
+		if squash && buf.Len() > 0 {
+			if isSpace(rune(buf.String()[buf.Len()-1])) {
+				b = bytes.TrimLeft(b, " \t\r\n")
+			} else if len(b) > 0 && !isSpace(rune(b[0])) {
+				// the marker separates the tokens, e.g. `BY/*!*/0` means `BY 0`, not `BY0`.
+				buf.WriteByte(' ')
+			}
 		}
 		buf.Write(b)
 	}

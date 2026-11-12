@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -325,6 +326,134 @@ func TestImportGeneratedColumns(t *testing.T) {
 		}
 		if len(plan.Stmts) > 0 {
 			t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+		}
+	})
+}
+
+// https://github.com/shogo82148/schemalex-deploy/issues/323
+func TestPlanPartitionedTable(t *testing.T) {
+	database.SkipIfNoTestDatabase(t)
+
+	t.Run("partitioned after import", func(t *testing.T) {
+		ctx := t.Context()
+		rawDB, cleanup := database.SetupTestDB()
+		defer cleanup()
+		db := &DB{
+			db: rawDB,
+		}
+
+		const before = `CREATE TABLE t (
+			id INTEGER NOT NULL,
+			PRIMARY KEY (id)
+		);
+`
+		if _, err := db.db.ExecContext(ctx, before); err != nil {
+			t.Fatal(err)
+		}
+		sqlText, err := db.LoadSchema(ctx)
+		if err != nil {
+			t.Fatalf("failed to load schema: %v", err)
+		}
+		if err := db.Import(ctx, sqlText); err != nil {
+			t.Fatalf("failed to import: %v", err)
+		}
+
+		// partition the table outside of schemalex-deploy.
+		if _, err := db.db.ExecContext(ctx, "ALTER TABLE t PARTITION BY HASH(id) PARTITIONS 2"); err != nil {
+			t.Fatal(err)
+		}
+
+		// the changes of other tables can be deployed.
+		const after = `CREATE TABLE t (
+			id INTEGER NOT NULL,
+			PRIMARY KEY (id)
+		);
+CREATE TABLE u (
+			id INTEGER NOT NULL
+		);
+`
+		plan, err := db.Plan(ctx, after)
+		if err != nil {
+			t.Fatalf("failed to plan: %v", err)
+		}
+		want := "CREATE TABLE `u` (\n  `id` INT (11) NOT NULL\n)"
+		if len(plan.Stmts) != 1 || string(plan.Stmts[0]) != want {
+			t.Errorf("want %q, got %q", want, plan.Stmts)
+		}
+	})
+
+	t.Run("import a partitioned table", func(t *testing.T) {
+		ctx := t.Context()
+		rawDB, cleanup := database.SetupTestDB()
+		defer cleanup()
+		db := &DB{
+			db: rawDB,
+		}
+
+		const before = `CREATE TABLE t (
+			id INTEGER NOT NULL,
+			created_at DATETIME NOT NULL,
+			PRIMARY KEY (id, created_at)
+		)
+		PARTITION BY RANGE COLUMNS(created_at) (
+			PARTITION p2025 VALUES LESS THAN ('2026-01-01'),
+			PARTITION p2026 VALUES LESS THAN ('2027-01-01')
+		);
+`
+		if _, err := db.db.ExecContext(ctx, before); err != nil {
+			t.Fatal(err)
+		}
+		sqlText, err := db.LoadSchema(ctx)
+		if err != nil {
+			t.Fatalf("failed to load schema: %v", err)
+		}
+		if err := db.Import(ctx, sqlText); err != nil {
+			t.Fatalf("failed to import: %v", err)
+		}
+
+		// SHOW CREATE TABLE rewrites the partitioning clause, but no diff is detected.
+		plan, err := db.Plan(ctx, before)
+		if err != nil {
+			t.Fatalf("failed to plan: %v", err)
+		}
+		if len(plan.Stmts) > 0 {
+			t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+		}
+
+		// add a partition outside of schemalex-deploy, and add a column.
+		if _, err := db.db.ExecContext(ctx, "ALTER TABLE t ADD PARTITION (PARTITION p2027 VALUES LESS THAN ('2028-01-01'))"); err != nil {
+			t.Fatal(err)
+		}
+		const after = `CREATE TABLE t (
+			id INTEGER NOT NULL,
+			created_at DATETIME NOT NULL,
+			a INTEGER NOT NULL,
+			PRIMARY KEY (id, created_at)
+		)
+		PARTITION BY RANGE COLUMNS(created_at) (
+			PARTITION p2025 VALUES LESS THAN ('2026-01-01'),
+			PARTITION p2026 VALUES LESS THAN ('2027-01-01')
+		);
+`
+		plan, err = db.Plan(ctx, after)
+		if err != nil {
+			t.Fatalf("failed to plan: %v", err)
+		}
+		want := "ALTER TABLE `t` ADD COLUMN `a` INT (11) NOT NULL AFTER `created_at`"
+		if len(plan.Stmts) != 1 || string(plan.Stmts[0]) != want {
+			t.Errorf("want %q, got %q", want, plan.Stmts)
+		}
+		if err := db.Deploy(ctx, plan); err != nil {
+			t.Fatalf("failed to deploy: %v", err)
+		}
+
+		// the partition added outside of schemalex-deploy remains.
+		var name, ddl string
+		if err := db.db.QueryRowContext(ctx, "SHOW CREATE TABLE t").Scan(&name, &ddl); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(ddl, "p2027") {
+			t.Errorf("want the partition p2027 remains, but not: %s", ddl)
 		}
 	})
 }
