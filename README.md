@@ -113,6 +113,8 @@ So servers that only speak TLS 1.0/1.1 (e.g. MySQL 5.6) can't be connected with 
 Use `-ssl-mode DISABLED` to restore the previous behavior.
 
 `-ssl-mode` and `-ssl-ca` can also be specified in the `[client]` group of my.cnf.
+Client certificates (`ssl-cert` and `ssl-key`) are not supported yet, so they are ignored even if they are in my.cnf.
+You can't connect as a user created with `REQUIRE X509`.
 
 Amazon Aurora MySQL 8.4 and later enable `require_secure_transport` by default,
 so unencrypted connections are rejected with the following error:
