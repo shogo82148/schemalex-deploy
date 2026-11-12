@@ -157,13 +157,12 @@ func (p *parser) ParseOption() {
 	name := p.ParseOptionName()
 	value := p.ParseOptionValue()
 	p.SkipToEOL()
-	if g, ok := p.result[p.group]; ok {
-		g[name] = value
-	} else {
-		p.result[p.group] = map[string]string{
-			name: value,
-		}
+	g, ok := p.result[p.group]
+	if !ok {
+		g = map[string]string{}
+		p.result[p.group] = g
 	}
+	setOption(g, name, value)
 }
 
 func (p *parser) ParseOptionName() string {

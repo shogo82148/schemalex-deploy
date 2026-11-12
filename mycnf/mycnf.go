@@ -2,10 +2,10 @@ package mycnf
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 type MyCnf map[string]map[string]string
@@ -60,8 +60,30 @@ func load(paths []string) (MyCnf, error) {
 				g = map[string]string{}
 				result[group] = g
 			}
-			maps.Copy(g, kv)
+			for name, value := range kv {
+				setOption(g, name, value)
+			}
 		}
 	}
 	return result, nil
+}
+
+// setOption sets the option to the group.
+// mysql(1) treats dashes and underscores in option names interchangeably,
+// and the option that appears later takes precedence.
+// So setOption removes the same option written with the other separator,
+// to make the later one take precedence regardless of how it is written.
+// https://dev.mysql.com/doc/refman/8.0/en/option-files.html
+func setOption(group map[string]string, name, value string) {
+	normalized := normalizeOptionName(name)
+	for k := range group {
+		if k != name && normalizeOptionName(k) == normalized {
+			delete(group, k)
+		}
+	}
+	group[name] = value
+}
+
+func normalizeOptionName(name string) string {
+	return strings.ReplaceAll(name, "_", "-")
 }
