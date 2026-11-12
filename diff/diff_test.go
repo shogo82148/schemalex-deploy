@@ -887,6 +887,92 @@ var autoSpecs = []AutoNamedSpec{
 			"ALTER TABLE `fuga` ALTER INDEX `id` INVISIBLE",
 		},
 	},
+
+	// https://github.com/shogo82148/schemalex-deploy/issues/322
+	// MySQL allows duplicate indexes with a warning, and names them `id`, `id_2`, ...
+	{
+		Name: "add a duplicate anonymous index",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`) )",
+		},
+		Current: []string{"CREATE TABLE `fuga` (" +
+			"`id` int NOT NULL," +
+			"KEY `id` (`id`)" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`), INDEX (`id`) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ADD INDEX (`id`)",
+		},
+	},
+	{
+		Name: "drop a duplicate anonymous index",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`), INDEX (`id`), INDEX (`id`) )",
+		},
+		Current: []string{"CREATE TABLE `fuga` (" +
+			"`id` int NOT NULL," +
+			"KEY `id` (`id`)," +
+			"KEY `id_2` (`id`)," +
+			"KEY `id_3` (`id`)" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP INDEX `id_2`, DROP INDEX `id_3`",
+		},
+	},
+	{
+		Name: "make a duplicate anonymous index invisible",
+		Tests: []string{
+			// MariaDB does not support invisible indexes.
+			"CREATE TABLE `fuga` ( `id` INTEGER, INDEX (`id`) INVISIBLE )",
+		},
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`) INVISIBLE, INDEX (`id`) )",
+		},
+		Current: []string{"CREATE TABLE `fuga` (" +
+			"`id` int NOT NULL," +
+			"KEY `id` (`id`) /*!80000 INVISIBLE */," +
+			"KEY `id_2` (`id`)" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`), INDEX (`id`) INVISIBLE )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ALTER INDEX `id` VISIBLE, ALTER INDEX `id_2` INVISIBLE",
+		},
+	},
+	{
+		// the indexes must be added in order, because MySQL names them in the order they are added.
+		// the 10th one must not be added before the 2nd one.
+		Name: "add ten duplicate anonymous indexes",
+		Tests: []string{
+			// MariaDB does not support invisible indexes.
+			"CREATE TABLE `fuga` ( `id` INTEGER, INDEX (`id`) INVISIBLE )",
+		},
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`) )",
+		},
+		Current: []string{"CREATE TABLE `fuga` (" +
+			"`id` int NOT NULL," +
+			"KEY `id` (`id`)" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`), INDEX (`id`) INVISIBLE" +
+				strings.Repeat(", INDEX (`id`)", 8) + " )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ADD INDEX (`id`) INVISIBLE" +
+				strings.Repeat(", ADD INDEX (`id`)", 8),
+		},
+	},
 }
 
 func TestDiffWithAutoNamedObjects(t *testing.T) {
