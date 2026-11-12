@@ -330,6 +330,73 @@ func TestImportGeneratedColumns(t *testing.T) {
 	})
 }
 
+// MariaDB returns JSON columns as LONGTEXT with a CHECK constraint.
+// https://github.com/shogo82148/schemalex-deploy/issues/326
+func TestImportJSONColumns(t *testing.T) {
+	database.SkipIfNoTestDatabase(t)
+
+	ctx := t.Context()
+	rawDB, cleanup := database.SetupTestDB()
+	defer cleanup()
+	db := &DB{
+		db: rawDB,
+	}
+
+	const before = `CREATE TABLE t (
+		id INTEGER NOT NULL,
+		doc JSON,
+		doc2 JSON NOT NULL
+	);
+`
+	if _, err := db.db.ExecContext(ctx, before); err != nil {
+		t.Fatal(err)
+	}
+	sqlText, err := db.LoadSchema(ctx)
+	if err != nil {
+		t.Fatalf("failed to load schema: %v", err)
+	}
+	if err := db.Import(ctx, sqlText); err != nil {
+		t.Fatalf("failed to import: %v", err)
+	}
+
+	plan, err := db.Plan(ctx, before)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	if len(plan.Stmts) > 0 {
+		t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+	}
+
+	// add a JSON column.
+	const after = `CREATE TABLE t (
+		id INTEGER NOT NULL,
+		doc JSON,
+		doc2 JSON NOT NULL,
+		doc3 JSON
+	);
+`
+	plan, err = db.Plan(ctx, after)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	want := "ALTER TABLE `t` ADD COLUMN `doc3` JSON DEFAULT NULL AFTER `doc2`"
+	if len(plan.Stmts) != 1 || string(plan.Stmts[0]) != want {
+		t.Errorf("want %q, got %q", want, plan.Stmts)
+	}
+	if err := db.Deploy(ctx, plan); err != nil {
+		t.Fatalf("failed to deploy: %v", err)
+	}
+
+	// the current schema in the database is also parsed.
+	plan, err = db.Plan(ctx, after)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	if len(plan.Stmts) > 0 {
+		t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+	}
+}
+
 // https://github.com/shogo82148/schemalex-deploy/issues/323
 func TestPlanPartitionedTable(t *testing.T) {
 	database.SkipIfNoTestDatabase(t)

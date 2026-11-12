@@ -801,6 +801,19 @@ primary key (id, c)
 			"`e` INT (11) GENERATED ALWAYS AS (a /* comment */) VIRTUAL\n" +
 			");\n",
 	})
+	parse("GeneratedColumnTrailingLineComment", &Spec{
+		// trailing line comments are removed, otherwise they comment out the closing parenthesis in the output.
+		Input: "CREATE TABLE t (" +
+			"a INT NOT NULL, " +
+			"b INT AS (a + 1 # comment\n), " +
+			"c INT AS (a + 2 -- comment\n)" +
+			")",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) GENERATED ALWAYS AS (a + 1) VIRTUAL,\n" +
+			"`c` INT (11) GENERATED ALWAYS AS (a + 2) VIRTUAL\n" +
+			");\n",
+	})
 	parse("GeneratedColumnQuotedParens", &Spec{
 		// parentheses inside string literals and quoted identifiers are not counted.
 		Input: "CREATE TABLE t (" +
@@ -1039,6 +1052,59 @@ primary key (id, c)
 			"`a` INT (11) DEFAULT NULL\n" +
 			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4;\n",
 	})
+	// https://github.com/shogo82148/schemalex-deploy/issues/326
+	parse("MariaDBJSONColumn", &Spec{
+		// MariaDB returns JSON columns as LONGTEXT with a CHECK constraint.
+		Input: "CREATE TABLE `t` (\n" +
+			"  `doc` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`doc`))\n" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`doc` JSON DEFAULT NULL\n" +
+			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4, DEFAULT COLLATE = utf8mb4_general_ci;\n",
+	})
+	parse("MariaDBJSONColumnNotNull", &Spec{
+		Input: "CREATE TABLE `t` (\n" +
+			"  `doc` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`doc`))\n" +
+			")",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`doc` JSON NOT NULL\n" +
+			");\n",
+	})
+	parse("MariaDBJSONColumnHandWritten", &Spec{
+		// the function name and the column name are case-insensitive.
+		Input: "CREATE TABLE t (Doc LONGTEXT CHECK (JSON_VALID( doc )))",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`Doc` JSON DEFAULT NULL\n" +
+			");\n",
+	})
+	// other CHECK constraints on columns are not supported.
+	parse("ColumnCheck", &Spec{
+		Input: "CREATE TABLE t (a INT CHECK (a > 0))",
+		Error: true,
+	})
+	parse("ColumnCheckJSONValidOtherColumn", &Spec{
+		Input: "CREATE TABLE t (doc LONGTEXT, doc2 LONGTEXT CHECK (json_valid(doc)))",
+		Error: true,
+	})
+	parse("ColumnCheckJSONValidText", &Spec{
+		// MariaDB uses LONGTEXT for JSON columns.
+		Input: "CREATE TABLE t (doc TEXT CHECK (json_valid(doc)))",
+		Error: true,
+	})
+	parse("ColumnCheckJSONValidOtherCharset", &Spec{
+		// MariaDB uses utf8mb4 and utf8mb4_bin for JSON columns.
+		Input: "CREATE TABLE t (doc LONGTEXT CHARACTER SET latin1 CHECK (json_valid(doc)))",
+		Error: true,
+	})
+	parse("ColumnCheckJSONValidOtherCollation", &Spec{
+		Input: "CREATE TABLE t (doc LONGTEXT CHECK (json_valid(doc)) COLLATE utf8mb4_general_ci)",
+		Error: true,
+	})
+	parse("ColumnCheckEmpty", &Spec{
+		Input: "CREATE TABLE t (doc LONGTEXT CHECK ())",
+		Error: true,
+	})
+
 	parse("MariaDBExecutableComment", &Spec{
 		// MySQL treats MariaDB-specific executable comments as ordinary comments.
 		Input: "CREATE TABLE t (a INT /*M!100100 NOT NULL */)",
@@ -1201,6 +1267,9 @@ func TestFormatRoundTrip(t *testing.T) {
 		"CREATE TABLE t (id INT) ENGINE InnoDB PARTITION BY HASH (id) PARTITIONS 2",
 		"CREATE TABLE t (id INT) PARTITION BY HASH (id * 2) PARTITIONS 2",
 		"CREATE TABLE t (id INT) PARTITION BY HASH (id % 3) PARTITIONS 2",
+		"CREATE TABLE t (doc LONGTEXT CHECK (json_valid(doc)))",
+		"CREATE TABLE t (a INT, b INT AS (a # comment\n + 1))",
+		"CREATE TABLE t (a INT, b INT AS (a /* comment */))",
 		"CREATE TABLE t (id INT) PARTITION BY RANGE (id) (PARTITION p0 VALUES LESS THAN (10), PARTITION p1 VALUES LESS THAN MAXVALUE)",
 	}
 	for _, ddl0 := range tests {
