@@ -106,6 +106,12 @@ The default is `PREFERRED`: schemalex-deploy uses an encrypted connection if the
 and falls back to an unencrypted connection otherwise.
 Note that `PREFERRED` and `REQUIRED` don't verify the server certificate.
 
+schemalex-deploy used unencrypted connections before `-ssl-mode` was introduced.
+Encrypted connections require TLS 1.2 or later, and schemalex-deploy doesn't fall back to an unencrypted connection
+if the server supports TLS but the TLS handshake fails.
+So servers that only speak TLS 1.0/1.1 (e.g. MySQL 5.6) can't be connected with the default `PREFERRED`.
+Use `-ssl-mode DISABLED` to restore the previous behavior.
+
 `-ssl-mode` and `-ssl-ca` can also be specified in the `[client]` group of my.cnf.
 
 Amazon Aurora MySQL 8.4 and later enable `require_secure_transport` by default,
