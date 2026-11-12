@@ -65,12 +65,23 @@ func (db *DB) Plan(ctx context.Context, schema string) (*Plan, error) {
 	}
 
 	// temporary tables are visible only in the session, so use a dedicated connection.
-	conn, err := db.db.Conn(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get a connection: %w", err)
-	}
-	defer conn.Close()
+	// it is acquired on the first call of the normalizer, because most plans need no normalization.
+	var conn *sql.Conn
+	var connErr error
+	defer func() {
+		if conn != nil {
+			_ = conn.Close()
+		}
+	}()
 	opts = append(opts, diff.WithTableNormalizer(func(table *model.Table) (*model.Table, error) {
+		if conn == nil && connErr == nil {
+			conn, connErr = db.db.Conn(ctx)
+		}
+		if connErr != nil {
+			log.Printf("failed to get a connection to normalize table %s, so the expressions of its generated columns are compared as written: %v", table.Name.Quoted(), connErr)
+			return nil, nil
+		}
+
 		normalized, err := normalizeTable(ctx, conn, table)
 		if err != nil {
 			log.Printf("failed to normalize table %s, so the expressions of its generated columns are compared as written: %v", table.Name.Quoted(), err)
@@ -368,8 +379,11 @@ func normalizeTable(ctx context.Context, conn *sql.Conn, table *model.Table) (*m
 		return nil, fmt.Errorf("failed to create the temporary table: %w", err)
 	}
 	defer func() {
+		// drop the table even if ctx is canceled, but do not wait for it too long.
 		// the temporary table is dropped when the session ends anyway.
-		_, _ = conn.ExecContext(context.WithoutCancel(ctx), "DROP TEMPORARY TABLE IF EXISTS "+name.Quoted())
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_, _ = conn.ExecContext(ctx, "DROP TEMPORARY TABLE IF EXISTS "+name.Quoted())
 	}()
 
 	var tmpName, sqlText string
