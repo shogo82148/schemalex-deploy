@@ -948,6 +948,31 @@ var autoSpecs = []AutoNamedSpec{
 			"ALTER TABLE `fuga` ALTER INDEX `id` VISIBLE, ALTER INDEX `id_2` INVISIBLE",
 		},
 	},
+	{
+		// the indexes must be added in order, because MySQL names them in the order they are added.
+		// the 10th one must not be added before the 2nd one.
+		Name: "add ten duplicate anonymous indexes",
+		Tests: []string{
+			// MariaDB does not support invisible indexes.
+			"CREATE TABLE `fuga` ( `id` INTEGER, INDEX (`id`) INVISIBLE )",
+		},
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`) )",
+		},
+		Current: []string{"CREATE TABLE `fuga` (" +
+			"`id` int NOT NULL," +
+			"KEY `id` (`id`)" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, INDEX (`id`), INDEX (`id`) INVISIBLE" +
+				strings.Repeat(", INDEX (`id`)", 8) + " )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ADD INDEX (`id`) INVISIBLE" +
+				strings.Repeat(", ADD INDEX (`id`)", 8),
+		},
+	},
 }
 
 func TestDiffWithAutoNamedObjects(t *testing.T) {

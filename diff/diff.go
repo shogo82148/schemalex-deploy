@@ -194,6 +194,7 @@ type alterCtx struct {
 	toIndexes        set
 	fromIndexesByKey map[string]*model.Index
 	toIndexesByKey   map[string]*model.Index
+	indexKeyOrder    map[string]indexKey
 	from             *model.Table
 	to               *model.Table
 	buf              strings.Builder
@@ -295,8 +296,9 @@ func newAlterCtx(ctx *diffCtx, from, to, cur *model.Table) (*alterCtx, error) {
 		}
 	}
 
-	fromIndexes, fromIndexesByKey := indexKeys(from.Indexes)
-	toIndexes, toIndexesByKey := indexKeys(to.Indexes)
+	indexKeyOrder := make(map[string]indexKey, len(from.Indexes)+len(to.Indexes))
+	fromIndexes, fromIndexesByKey := indexKeys(from.Indexes, indexKeyOrder)
+	toIndexes, toIndexesByKey := indexKeys(to.Indexes, indexKeyOrder)
 
 	return &alterCtx{
 		fromColumns:      fromColumns,
@@ -306,6 +308,7 @@ func newAlterCtx(ctx *diffCtx, from, to, cur *model.Table) (*alterCtx, error) {
 		toIndexes:        toIndexes,
 		fromIndexesByKey: fromIndexesByKey,
 		toIndexesByKey:   toIndexesByKey,
+		indexKeyOrder:    indexKeyOrder,
 		from:             from,
 		to:               to,
 		cur:              cur,
@@ -317,21 +320,49 @@ func newAlterCtx(ctx *diffCtx, from, to, cur *model.Table) (*alterCtx, error) {
 // Usually the key is the ID of the index.
 // However, some indexes have the same ID, e.g. anonymous indexes with the same definition such as `INDEX (a), INDEX (a)`.
 // They are distinguished by their order: the first one is keyed by its ID, and the n-th one by "<ID>#<n>".
-func indexKeys(indexes []*model.Index) (set, map[string]*model.Index) {
+// The ID and the order of each key are recorded in order, see sortIndexKeys.
+func indexKeys(indexes []*model.Index, order map[string]indexKey) (set, map[string]*model.Index) {
 	keys := newSet()
 	byKey := make(map[string]*model.Index, len(indexes))
 	count := make(map[string]int, len(indexes))
 	for _, idx := range indexes {
 		id := idx.ID()
 		count[id]++
+		n := count[id]
 		key := id
-		if n := count[id]; n > 1 {
+		if n > 1 {
 			key = fmt.Sprintf("%s#%d", id, n)
 		}
 		keys.Add(key)
 		byKey[key] = idx
+		order[key] = indexKey{id: id, n: n}
 	}
 	return keys, byKey
+}
+
+// indexKey is the n-th index with the ID in a table.
+type indexKey struct {
+	id string
+	n  int
+}
+
+// sortIndexKeys returns the keys of the indexes, sorted by their IDs and then by their order.
+// It does not use set.ToSlice, because it sorts "<ID>#10" before "<ID>#2".
+// The order matters when adding the indexes with the same ID,
+// because MySQL names them in the order they are added, e.g. `a_2`, `a_3`, ...
+func (ctx *alterCtx) sortIndexKeys(s set) []string {
+	keys := make([]string, 0, len(s))
+	for key := range s {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		a, b := ctx.indexKeyOrder[keys[i]], ctx.indexKeyOrder[keys[j]]
+		if a.id != b.id {
+			return a.id < b.id
+		}
+		return a.n < b.n
+	})
+	return keys
 }
 
 // needsRecreateColumn reports whether the column must be dropped and added again
@@ -565,7 +596,7 @@ func (ctx *alterCtx) dropTableIndexes() error {
 	// drop index after drop constraint.
 	// because cannot drop index if needed in a foreign key constraint
 	lazy := make([]model.Ident, 0, indexes.Cardinality())
-	for _, index := range indexes.ToSlice() {
+	for _, index := range ctx.sortIndexKeys(indexes) {
 		indexStmt, ok := ctx.fromIndexesByKey[index]
 		if !ok {
 			return fmt.Errorf("index not found in old schema: %q", index)
@@ -611,7 +642,7 @@ func (ctx *alterCtx) addTableIndexes() error {
 	// add index before add foreign key.
 	// because cannot add index if create implicitly index by foreign key.
 	lazy := make([]*model.Index, 0, indexes.Cardinality())
-	for _, index := range indexes.ToSlice() {
+	for _, index := range ctx.sortIndexKeys(indexes) {
 		indexStmt, ok := ctx.toIndexesByKey[index]
 		if !ok {
 			return fmt.Errorf("index not found in new schema: %q", index)
@@ -644,7 +675,7 @@ func (ctx *alterCtx) addTableIndexes() error {
 // https://dev.mysql.com/doc/refman/26.10/en/invisible-indexes.html
 func (ctx *alterCtx) alterTableIndexes() error {
 	indexes := ctx.toIndexes.Intersect(ctx.fromIndexes)
-	for _, index := range indexes.ToSlice() {
+	for _, index := range ctx.sortIndexKeys(indexes) {
 		beforeIndexStmt, ok := ctx.fromIndexesByKey[index]
 		if !ok {
 			return fmt.Errorf("index not found in old schema: %q", index)
