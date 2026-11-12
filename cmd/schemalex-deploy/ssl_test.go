@@ -190,25 +190,30 @@ func TestVerifyCA(t *testing.T) {
 	// the certificate is signed by the ca.
 	pool := x509.NewCertPool()
 	pool.AddCert(caCert)
-	if err := verifyCA(pool)([][]byte{serverCert.Raw}, nil); err != nil {
+	if err := verifyCA(pool)(peer(serverCert)); err != nil {
 		t.Errorf("verifyCA rejects the valid certificate: %v", err)
 	}
 
 	// the certificate is not signed by any of the ca.
-	if err := verifyCA(x509.NewCertPool())([][]byte{serverCert.Raw}, nil); err == nil {
+	if err := verifyCA(x509.NewCertPool())(peer(serverCert)); err == nil {
 		t.Error("verifyCA accepts the certificate signed by an unknown ca")
 	}
 
 	// the host name is not verified.
 	otherCert, _ := newCertificate(t, "another.example.com", caCert, caKey)
-	if err := verifyCA(pool)([][]byte{otherCert.Raw}, nil); err != nil {
+	if err := verifyCA(pool)(peer(otherCert)); err != nil {
 		t.Errorf("verifyCA verifies the host name: %v", err)
 	}
 
 	// no certificate is sent.
-	if err := verifyCA(pool)(nil, nil); err == nil {
+	if err := verifyCA(pool)(peer()); err == nil {
 		t.Error("verifyCA accepts the empty certificate chain")
 	}
+}
+
+// peer returns the connection state that has the certificates as the peer certificates.
+func peer(certs ...*x509.Certificate) tls.ConnectionState {
+	return tls.ConnectionState{PeerCertificates: certs}
 }
 
 func TestTLSConfig_loadCACertificate(t *testing.T) {

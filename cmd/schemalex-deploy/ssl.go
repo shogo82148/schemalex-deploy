@@ -155,28 +155,22 @@ func (cfn *config) tlsConfig() (*tls.Config, error) {
 
 	// VERIFY_CA verifies the certificate chain, but doesn't verify the host name.
 	// crypto/tls has no such option, so we verify the chain by ourselves.
+	// VerifyConnection is used instead of VerifyPeerCertificate,
+	// because it is called on resumed sessions too.
 	return &tls.Config{
-		RootCAs:               rootCAs,
-		InsecureSkipVerify:    true, // the chain is verified in verifyCA.
-		VerifyPeerCertificate: verifyCA(rootCAs),
-		MinVersion:            tls.VersionTLS12,
-		CipherSuites:          cipherSuites(),
+		InsecureSkipVerify: true, // the chain is verified in verifyCA.
+		VerifyConnection:   verifyCA(rootCAs),
+		MinVersion:         tls.VersionTLS12,
+		CipherSuites:       cipherSuites(),
 	}, nil
 }
 
 // verifyCA returns a function that verifies the certificate chain without verifying the host name.
-func verifyCA(rootCAs *x509.CertPool) func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-	return func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-		if len(rawCerts) == 0 {
+func verifyCA(rootCAs *x509.CertPool) func(cs tls.ConnectionState) error {
+	return func(cs tls.ConnectionState) error {
+		certs := cs.PeerCertificates
+		if len(certs) == 0 {
 			return errors.New("the server sent no certificate")
-		}
-		certs := make([]*x509.Certificate, 0, len(rawCerts))
-		for _, rawCert := range rawCerts {
-			cert, err := x509.ParseCertificate(rawCert)
-			if err != nil {
-				return fmt.Errorf("failed to parse the server certificate: %w", err)
-			}
-			certs = append(certs, cert)
 		}
 
 		intermediates := x509.NewCertPool()
