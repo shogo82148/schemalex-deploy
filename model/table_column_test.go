@@ -284,6 +284,68 @@ func TestTableColumnNormalize(t *testing.T) {
 				Default: DefaultValue{Valid: true, Value: "a", Quoted: true},
 			},
 		},
+
+		// https://github.com/shogo82148/schemalex-deploy/issues/327
+		{
+			// MariaDB shows DEFAULT NULL for nullable TEXT columns.
+			beforeStr: "foo TEXT DEFAULT NULL",
+			before: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeText,
+				Default: DefaultValue{Valid: true, Value: "NULL"},
+			},
+			afterStr: "foo TEXT",
+			after: &TableColumn{
+				Name: "foo",
+				Type: ColumnTypeText,
+			},
+		},
+		{
+			beforeStr: "foo LONGBLOB NULL DEFAULT NULL",
+			before: &TableColumn{
+				Name:      "foo",
+				Type:      ColumnTypeLongBlob,
+				NullState: NullStateNull,
+				Default:   DefaultValue{Valid: true, Value: "NULL"},
+			},
+			afterStr: "foo LONGBLOB",
+			after: &TableColumn{
+				Name: "foo",
+				Type: ColumnTypeLongBlob,
+			},
+		},
+		{
+			// the string 'NULL' is not NULL.
+			beforeStr: "foo TEXT DEFAULT 'NULL'",
+			before: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeText,
+				Default: DefaultValue{Valid: true, Value: "NULL", Quoted: true},
+			},
+			afterStr: "foo TEXT DEFAULT 'NULL'",
+			after: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeText,
+				Default: DefaultValue{Valid: true, Value: "NULL", Quoted: true},
+			},
+		},
+		{
+			// DEFAULT NULL is not removed from other types.
+			beforeStr: "foo VARCHAR (10) DEFAULT NULL",
+			before: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeVarChar,
+				Length:  NewLength("10"),
+				Default: DefaultValue{Valid: true, Value: "NULL"},
+			},
+			afterStr: "foo VARCHAR (10) DEFAULT NULL",
+			after: &TableColumn{
+				Name:    "foo",
+				Type:    ColumnTypeVarChar,
+				Length:  NewLength("10"),
+				Default: DefaultValue{Valid: true, Value: "NULL"},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("from %q to %q", tc.beforeStr, tc.afterStr), func(t *testing.T) {

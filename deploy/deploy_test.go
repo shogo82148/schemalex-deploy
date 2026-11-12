@@ -223,12 +223,9 @@ func TestImportGeneratedColumns(t *testing.T) {
 `,
 		},
 		{
-			// MariaDB adds CHECK (json_valid(...)) to JSON columns, which is not supported.
-			// json_extract accepts strings, so use TEXT instead of JSON.
-			// It is NOT NULL, because MariaDB shows DEFAULT NULL for nullable TEXT columns.
 			name: "json functions",
 			ddl: `CREATE TABLE t (
-				doc TEXT NOT NULL,
+				doc JSON,
 				id INTEGER AS (json_unquote(json_extract(doc, '$.id')))
 			);
 `,
@@ -328,6 +325,47 @@ func TestImportGeneratedColumns(t *testing.T) {
 			t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
 		}
 	})
+}
+
+// MariaDB shows DEFAULT NULL for nullable TEXT and BLOB columns, but MySQL does not.
+// https://github.com/shogo82148/schemalex-deploy/issues/327
+func TestImportTextColumns(t *testing.T) {
+	database.SkipIfNoTestDatabase(t)
+
+	ctx := t.Context()
+	rawDB, cleanup := database.SetupTestDB()
+	defer cleanup()
+	db := &DB{
+		db: rawDB,
+	}
+
+	const ddl = `CREATE TABLE t (
+		id INTEGER NOT NULL,
+		a TEXT,
+		b BLOB,
+		c MEDIUMTEXT NULL,
+		d LONGBLOB,
+		e TEXT NOT NULL
+	);
+`
+	if _, err := db.db.ExecContext(ctx, ddl); err != nil {
+		t.Fatal(err)
+	}
+	sqlText, err := db.LoadSchema(ctx)
+	if err != nil {
+		t.Fatalf("failed to load schema: %v", err)
+	}
+	if err := db.Import(ctx, sqlText); err != nil {
+		t.Fatalf("failed to import: %v", err)
+	}
+
+	plan, err := db.Plan(ctx, ddl)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	if len(plan.Stmts) > 0 {
+		t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+	}
 }
 
 // MariaDB returns JSON columns as LONGTEXT with a CHECK constraint.
