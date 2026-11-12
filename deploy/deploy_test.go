@@ -382,6 +382,40 @@ CREATE TABLE u (
 		}
 	})
 
+	// the expressions that the lexer does not support, and the ones MySQL rewrites.
+	for _, expr := range []string{"id * 2", "id MOD 3", "id % 3", "id DIV 2", "-id", "ABS(id - 5)"} {
+		t.Run("partitioning expression "+expr, func(t *testing.T) {
+			ctx := t.Context()
+			rawDB, cleanup := database.SetupTestDB()
+			defer cleanup()
+			db := &DB{
+				db: rawDB,
+			}
+
+			ddl := "CREATE TABLE t (\n" +
+				"\tid INTEGER NOT NULL\n" +
+				") PARTITION BY HASH (" + expr + ") PARTITIONS 2;\n"
+			if _, err := db.db.ExecContext(ctx, ddl); err != nil {
+				t.Fatal(err)
+			}
+			sqlText, err := db.LoadSchema(ctx)
+			if err != nil {
+				t.Fatalf("failed to load schema: %v", err)
+			}
+			if err := db.Import(ctx, sqlText); err != nil {
+				t.Fatalf("failed to import: %v", err)
+			}
+
+			plan, err := db.Plan(ctx, ddl)
+			if err != nil {
+				t.Fatalf("failed to plan: %v", err)
+			}
+			if len(plan.Stmts) > 0 {
+				t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+			}
+		})
+	}
+
 	t.Run("import a partitioned table", func(t *testing.T) {
 		ctx := t.Context()
 		rawDB, cleanup := database.SetupTestDB()

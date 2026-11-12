@@ -375,6 +375,30 @@ primary key (id, c)
 			")\n" +
 			"PARTITION BY HASH (id);\n",
 	})
+	parse("PartitionWithMultiplication", &Spec{
+		// the multiplication operator is permitted in partitioning expressions.
+		Input: "CREATE TABLE `t` (\n  `id` int DEFAULT NULL\n) ENGINE=InnoDB\n" +
+			"/*!50100 PARTITION BY HASH ((`id` * 2))\nPARTITIONS 2 */",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`id` INT (11) DEFAULT NULL\n" +
+			") ENGINE = InnoDB\n" +
+			"PARTITION BY HASH ((`id` * 2))\nPARTITIONS 2;\n",
+	})
+	parse("PartitionWithModulo", &Spec{
+		// SHOW CREATE TABLE returns `MOD` as `%`.
+		Input: "CREATE TABLE `t` (\n  `id` int DEFAULT NULL\n) ENGINE=InnoDB\n" +
+			"/*!50100 PARTITION BY HASH ((`id` % 3))\nPARTITIONS 2 */",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`id` INT (11) DEFAULT NULL\n" +
+			") ENGINE = InnoDB\n" +
+			"PARTITION BY HASH ((`id` % 3))\nPARTITIONS 2;\n",
+	})
+	parse("PartitionWithIllegalToken", &Spec{
+		// other operators, such as bitwise operators, are not permitted in partitioning expressions,
+		// and the lexer does not support them.
+		Input: "CREATE TABLE t (id INT) PARTITION BY HASH (id & 1) PARTITIONS 2",
+		Error: true,
+	})
 	parse("PartitionWithoutBy", &Spec{
 		Input: "CREATE TABLE t (id INT) PARTITION HASH (id)",
 		Error: true,
@@ -1175,6 +1199,8 @@ func TestFormatRoundTrip(t *testing.T) {
 		"CREATE TEMPORARY TABLE t (a INT)",
 		"CREATE TEMPORARY TABLE IF NOT EXISTS t LIKE u",
 		"CREATE TABLE t (id INT) ENGINE InnoDB PARTITION BY HASH (id) PARTITIONS 2",
+		"CREATE TABLE t (id INT) PARTITION BY HASH (id * 2) PARTITIONS 2",
+		"CREATE TABLE t (id INT) PARTITION BY HASH (id % 3) PARTITIONS 2",
 		"CREATE TABLE t (id INT) PARTITION BY RANGE (id) (PARTITION p0 VALUES LESS THAN (10), PARTITION p1 VALUES LESS THAN MAXVALUE)",
 	}
 	for _, ddl0 := range tests {

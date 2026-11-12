@@ -1712,8 +1712,14 @@ LOOP:
 			}
 			break LOOP
 		case ILLEGAL:
-			// e.g. an unterminated string literal.
-			return newParseError(ctx, t, "unexpected token in the partitioning clause")
+			// the lexer does not support the operators `*` and `%`,
+			// but they are permitted in partitioning expressions, e.g. `PARTITION BY HASH (id * 2)`.
+			// SHOW CREATE TABLE also returns `MOD` as `%`.
+			// https://dev.mysql.com/doc/refman/26.10/en/partitioning-limitations.html
+			if t.Value != "*" && t.Value != "%" {
+				// e.g. an unterminated string literal.
+				return newParseError(ctx, t, "unexpected token in the partitioning clause")
+			}
 		case SPACE:
 			significant = false
 		case COMMENT_IDENT:
