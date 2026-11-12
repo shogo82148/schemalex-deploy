@@ -79,7 +79,8 @@ func loadConfig(args []string) (*config, error) {
                   (DISABLED, PREFERRED, REQUIRED, VERIFY_CA or VERIFY_IDENTITY.
                   default: PREFERRED, or VERIFY_CA if -ssl-ca is specified)
 -ssl-ca           the path of the file that contains the CA certificate
-                  (used by VERIFY_CA and VERIFY_IDENTITY)
+                  (used by VERIFY_CA and VERIFY_IDENTITY.
+                  default: the system certificate store)
 -version          show the version
 -auto-approve     skips interactive approval of plan before deploying
 -dry-run          outputs the schema difference, and then exit the program

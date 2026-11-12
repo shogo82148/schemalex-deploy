@@ -92,7 +92,8 @@ Enter a value: yes
                   (DISABLED, PREFERRED, REQUIRED, VERIFY_CA or VERIFY_IDENTITY.
                   default: PREFERRED, or VERIFY_CA if -ssl-ca is specified)
 -ssl-ca           the path of the file that contains the CA certificate
-                  (used by VERIFY_CA and VERIFY_IDENTITY)
+                  (used by VERIFY_CA and VERIFY_IDENTITY.
+                  default: the system certificate store)
 -version          show the version
 -auto-approve     skips interactive approval of plan before deploying
 -dry-run          outputs the schema difference, and then exit the program
@@ -105,6 +106,9 @@ Enter a value: yes
 The default is `PREFERRED`: schemalex-deploy uses an encrypted connection if the server supports it,
 and falls back to an unencrypted connection otherwise.
 Note that `PREFERRED` and `REQUIRED` don't verify the server certificate.
+`VERIFY_CA` and `VERIFY_IDENTITY` verify it against the CA certificate given by `-ssl-ca`,
+or against the system certificate store if `-ssl-ca` is not specified.
+Unlike the mysql(1), `-ssl-ca` is not required for them.
 
 schemalex-deploy used unencrypted connections before `-ssl-mode` was introduced.
 Encrypted connections require TLS 1.2 or later, and schemalex-deploy doesn't fall back to an unencrypted connection
