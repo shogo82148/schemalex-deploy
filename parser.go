@@ -228,9 +228,17 @@ func (p *Parser) parseCreate(ctx *parseCtx) (model.Stmt, error) {
 		}
 		return nil, myerrors.Ignorable(nil)
 	case TABLE:
-		return p.parseCreateTable(ctx)
+		return p.parseCreateTable(ctx, false)
+	case TEMPORARY:
+		// CREATE TEMPORARY TABLE
+		ctx.advance()
+		ctx.skipWhiteSpaces()
+		if t := ctx.peek(); t.Type != TABLE {
+			return nil, newParseError(ctx, t, "expected TABLE")
+		}
+		return p.parseCreateTable(ctx, true)
 	default:
-		return nil, newParseError(ctx, t, "expected DATABASE or TABLE")
+		return nil, newParseError(ctx, t, "expected DATABASE, TABLE or TEMPORARY")
 	}
 }
 
@@ -265,8 +273,10 @@ func (p *Parser) parseCreateDatabase(ctx *parseCtx) (*model.Database, error) {
 	return database, nil
 }
 
+// parseCreateTable parses `CREATE [TEMPORARY] TABLE` after `CREATE [TEMPORARY]`.
+// temporary reports whether TEMPORARY is specified.
 // http://dev.mysql.com/doc/refman/5.6/en/create-table.html
-func (p *Parser) parseCreateTable(ctx *parseCtx) (*model.Table, error) {
+func (p *Parser) parseCreateTable(ctx *parseCtx, temporary bool) (*model.Table, error) {
 	if t := ctx.next(); t.Type != TABLE {
 		return nil, errors.New(`expected TABLE`)
 	}
@@ -274,12 +284,6 @@ func (p *Parser) parseCreateTable(ctx *parseCtx) (*model.Table, error) {
 	var table *model.Table
 
 	ctx.skipWhiteSpaces()
-	var temporary bool
-	if t := ctx.peek(); t.Type == TEMPORARY {
-		ctx.advance()
-		ctx.skipWhiteSpaces()
-		temporary = true
-	}
 
 	// IF NOT EXISTS
 	var notexists bool

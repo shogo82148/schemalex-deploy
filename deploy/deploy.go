@@ -390,12 +390,7 @@ func normalizeTable(ctx context.Context, conn *sql.Conn, table *model.Table) (*m
 	if err := conn.QueryRowContext(ctx, "SHOW CREATE TABLE "+name.Quoted()).Scan(&tmpName, &sqlText); err != nil {
 		return nil, fmt.Errorf("failed to get the temporary table: %w", err)
 	}
-	// the parser does not support CREATE TEMPORARY TABLE, but the temporary flag is not necessary here.
-	sqlText, ok := strings.CutPrefix(sqlText, "CREATE TEMPORARY TABLE ")
-	if !ok {
-		return nil, fmt.Errorf("unexpected definition of the temporary table: %q", sqlText)
-	}
-	stmts, err := schemalex.New().ParseString("CREATE TABLE " + sqlText)
+	stmts, err := schemalex.New().ParseString(sqlText)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse the temporary table: %w", err)
 	}
