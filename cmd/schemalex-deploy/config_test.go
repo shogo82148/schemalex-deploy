@@ -167,7 +167,7 @@ func TestLoadConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "The ssl-mode specified in the configure file takes precedence",
+			name: "The ssl-mode and the ssl-ca are loaded from the configure file with underscores",
 			args: []string{"schemalex-deploy", "-user", "shogo", filepath.Join("testdata", "schema.sql")},
 			cnf: mycnf.MyCnf{
 				"client": map[string]string{
