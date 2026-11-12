@@ -138,7 +138,9 @@ func (cfn *config) tlsConfig() (*tls.Config, error) {
 
 	if cfn.SSLMode == SSLModeVerifyIdentity {
 		if cfn.Socket != "" {
-			return nil, errors.New("ssl-mode VERIFY_IDENTITY is not available with the unix domain socket")
+			// the socket takes precedence over the host,
+			// so show the socket path to tell where it comes from (e.g. my.cnf or MYSQL_UNIX_PORT).
+			return nil, fmt.Errorf("ssl-mode VERIFY_IDENTITY is not available with the unix domain socket %q", cfn.Socket)
 		}
 		serverName := cfn.Host
 		if serverName == "" {

@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -167,6 +168,19 @@ func TestConfigureTLS_error(t *testing.T) {
 				t.Error("configureTLS doesn't return an error")
 			}
 		})
+	}
+}
+
+func TestConfigureTLS_verifyIdentityWithSocket(t *testing.T) {
+	// the socket takes precedence over the host even if the host is specified,
+	// so the error message must tell the socket path.
+	cfn := &config{SSLMode: SSLModeVerifyIdentity, Host: "db.example.com", Socket: "/tmp/mysql.sock"}
+	err := cfn.configureTLS(mysql.NewConfig())
+	if err == nil {
+		t.Fatal("configureTLS doesn't return an error")
+	}
+	if !strings.Contains(err.Error(), "/tmp/mysql.sock") {
+		t.Errorf("the error message doesn't contain the socket path: %v", err)
 	}
 }
 
