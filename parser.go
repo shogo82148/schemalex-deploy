@@ -36,6 +36,7 @@ const (
 	coloptKey           = coloptEverythingElse
 	coloptComment       = coloptEverythingElse
 	coloptVisibility    = coloptEverythingElse
+	coloptCheck         = coloptEverythingElse
 )
 
 const (
@@ -904,6 +905,8 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 		pos = _f
 		return true
 	}
+	// jsonValid is the CHECK token of `CHECK (json_valid(col))`, see convertMariaDBJSONColumn.
+	var jsonValid *Token
 	for {
 		ctx.skipWhiteSpaces()
 		switch t := ctx.next(); t.Type {
@@ -1148,17 +1151,64 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 			if err := p.parseGeneratedColumn(ctx, col); err != nil {
 				return err
 			}
+		case CHECK:
+			if !check(coloptCheck) {
+				return newParseError(ctx, t, "cannot apply CHECK")
+			}
+			expr, err := p.parseParenExpr(ctx, "check constraint")
+			if err != nil {
+				return err
+			}
+			// only the constraint that MariaDB adds to JSON columns is supported.
+			if col.Type != model.ColumnTypeLongText || !isJSONValid(expr, col.Name) {
+				return newParseError(ctx, t, "unsupported column option CHECK")
+			}
+			jsonValid = t
 
-		case COMMA:
+		case COMMA, RPAREN:
 			ctx.rewind()
-			return nil
-		case RPAREN:
-			ctx.rewind()
+			if jsonValid != nil && !convertMariaDBJSONColumn(col) {
+				return newParseError(ctx, jsonValid, "unsupported column option CHECK")
+			}
 			return nil
 		default:
 			return newParseError(ctx, t, "unexpected column option %s", t.Type)
 		}
 	}
+}
+
+// isJSONValid reports whether expr is `json_valid(name)`.
+func isJSONValid(expr string, name model.Ident) bool {
+	const fn = "json_valid"
+	if len(expr) < len(fn) || !strings.EqualFold(expr[:len(fn)], fn) {
+		return false
+	}
+	arg := strings.TrimSpace(expr[len(fn):])
+	if len(arg) < 2 || arg[0] != '(' || arg[len(arg)-1] != ')' {
+		return false
+	}
+	arg = strings.TrimSpace(arg[1 : len(arg)-1])
+	// column names are case-insensitive.
+	return strings.EqualFold(arg, string(name)) || strings.EqualFold(arg, name.Quoted())
+}
+
+// convertMariaDBJSONColumn converts the column into a JSON column.
+// In MariaDB, JSON is an alias for LONGTEXT, and SHOW CREATE TABLE returns `doc JSON` as
+// `doc longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin CHECK (json_valid(doc))`.
+// The character set and the collation are removed, because they are the ones MariaDB assigns to JSON columns.
+// It reports false and does not convert the column if they are not.
+// https://mariadb.com/kb/en/json-data-type/
+func convertMariaDBJSONColumn(col *model.TableColumn) bool {
+	if col.CharacterSet.Valid && !strings.EqualFold(string(col.CharacterSet.Ident), "utf8mb4") {
+		return false
+	}
+	if col.Collation.Valid && !strings.EqualFold(string(col.Collation.Ident), "utf8mb4_bin") {
+		return false
+	}
+	col.Type = model.ColumnTypeJSON
+	col.CharacterSet = model.MaybeIdent{}
+	col.Collation = model.MaybeIdent{}
+	return true
 }
 
 func (ctx *parseCtx) parseSetOrEnum(setter func([]string) *model.TableColumn) error {
@@ -1739,7 +1789,7 @@ LOOP:
 	}
 
 	table.Partition.Valid = true
-	table.Partition.Value = strings.TrimSpace(removeExecutableCommentMarkers(ctx.input, first.Pos, end, markers))
+	table.Partition.Value = strings.TrimFunc(removeExecutableCommentMarkers(ctx.input, first.Pos, end, markers), isSpace)
 	return nil
 }
 
@@ -1775,21 +1825,24 @@ func removeExecutableCommentMarkers(input []byte, start, end int, markers []*Tok
 	return buf.String()
 }
 
-// parseGeneratedColumn parses `(expr) [VIRTUAL | STORED]` of a generated column definition.
-// The expression is stored as it is written in the source,
-// except for redundant outermost parentheses.
-// https://dev.mysql.com/doc/refman/8.0/en/create-table-generated-columns.html
-func (p *Parser) parseGeneratedColumn(ctx *parseCtx, col *model.TableColumn) error {
+// parseParenExpr parses `(expr)`, and returns expr as it is written in the source,
+// except for redundant outermost parentheses and the markers of executable comments.
+// what describes the expression in error messages.
+func (p *Parser) parseParenExpr(ctx *parseCtx, what string) (string, error) {
 	ctx.skipWhiteSpaces()
 	t := ctx.next()
 	if t.Type != LPAREN {
-		return newParseError(ctx, t, "expected LPAREN (generated column expression)")
+		return "", newParseError(ctx, t, "expected LPAREN (%s)", what)
 	}
 
 	// collect the tokens up to the matching RPAREN, including the outermost parentheses.
 	// string literals and quoted identifiers are single tokens,
 	// so parentheses inside them are not counted.
 	tokens := []*Token{t}
+	// ends are the end positions of the tokens, including the block comments after them.
+	// the expression ends at the end of its last token, excluding the spaces and the line comments after it,
+	// because a trailing line comment, e.g. "# comment", would comment out the closing parenthesis in the output.
+	ends := []int{ctx.peekPos()}
 	var markers []*Token // the markers of executable comments in the expression
 	depth := 1
 	for depth > 0 {
@@ -1800,30 +1853,53 @@ func (p *Parser) parseGeneratedColumn(ctx *parseCtx, col *model.TableColumn) err
 		case RPAREN:
 			depth--
 		case EOF:
-			return newParseError(ctx, t, "expected RPAREN (generated column expression)")
+			return "", newParseError(ctx, t, "expected RPAREN (%s)", what)
 		case SPACE, COMMENT_IDENT:
 			if ctx.isExecutableCommentMarker(t) {
 				markers = append(markers, t)
+			} else if t.Type == COMMENT_IDENT && !isLineComment(t) {
+				ends[len(ends)-1] = ctx.peekPos()
 			}
 			continue
 		}
 		tokens = append(tokens, t)
+		ends = append(ends, ctx.peekPos())
 	}
 
 	// strip the outermost parentheses, and redundant ones inside them.
 	// e.g. SHOW CREATE TABLE returns `((a + b))` for the expression `a + b`.
 	closing := tokens[len(tokens)-1]
-	var start, end int
+	var start int
 	for len(tokens) >= 2 && isWrappedByParenTokens(tokens) {
-		start, end = tokens[0].Pos+1, tokens[len(tokens)-1].Pos
+		start = tokens[0].Pos + 1
 		tokens = tokens[1 : len(tokens)-1]
+		ends = ends[1 : len(ends)-1]
 	}
 	if len(tokens) == 0 {
 		// e.g. `AS ()`, `AS (())`, `AS (/* comment */)`, `AS (/*! */)`
-		return newParseError(ctx, closing, "empty generated column expression")
+		return "", newParseError(ctx, closing, "empty %s", what)
+	}
+	end := ends[len(ends)-1]
+	// trim the spaces as the lexer does. strings.TrimSpace also trims other characters, e.g. '\f'.
+	return strings.TrimFunc(removeExecutableCommentMarkers(ctx.input, start, end, markers), isSpace), nil
+}
+
+// isLineComment reports whether t is a comment that ends at the end of the line, i.e. "# comment" or "-- comment".
+func isLineComment(t *Token) bool {
+	return t.Type == COMMENT_IDENT && (strings.HasPrefix(t.Value, "#") || strings.HasPrefix(t.Value, "--"))
+}
+
+// parseGeneratedColumn parses `(expr) [VIRTUAL | STORED]` of a generated column definition.
+// The expression is stored as it is written in the source,
+// except for redundant outermost parentheses.
+// https://dev.mysql.com/doc/refman/8.0/en/create-table-generated-columns.html
+func (p *Parser) parseGeneratedColumn(ctx *parseCtx, col *model.TableColumn) error {
+	expr, err := p.parseParenExpr(ctx, "generated column expression")
+	if err != nil {
+		return err
 	}
 	col.Generated.Valid = true
-	col.Generated.Expr = strings.TrimSpace(removeExecutableCommentMarkers(ctx.input, start, end, markers))
+	col.Generated.Expr = expr
 
 	ctx.skipWhiteSpaces()
 	switch t := ctx.peek(); t.Type {

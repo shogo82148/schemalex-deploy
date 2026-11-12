@@ -1234,6 +1234,35 @@ func TestDiff_IgnorePartitionChanges(t *testing.T) {
 	}
 }
 
+// MariaDB returns JSON columns as LONGTEXT with a CHECK constraint,
+// but they are the same as JSON columns.
+// https://github.com/shogo82148/schemalex-deploy/issues/326
+func TestDiff_MariaDBJSONColumn(t *testing.T) {
+	const mariadb = "CREATE TABLE `fuga` (\n" +
+		"  `id` int(11) NOT NULL,\n" +
+		"  `doc` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`doc`)),\n" +
+		"  `doc2` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`doc2`))\n" +
+		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;"
+	const handWritten = "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `doc` JSON, `doc2` JSON NOT NULL ) " +
+		"ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;"
+
+	var buf bytes.Buffer
+	if err := diff.Strings(&buf, mariadb, handWritten); err != nil {
+		t.Fatal(err)
+	}
+	if buf.Len() > 0 {
+		t.Errorf("want no diff, but got %q", buf.String())
+	}
+
+	buf.Reset()
+	if err := diff.Strings(&buf, handWritten, mariadb); err != nil {
+		t.Fatal(err)
+	}
+	if buf.Len() > 0 {
+		t.Errorf("want no diff, but got %q", buf.String())
+	}
+}
+
 // https://github.com/shogo82148/schemalex-deploy/issues/309
 func TestDiff_TableNormalizer(t *testing.T) {
 	// normalize the expressions by removing spaces and backquotes, and lowering them.
