@@ -4,13 +4,15 @@ import (
 	"strings"
 
 	"github.com/shogo82148/schemalex-deploy"
+	"github.com/shogo82148/schemalex-deploy/model"
 )
 
 type myOptions struct {
-	parser        *schemalex.Parser
-	transaction   bool
-	currentSchema string
-	indent        string
+	parser          *schemalex.Parser
+	transaction     bool
+	currentSchema   string
+	indent          string
+	tableNormalizer TableNormalizer
 }
 
 type Option interface {
@@ -72,4 +74,26 @@ func WithIndent(s string, n int) Option {
 		n = 1
 	}
 	return withIndent(strings.Repeat(s, n))
+}
+
+// TableNormalizer returns the definition of table normalized by the database server,
+// e.g. the result of SHOW CREATE TABLE after creating the table.
+// It returns nil if the table cannot be normalized.
+//
+// MySQL rewrites the expressions of generated columns into its own form,
+// e.g. `a + 1` into `(`a` + 1)` and `concat(a, 'x')` into `concat(`a`,_utf8mb4'x')`.
+// The diff compares the normalized expressions if the expressions differ as written,
+// so that equivalent expressions do not produce CHANGE COLUMN.
+type TableNormalizer func(table *model.Table) (*model.Table, error)
+
+type withTableNormalizer TableNormalizer
+
+func (opt withTableNormalizer) apply(opts *myOptions) {
+	opts.tableNormalizer = TableNormalizer(opt)
+}
+
+// WithTableNormalizer specifies the function to normalize tables.
+// See TableNormalizer for details.
+func WithTableNormalizer(f TableNormalizer) Option {
+	return withTableNormalizer(f)
 }

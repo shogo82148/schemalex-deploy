@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/shogo82148/schemalex-deploy/diff"
 	"github.com/shogo82148/schemalex-deploy/internal/database"
 	"github.com/shogo82148/schemalex-deploy/internal/util"
+	"github.com/shogo82148/schemalex-deploy/model"
 )
 
 type Spec struct {
@@ -1076,4 +1078,131 @@ func showTables(ctx context.Context, tx *sql.Tx) ([]string, error) {
 		return nil, fmt.Errorf("some error occurred during iteration: %w", err)
 	}
 	return tables, nil
+}
+
+// https://github.com/shogo82148/schemalex-deploy/issues/309
+func TestDiff_TableNormalizer(t *testing.T) {
+	// normalize the expressions by removing spaces and backquotes, and lowering them.
+	normalize := func(table *model.Table) (*model.Table, error) {
+		tbl := *table
+		tbl.Columns = nil
+		for _, col := range table.Columns {
+			c := *col
+			c.Generated.Expr = strings.ToLower(strings.NewReplacer(" ", "", "`", "").Replace(c.Generated.Expr))
+			tbl.Columns = append(tbl.Columns, &c)
+		}
+		return &tbl, nil
+	}
+
+	tests := []struct {
+		name       string
+		before     string
+		after      string
+		normalizer diff.TableNormalizer
+		want       string
+	}{
+		{
+			name:   "no normalizer",
+			before: "CREATE TABLE t (a INT, b INT AS ((`a` + 1)));",
+			after:  "CREATE TABLE t (a INT, b INT AS (a+1));",
+			want:   "ALTER TABLE `t` CHANGE COLUMN `b` `b` INT (11) GENERATED ALWAYS AS (a+1) VIRTUAL;\n",
+		},
+		{
+			name:       "equivalent expressions",
+			before:     "CREATE TABLE t (a INT, b INT AS ((`a` + 1)));",
+			after:      "CREATE TABLE t (a INT, b INT AS (A+1));",
+			normalizer: normalize,
+			want:       "",
+		},
+		{
+			name:       "different expressions",
+			before:     "CREATE TABLE t (a INT, b INT AS ((`a` + 1)));",
+			after:      "CREATE TABLE t (a INT, b INT AS (a + 2));",
+			normalizer: normalize,
+			want:       "ALTER TABLE `t` CHANGE COLUMN `b` `b` INT (11) GENERATED ALWAYS AS (a + 2) VIRTUAL;\n",
+		},
+		{
+			name:       "equivalent expressions with other changes",
+			before:     "CREATE TABLE t (a INT, b INT AS ((`a` + 1)));",
+			after:      "CREATE TABLE t (a INT, b INT AS (a + 1) COMMENT 'b');",
+			normalizer: normalize,
+			want:       "ALTER TABLE `t` CHANGE COLUMN `b` `b` INT (11) GENERATED ALWAYS AS (a + 1) VIRTUAL COMMENT 'b';\n",
+		},
+		{
+			name:   "cannot normalize",
+			before: "CREATE TABLE t (a INT, b INT AS ((`a` + 1)));",
+			after:  "CREATE TABLE t (a INT, b INT AS (a + 1));",
+			normalizer: func(table *model.Table) (*model.Table, error) {
+				return nil, nil
+			},
+			want: "ALTER TABLE `t` CHANGE COLUMN `b` `b` INT (11) GENERATED ALWAYS AS (a + 1) VIRTUAL;\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var opts []diff.Option
+			if tt.normalizer != nil {
+				opts = append(opts, diff.WithTableNormalizer(tt.normalizer))
+			}
+			var buf strings.Builder
+			if err := diff.Strings(&buf, tt.before, tt.after, opts...); err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tt.want, buf.String()); diff != "" {
+				t.Errorf("(-want/+got)\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestDiff_TableNormalizerIsCalledLazily(t *testing.T) {
+	var called int
+	normalizer := func(table *model.Table) (*model.Table, error) {
+		called++
+		return table, nil
+	}
+
+	// the expressions are same as written, so the normalizer is not necessary.
+	var buf strings.Builder
+	err := diff.Strings(&buf,
+		"CREATE TABLE t (a INT, b INT AS (a + 1), c INT);",
+		"CREATE TABLE t (a INT, b INT AS (a + 1), c BIGINT);",
+		diff.WithTableNormalizer(normalizer),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if called != 0 {
+		t.Errorf("want the normalizer is not called, but called %d times", called)
+	}
+
+	// the normalizer is called once for each of the old and new tables.
+	buf.Reset()
+	err = diff.Strings(&buf,
+		"CREATE TABLE t (a INT, b INT AS (a + 1), c INT AS (a + 2));",
+		"CREATE TABLE t (a INT, b INT AS (a+1), c INT AS (a+2));",
+		diff.WithTableNormalizer(normalizer),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if called != 2 {
+		t.Errorf("want the normalizer is called twice, but called %d times", called)
+	}
+}
+
+func TestDiff_TableNormalizerError(t *testing.T) {
+	normalizer := func(table *model.Table) (*model.Table, error) {
+		return nil, errors.New("something wrong")
+	}
+	var buf strings.Builder
+	err := diff.Strings(&buf,
+		"CREATE TABLE t (a INT, b INT AS (a + 1));",
+		"CREATE TABLE t (a INT, b INT AS (a+1));",
+		diff.WithTableNormalizer(normalizer),
+	)
+	if err == nil {
+		t.Error("want error, but not")
+	}
 }

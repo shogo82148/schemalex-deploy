@@ -2,7 +2,9 @@ package deploy
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +15,8 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/shogo82148/schemalex-deploy"
 	"github.com/shogo82148/schemalex-deploy/diff"
+	"github.com/shogo82148/schemalex-deploy/format"
+	"github.com/shogo82148/schemalex-deploy/model"
 )
 
 // DB is the target of deploying a DDL schema.
@@ -59,6 +63,32 @@ func (db *DB) Plan(ctx context.Context, schema string) (*Plan, error) {
 	if err == nil {
 		opts = append(opts, diff.WithCurrentSchema(current))
 	}
+
+	// temporary tables are visible only in the session, so use a dedicated connection.
+	// it is acquired on the first call of the normalizer, because most plans need no normalization.
+	var conn *sql.Conn
+	var connErr error
+	defer func() {
+		if conn != nil {
+			_ = conn.Close()
+		}
+	}()
+	opts = append(opts, diff.WithTableNormalizer(func(table *model.Table) (*model.Table, error) {
+		if conn == nil && connErr == nil {
+			conn, connErr = db.db.Conn(ctx)
+		}
+		if connErr != nil {
+			log.Printf("failed to get a connection to normalize table %s, so the expressions of its generated columns are compared as written: %v", table.Name.Quoted(), connErr)
+			return nil, nil
+		}
+
+		normalized, err := normalizeTable(ctx, conn, table)
+		if err != nil {
+			log.Printf("failed to normalize table %s, so the expressions of its generated columns are compared as written: %v", table.Name.Quoted(), err)
+			return nil, nil
+		}
+		return normalized, nil
+	}))
 
 	stmts1, err := p.ParseString(latest.SQLText)
 	if err != nil {
@@ -307,4 +337,74 @@ func showTables(ctx context.Context, tx *sql.Tx) ([]string, error) {
 		return nil, fmt.Errorf("some error occurred during iteration: %w", err)
 	}
 	return tables, nil
+}
+
+// normalizeTable creates the columns of table as a temporary table,
+// and returns the definition of the table normalized by the server.
+// MySQL rewrites the expressions of generated columns into its own form,
+// so the result is used to compare them.
+// conn must be a dedicated connection, because temporary tables are visible only in the session.
+func normalizeTable(ctx context.Context, conn *sql.Conn, table *model.Table) (*model.Table, error) {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return nil, err
+	}
+	name := model.Ident("schemalex_normalize_" + hex.EncodeToString(b[:]))
+
+	tmp := model.NewTable(name)
+	tmp.Temporary = true
+	for _, col := range table.Columns {
+		c := *col
+		// the indexes are not necessary to normalize the expressions,
+		// and AUTO_INCREMENT requires an index.
+		c.AutoIncrement = false
+		c.Primary = false
+		c.Unique = false
+		c.Key = false
+		tmp.Columns = append(tmp.Columns, &c)
+	}
+	for _, opt := range table.Options {
+		// keep the character set and the collation, because they may affect the expressions.
+		switch opt.Key {
+		case "DEFAULT CHARACTER SET", "DEFAULT COLLATE":
+			tmp.Options = append(tmp.Options, opt)
+		}
+	}
+
+	var buf strings.Builder
+	if err := format.SQL(&buf, tmp); err != nil {
+		return nil, fmt.Errorf("failed to format the temporary table: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, buf.String()); err != nil {
+		return nil, fmt.Errorf("failed to create the temporary table: %w", err)
+	}
+	defer func() {
+		// drop the table even if ctx is canceled, but do not wait for it too long.
+		// the temporary table is dropped when the session ends anyway.
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_, _ = conn.ExecContext(ctx, "DROP TEMPORARY TABLE IF EXISTS "+name.Quoted())
+	}()
+
+	var tmpName, sqlText string
+	if err := conn.QueryRowContext(ctx, "SHOW CREATE TABLE "+name.Quoted()).Scan(&tmpName, &sqlText); err != nil {
+		return nil, fmt.Errorf("failed to get the temporary table: %w", err)
+	}
+	// the parser does not support CREATE TEMPORARY TABLE, but the temporary flag is not necessary here.
+	sqlText, ok := strings.CutPrefix(sqlText, "CREATE TEMPORARY TABLE ")
+	if !ok {
+		return nil, fmt.Errorf("unexpected definition of the temporary table: %q", sqlText)
+	}
+	stmts, err := schemalex.New().ParseString("CREATE TABLE " + sqlText)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse the temporary table: %w", err)
+	}
+	if len(stmts) != 1 {
+		return nil, fmt.Errorf("unexpected number of statements: %d", len(stmts))
+	}
+	normalized, ok := stmts[0].(*model.Table)
+	if !ok {
+		return nil, fmt.Errorf("unexpected statement: %T", stmts[0])
+	}
+	return normalized, nil
 }

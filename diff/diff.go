@@ -23,6 +23,8 @@ type diffCtx struct {
 	cur     model.Stmts
 	result  Stmts
 	indent  string
+
+	tableNormalizer TableNormalizer
 }
 
 func newDiffCtx(from, to, cur model.Stmts) *diffCtx {
@@ -77,6 +79,7 @@ func Diff(from, to model.Stmts, options ...Option) (Stmts, error) {
 	}
 	ctx := newDiffCtx(from, to, cur)
 	ctx.indent = opts.indent
+	ctx.tableNormalizer = opts.tableNormalizer
 
 	if txn {
 		ctx.append(`BEGIN`)
@@ -195,6 +198,13 @@ type alterCtx struct {
 	// cur is the current model deployed to MySQL actually.
 	// it may be nil.
 	cur *model.Table
+
+	tableNormalizer TableNormalizer
+
+	// normalizedFrom and normalizedTo are from and to normalized by tableNormalizer.
+	// they are computed lazily, and nil if they are not computed yet or cannot be normalized.
+	normalized                   bool
+	normalizedFrom, normalizedTo *model.Table
 }
 
 func (ctx *diffCtx) alterTables() error {
@@ -301,6 +311,7 @@ func newAlterCtx(ctx *diffCtx, from, to, cur *model.Table) (*alterCtx, error) {
 		from:            from,
 		to:              to,
 		cur:             cur,
+		tableNormalizer: ctx.tableNormalizer,
 	}, nil
 }
 
@@ -467,6 +478,20 @@ func (ctx *alterCtx) alterTableColumns() error {
 			return fmt.Errorf("column not found in new schema: %q", columnName)
 		}
 
+		if beforeColumnStmt.Generated.Valid && afterColumnStmt.Generated.Valid &&
+			beforeColumnStmt.Generated.Expr != afterColumnStmt.Generated.Expr {
+			equal, err := ctx.equalGeneratedExpr(columnName)
+			if err != nil {
+				return err
+			}
+			if equal {
+				// the expressions are equivalent. compare the other attributes.
+				col := *beforeColumnStmt
+				col.Generated.Expr = afterColumnStmt.Generated.Expr
+				beforeColumnStmt = &col
+			}
+		}
+
 		if reflect.DeepEqual(beforeColumnStmt, afterColumnStmt) {
 			continue
 		}
@@ -480,6 +505,40 @@ func (ctx *alterCtx) alterTableColumns() error {
 		}
 	}
 	return nil
+}
+
+// equalGeneratedExpr reports whether the expressions of the generated column are equivalent
+// after they are normalized by tableNormalizer.
+// It returns false if tableNormalizer is not specified or the tables cannot be normalized.
+func (ctx *alterCtx) equalGeneratedExpr(columnName string) (bool, error) {
+	if ctx.tableNormalizer == nil {
+		return false, nil
+	}
+	if !ctx.normalized {
+		ctx.normalized = true
+		from, err := ctx.tableNormalizer(ctx.from)
+		if err != nil {
+			return false, fmt.Errorf("failed to normalize the old table %q: %w", ctx.from.Name, err)
+		}
+		to, err := ctx.tableNormalizer(ctx.to)
+		if err != nil {
+			return false, fmt.Errorf("failed to normalize the new table %q: %w", ctx.to.Name, err)
+		}
+		ctx.normalizedFrom, ctx.normalizedTo = from, to
+	}
+	if ctx.normalizedFrom == nil || ctx.normalizedTo == nil {
+		return false, nil
+	}
+
+	from, ok := ctx.normalizedFrom.LookupColumn(columnName)
+	if !ok || !from.Generated.Valid {
+		return false, nil
+	}
+	to, ok := ctx.normalizedTo.LookupColumn(columnName)
+	if !ok || !to.Generated.Valid {
+		return false, nil
+	}
+	return from.Generated.Expr == to.Generated.Expr, nil
 }
 
 func (ctx *alterCtx) dropTableIndexes() error {
