@@ -1263,6 +1263,32 @@ func TestDiff_MariaDBJSONColumn(t *testing.T) {
 	}
 }
 
+// MariaDB shows DEFAULT NULL for nullable TEXT and BLOB columns, but MySQL does not.
+// https://github.com/shogo82148/schemalex-deploy/issues/327
+func TestDiff_MariaDBTextDefaultNull(t *testing.T) {
+	const mariadb = "CREATE TABLE `fuga` (\n" +
+		"  `a` text DEFAULT NULL,\n" +
+		"  `b` blob DEFAULT NULL\n" +
+		");"
+	const handWritten = "CREATE TABLE `fuga` ( `a` TEXT, `b` BLOB );"
+
+	var buf bytes.Buffer
+	if err := diff.Strings(&buf, mariadb, handWritten); err != nil {
+		t.Fatal(err)
+	}
+	if buf.Len() > 0 {
+		t.Errorf("want no diff, but got %q", buf.String())
+	}
+
+	buf.Reset()
+	if err := diff.Strings(&buf, handWritten, mariadb); err != nil {
+		t.Fatal(err)
+	}
+	if buf.Len() > 0 {
+		t.Errorf("want no diff, but got %q", buf.String())
+	}
+}
+
 // https://github.com/shogo82148/schemalex-deploy/issues/309
 func TestDiff_TableNormalizer(t *testing.T) {
 	// normalize the expressions by removing spaces and backquotes, and lowering them.

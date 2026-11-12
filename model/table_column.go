@@ -184,18 +184,20 @@ func (t *TableColumn) Normalize() *TableColumn {
 				defaultValue.Quoted = false
 			}
 		}
-	} else {
-		switch t.Type {
-		case ColumnTypeTinyText, ColumnTypeTinyBlob,
-			ColumnTypeBlob, ColumnTypeText,
-			ColumnTypeMediumBlob, ColumnTypeMediumText,
-			ColumnTypeLongBlob, ColumnTypeLongText:
-		default:
-			// if nullable then set default null.
-			// generated columns cannot have a default value.
-			if nullState != NullStateNotNull && !t.Generated.Valid {
-				setDefaultNull = true
-			}
+
+		// MariaDB shows DEFAULT NULL for nullable TEXT and BLOB columns, but MySQL does not.
+		// NULL is the default value of nullable columns even if it is not specified,
+		// so remove it to compare them with the columns without DEFAULT NULL.
+		// https://github.com/shogo82148/schemalex-deploy/issues/327
+		if isTextOrBlob(t.Type) && nullState != NullStateNotNull &&
+			!defaultValue.Quoted && defaultValue.Value == "NULL" {
+			defaultValue = DefaultValue{}
+		}
+	} else if !isTextOrBlob(t.Type) {
+		// if nullable then set default null.
+		// generated columns cannot have a default value.
+		if nullState != NullStateNotNull && !t.Generated.Valid {
+			setDefaultNull = true
 		}
 	}
 
@@ -217,6 +219,18 @@ func (t *TableColumn) Normalize() *TableColumn {
 	}
 
 	return &col
+}
+
+// isTextOrBlob reports whether t is one of the TEXT and BLOB types.
+func isTextOrBlob(t ColumnType) bool {
+	switch t {
+	case ColumnTypeTinyText, ColumnTypeTinyBlob,
+		ColumnTypeBlob, ColumnTypeText,
+		ColumnTypeMediumBlob, ColumnTypeMediumText,
+		ColumnTypeLongBlob, ColumnTypeLongText:
+		return true
+	}
+	return false
 }
 
 // isNumberLiteral reports whether s is a number literal that the lexer reads as a single NUMBER token.

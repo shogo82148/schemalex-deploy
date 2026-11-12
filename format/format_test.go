@@ -1052,6 +1052,23 @@ primary key (id, c)
 			"`a` INT (11) DEFAULT NULL\n" +
 			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4;\n",
 	})
+	// https://github.com/shogo82148/schemalex-deploy/issues/327
+	parse("MariaDBTextDefaultNull", &Spec{
+		// MariaDB shows DEFAULT NULL for nullable TEXT and BLOB columns, but MySQL does not.
+		Input: "CREATE TABLE `t` (\n" +
+			"  `a` text DEFAULT NULL,\n" +
+			"  `b` mediumblob DEFAULT NULL,\n" +
+			"  `c` text NOT NULL,\n" +
+			"  `d` text DEFAULT 'NULL'\n" +
+			")",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` TEXT,\n" +
+			"`b` MEDIUMBLOB,\n" +
+			"`c` TEXT NOT NULL,\n" +
+			"`d` TEXT DEFAULT 'NULL'\n" +
+			");\n",
+	})
+
 	// https://github.com/shogo82148/schemalex-deploy/issues/326
 	parse("MariaDBJSONColumn", &Spec{
 		// MariaDB returns JSON columns as LONGTEXT with a CHECK constraint.
