@@ -312,6 +312,40 @@ primary key (id, c)
 		Input:  "CREATE TABLE foo LIKE bar",
 		Expect: "CREATE TABLE `foo` LIKE `bar`;\n",
 	})
+
+	// https://github.com/shogo82148/schemalex-deploy/issues/325
+	parse("CreateTemporaryTable", &Spec{
+		Input: "CREATE TEMPORARY TABLE foo (a INT)",
+		Expect: "CREATE TEMPORARY TABLE `foo` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("CreateTemporaryTableIfNotExistsLike", &Spec{
+		Input:  "create temporary table if not exists foo like bar",
+		Expect: "CREATE TEMPORARY TABLE IF NOT EXISTS `foo` LIKE `bar`;\n",
+	})
+	parse("CreateTemporaryTableInExecutableComment", &Spec{
+		Input: "CREATE /*!32300 TEMPORARY */ TABLE foo (a INT)",
+		Expect: "CREATE TEMPORARY TABLE `foo` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
+	parse("CreateTemporaryWithoutTable", &Spec{
+		Input: "CREATE TEMPORARY foo (a INT)",
+		Error: true,
+	})
+	parse("CreateTableTemporary", &Spec{
+		// TEMPORARY must be placed before TABLE.
+		Input: "CREATE TABLE TEMPORARY foo (a INT)",
+		Error: true,
+	})
+	parse("TableNamedTemporary", &Spec{
+		// TEMPORARY is not a reserved word, so it can be used as a table name.
+		Input: "CREATE TABLE temporary (a INT)",
+		Expect: "CREATE TABLE `temporary` (\n" +
+			"`a` INT (11) DEFAULT NULL\n" +
+			");\n",
+	})
 	parse("ColumnOptionPrimaryKey", &Spec{
 		// see https://github.com/schemalex/schemalex/pull/40
 		Input: "CREATE TABLE foo (id INTEGER PRIMARY KEY AUTO_INCREMENT)",
@@ -1078,6 +1112,8 @@ func TestFormatRoundTrip(t *testing.T) {
 		"CREATE TABLE t (a INT) ENGINE `my engine`",
 		"CREATE TABLE t (a INT) ENGINE `a``b`",
 		"CREATE TABLE t (a INT) DEFAULT CHARACTER SET `utf8mb4` COLLATE `utf8mb4 bin`",
+		"CREATE TEMPORARY TABLE t (a INT)",
+		"CREATE TEMPORARY TABLE IF NOT EXISTS t LIKE u",
 	}
 	for _, ddl0 := range tests {
 		t.Run(ddl0, func(t *testing.T) {
