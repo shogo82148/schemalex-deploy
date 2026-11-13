@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -387,8 +388,10 @@ func (p *Parser) parseCreateTableFields(ctx *parseCtx, stmt *model.Table) error 
 			if err := p.parseTableForeignKey(ctx, stmt); err != nil {
 				return err
 			}
-		case CHECK: // TODO
-			return newParseError(ctx, t, "unsupported field: CHECK")
+		case CHECK:
+			if err := p.parseTableCheck(ctx, stmt, model.MaybeIdent{}); err != nil {
+				return err
+			}
 		default:
 			if !isIdent(t) {
 				return newParseError(ctx, t, "unexpected create table field token: %s", t.Type)
@@ -441,6 +444,15 @@ func (p *Parser) parseTableConstraint(ctx *parseCtx, table *model.Table) error {
 
 	var index *model.Index
 	switch t := ctx.peek(); t.Type {
+	case CHECK:
+		var name model.MaybeIdent
+		if len(sym) > 0 {
+			name = model.MaybeIdent{
+				Ident: model.Ident(sym),
+				Valid: true,
+			}
+		}
+		return p.parseTableCheck(ctx, table, name)
 	case PRIMARY:
 		index = model.NewIndex(model.IndexKindPrimaryKey, table.ID())
 		if err := p.parseColumnIndexPrimaryKey(ctx, index); err != nil {
@@ -532,14 +544,16 @@ func (p *Parser) parseTableColumn(ctx *parseCtx, table *model.Table) error {
 	}
 
 	col := model.NewTableColumn(t.Value)
-	if err := p.parseTableColumnSpec(ctx, col); err != nil {
+	if err := p.parseTableColumnSpec(ctx, table, col); err != nil {
 		return err
 	}
 	table.Columns = append(table.Columns, col)
 	return nil
 }
 
-func (p *Parser) parseTableColumnSpec(ctx *parseCtx, col *model.TableColumn) error {
+// parseTableColumnSpec parses the column definition after the column name.
+// The CHECK constraints in the definition are added to table.
+func (p *Parser) parseTableColumnSpec(ctx *parseCtx, table *model.Table, col *model.TableColumn) error {
 	var coltyp model.ColumnType
 	var colopt int
 
@@ -699,7 +713,7 @@ func (p *Parser) parseTableColumnSpec(ctx *parseCtx, col *model.TableColumn) err
 	}
 
 	col.Type = coltyp
-	return p.parseColumnOption(ctx, col, colopt)
+	return p.parseColumnOption(ctx, table, col, colopt)
 }
 
 func (p *Parser) parseCreateTableOptionValue(ctx *parseCtx, table *model.Table, name string, follow ...TokenType) error {
@@ -892,7 +906,10 @@ func (p *Parser) parseCreateTableOptions(ctx *parseCtx, table *model.Table) erro
 // Seems like MySQL doesn't really care about the order of some elements in the
 // column options, although the docs (https://dev.mysql.com/doc/refman/5.7/en/create-table.html)
 // seem to state otherwise.
-func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int) error {
+//
+// The CHECK constraints in the column options are added to table,
+// because MySQL treats them as table constraints.
+func (p *Parser) parseColumnOption(ctx *parseCtx, table *model.Table, col *model.TableColumn, f int) error {
 	f = f | coloptNull | coloptDefault | coloptAutoIncrement | coloptKey | coloptComment
 	pos := 0
 	check := func(_f int) bool {
@@ -905,8 +922,10 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 		pos = _f
 		return true
 	}
-	// jsonValid is the CHECK token of `CHECK (json_valid(col))`, see convertMariaDBJSONColumn.
-	var jsonValid *Token
+	// jsonValid is the constraint `CHECK (json_valid(col))`, see convertMariaDBJSONColumn.
+	// It is added to the table at jsonValidPos if the column is not converted.
+	var jsonValid *model.CheckConstraint
+	var jsonValidPos int
 	for {
 		ctx.skipWhiteSpaces()
 		switch t := ctx.next(); t.Type {
@@ -1151,30 +1170,102 @@ func (p *Parser) parseColumnOption(ctx *parseCtx, col *model.TableColumn, f int)
 			if err := p.parseGeneratedColumn(ctx, col); err != nil {
 				return err
 			}
-		case CHECK:
+		case CONSTRAINT:
+			// CONSTRAINT [symbol] CHECK (expr) [[NOT] ENFORCED]
 			if !check(coloptCheck) {
-				return newParseError(ctx, t, "cannot apply CHECK")
+				return newParseError(ctx, t, "cannot apply CONSTRAINT")
 			}
-			expr, err := p.parseParenExpr(ctx, "check constraint")
+			ctx.skipWhiteSpaces()
+			var name model.MaybeIdent
+			if t := ctx.peek(); isIdent(t) {
+				ctx.advance()
+				name = model.MaybeIdent{
+					Ident: t.Ident(),
+					Valid: true,
+				}
+				ctx.skipWhiteSpaces()
+			}
+			if t := ctx.next(); t.Type != CHECK {
+				return newParseError(ctx, t, "expected CHECK")
+			}
+			chk, err := p.parseCheckConstraint(ctx)
 			if err != nil {
 				return err
 			}
-			// only the constraint that MariaDB adds to JSON columns is supported.
-			if col.Type != model.ColumnTypeLongText || !isJSONValid(expr, col.Name) {
-				return newParseError(ctx, t, "unsupported column option CHECK")
+			chk.Name = name
+			table.Checks = append(table.Checks, chk)
+		case CHECK:
+			// CHECK (expr) [[NOT] ENFORCED]
+			if !check(coloptCheck) {
+				return newParseError(ctx, t, "cannot apply CHECK")
 			}
-			jsonValid = t
+			chk, err := p.parseCheckConstraint(ctx)
+			if err != nil {
+				return err
+			}
+			if jsonValid == nil && col.Type == model.ColumnTypeLongText && !chk.NotEnforced && isJSONValid(chk.Expr, col.Name) {
+				// it may be the constraint that MariaDB adds to JSON columns.
+				jsonValid = chk
+				jsonValidPos = len(table.Checks)
+				continue
+			}
+			table.Checks = append(table.Checks, chk)
 
 		case COMMA, RPAREN:
 			ctx.rewind()
 			if jsonValid != nil && !convertMariaDBJSONColumn(col) {
-				return newParseError(ctx, jsonValid, "unsupported column option CHECK")
+				// it is not a JSON column, so keep the constraint.
+				table.Checks = slices.Insert(table.Checks, jsonValidPos, jsonValid)
 			}
 			return nil
 		default:
 			return newParseError(ctx, t, "unexpected column option %s", t.Type)
 		}
 	}
+}
+
+// parseTableCheck parses `CHECK (expr) [[NOT] ENFORCED]` in the table definition,
+// and adds it to table with the name.
+func (p *Parser) parseTableCheck(ctx *parseCtx, table *model.Table, name model.MaybeIdent) error {
+	ctx.skipWhiteSpaces()
+	if t := ctx.next(); t.Type != CHECK {
+		return newParseError(ctx, t, "expected CHECK")
+	}
+	chk, err := p.parseCheckConstraint(ctx)
+	if err != nil {
+		return err
+	}
+	chk.Name = name
+	table.Checks = append(table.Checks, chk)
+	return nil
+}
+
+// parseCheckConstraint parses `(expr) [[NOT] ENFORCED]` after CHECK.
+// https://dev.mysql.com/doc/refman/26.10/en/create-table-check-constraints.html
+func (p *Parser) parseCheckConstraint(ctx *parseCtx) (*model.CheckConstraint, error) {
+	expr, err := p.parseParenExpr(ctx, "check constraint")
+	if err != nil {
+		return nil, err
+	}
+	chk := model.NewCheckConstraint(expr)
+
+	ctx.skipWhiteSpaces()
+	switch t := ctx.peek(); t.Type {
+	case ENFORCED:
+		ctx.advance()
+	case NOT:
+		// NOT ENFORCED, or NOT NULL of the column definition, e.g. `a INT CHECK (a > 0) NOT NULL`.
+		idx := ctx.idx
+		ctx.advance()
+		ctx.skipWhiteSpaces()
+		if t := ctx.peek(); t.Type == ENFORCED {
+			ctx.advance()
+			chk.NotEnforced = true
+		} else {
+			ctx.idx = idx
+		}
+	}
+	return chk, nil
 }
 
 // isJSONValid reports whether expr is `json_valid(name)`.

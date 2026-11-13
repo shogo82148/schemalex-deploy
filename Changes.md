@@ -2,6 +2,7 @@
 
 ## [unreleased]
 
+- support CHECK constraints
 - support generated columns
 - accept non-reserved keywords (e.g. `action`, `date`, `text`) as identifiers without quoting
 - fix format generating SQL that cannot be parsed again: ENUM without values, quoted non-numeric defaults of numeric columns, NUL characters, quoted table option values, and columns with both PRIMARY KEY and UNIQUE

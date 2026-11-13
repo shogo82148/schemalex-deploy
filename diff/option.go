@@ -84,6 +84,12 @@ func WithIndent(s string, n int) Option {
 // e.g. `a + 1` into `(`a` + 1)` and `concat(a, 'x')` into `concat(`a`,_utf8mb4'x')`.
 // The diff compares the normalized expressions if the expressions differ as written,
 // so that equivalent expressions do not produce CHANGE COLUMN.
+//
+// The expressions of CHECK constraints are also compared after they are normalized.
+// The normalized table must have the CHECK constraints in the same order as table,
+// otherwise they are compared as written.
+// The current schema, see WithCurrentSchema, has the normalized expressions,
+// so they are also used to find the names of the CHECK constraints that do not have their names.
 type TableNormalizer func(table *model.Table) (*model.Table, error)
 
 type withTableNormalizer TableNormalizer

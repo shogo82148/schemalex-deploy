@@ -70,6 +70,8 @@ func format(ctx *fmtCtx, v any) error {
 		return formatIndex(ctx, v)
 	case *model.Reference:
 		return formatReference(ctx, v)
+	case *model.CheckConstraint:
+		return formatCheckConstraint(ctx, v)
 	default:
 		return fmt.Errorf("unsupported model type: %T", v)
 	}
@@ -169,10 +171,9 @@ func formatTable(ctx *fmtCtx, table *model.Table) error {
 			if err := formatTableColumn(newctx, col); err != nil {
 				return err
 			}
-			if i < len(table.Columns)-1 || len(table.Indexes) > 0 {
+			if i < len(table.Columns)-1 || len(table.Indexes) > 0 || len(table.Checks) > 0 {
 				buf.WriteByte(',')
 			}
-			i++
 		}
 
 		for i, idx := range table.Indexes {
@@ -180,10 +181,19 @@ func formatTable(ctx *fmtCtx, table *model.Table) error {
 			if err := formatIndex(newctx, idx); err != nil {
 				return err
 			}
-			if i < len(table.Indexes)-1 {
+			if i < len(table.Indexes)-1 || len(table.Checks) > 0 {
 				buf.WriteByte(',')
 			}
-			i++
+		}
+
+		for i, chk := range table.Checks {
+			buf.WriteByte('\n')
+			if err := formatCheckConstraint(newctx, chk); err != nil {
+				return err
+			}
+			if i < len(table.Checks)-1 {
+				buf.WriteByte(',')
+			}
 		}
 
 		buf.WriteString("\n)")
@@ -460,6 +470,31 @@ func formatIndex(ctx *fmtCtx, index *model.Index) error {
 		if err := formatReference(newctx, ref); err != nil {
 			return err
 		}
+	}
+
+	if _, err := buf.WriteTo(ctx.dst); err != nil {
+		return err
+	}
+	return nil
+}
+
+func formatCheckConstraint(ctx *fmtCtx, chk *model.CheckConstraint) error {
+	if chk.Expr == "" {
+		return fmt.Errorf("format: empty expression in the check constraint")
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString(ctx.curIndent)
+	if chk.Name.Valid {
+		buf.WriteString("CONSTRAINT ")
+		buf.WriteString(chk.Name.Quoted())
+		buf.WriteByte(' ')
+	}
+	buf.WriteString("CHECK (")
+	buf.WriteString(chk.Expr)
+	buf.WriteByte(')')
+	if chk.NotEnforced {
+		buf.WriteString(" NOT ENFORCED")
 	}
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {

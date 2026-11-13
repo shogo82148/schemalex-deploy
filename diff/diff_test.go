@@ -684,6 +684,132 @@ CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 			"ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `id`",
 		},
 	},
+
+	// CHECK constraints
+	// https://dev.mysql.com/doc/refman/26.10/en/create-table-check-constraints.html
+	// the constraints in column definitions are tested in TestDiff_CheckConstraints,
+	// because MariaDB shows them in the column definitions, but they are added as table constraints.
+	{
+		Name:   "create a table with check constraints",
+		Before: []string{},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, `b` INTEGER, CHECK (`a` < `b`), CONSTRAINT `b_pos` CHECK (b > 0) )",
+		},
+		Expect: []string{
+			"CREATE TABLE `fuga` (\n" +
+				"`a` INT (11) DEFAULT NULL,\n" +
+				"`b` INT (11) DEFAULT NULL,\n" +
+				"CHECK (`a` < `b`),\n" +
+				"CONSTRAINT `b_pos` CHECK (b > 0)\n" +
+				")",
+		},
+	},
+	{
+		Name: "add check constraints",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, `b` INTEGER )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, `b` INTEGER, CHECK (a > 0), CONSTRAINT `b_pos` CHECK (b > 0) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ADD CHECK (a > 0), ADD CONSTRAINT `b_pos` CHECK (b > 0)",
+		},
+	},
+	{
+		Name: "drop a named check constraint",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, `b` INTEGER, CHECK (a > 0), CONSTRAINT `b_pos` CHECK (b > 0) )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, `b` INTEGER, CHECK (a > 0) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP CONSTRAINT `b_pos`",
+		},
+	},
+	{
+		Name: "change the expression of a named check constraint",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CONSTRAINT `c` CHECK (a > 0) )",
+		},
+		After: []string{
+			// the names are case-insensitive.
+			"CREATE TABLE `fuga` ( `a` INTEGER, CONSTRAINT `C` CHECK (a > 1) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP CONSTRAINT `c`, ADD CONSTRAINT `C` CHECK (a > 1)",
+		},
+	},
+	{
+		Name: "rename a check constraint",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CONSTRAINT `c1` CHECK (a > 0) )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CONSTRAINT `c2` CHECK (a > 0) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP CONSTRAINT `c1`, ADD CONSTRAINT `c2` CHECK (a > 0)",
+		},
+	},
+	{
+		Name: "add a column with a check constraint",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, `b` INTEGER, CONSTRAINT `b_pos` CHECK (b > 0) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ADD COLUMN `b` INT (11) DEFAULT NULL AFTER `a`, ADD CONSTRAINT `b_pos` CHECK (b > 0)",
+		},
+	},
+	{
+		// the column used by the constraint cannot be dropped before the constraint.
+		Name: "drop a column with a check constraint",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, `b` INTEGER, CONSTRAINT `a_lt_b` CHECK (a < b) )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP CONSTRAINT `a_lt_b`, DROP COLUMN `b`",
+		},
+	},
+	{
+		Name: "make a check constraint not enforced",
+		Tests: []string{
+			// MariaDB does not support NOT ENFORCED.
+			"CREATE TABLE `fuga` ( `a` INTEGER, CHECK (a > 0) NOT ENFORCED )",
+		},
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CONSTRAINT `c` CHECK (a > 0) )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CONSTRAINT `c` CHECK (a > 0) NOT ENFORCED )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ALTER CHECK `c` NOT ENFORCED",
+		},
+	},
+	{
+		Name: "make a check constraint enforced",
+		Tests: []string{
+			// MariaDB does not support NOT ENFORCED.
+			"CREATE TABLE `fuga` ( `a` INTEGER, CHECK (a > 0) NOT ENFORCED )",
+		},
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CONSTRAINT `c` CHECK (a > 0) NOT ENFORCED )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CONSTRAINT `c` CHECK (a > 0) ENFORCED )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ALTER CHECK `c` ENFORCED",
+		},
+	},
 }
 
 func joinQueries(queries []string) string {
@@ -995,6 +1121,84 @@ var autoSpecs = []AutoNamedSpec{
 		Expect: []string{
 			"ALTER TABLE `fuga` ADD INDEX (`id`) INVISIBLE" +
 				strings.Repeat(", ADD INDEX (`id`)", 8),
+		},
+	},
+
+	// CHECK constraints without their names.
+	// the expressions are written as SHOW CREATE TABLE returns,
+	// because the expressions are compared as written without TableNormalizer.
+	{
+		Name: "drop an anonymous check constraint",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CHECK (`a` > 0), CHECK (`a` < 10) )",
+		},
+		Current: []string{"CREATE TABLE `fuga` (" +
+			"`a` int DEFAULT NULL," +
+			"CONSTRAINT `fuga_chk_1` CHECK ((`a` > 0))," +
+			"CONSTRAINT `fuga_chk_2` CHECK ((`a` < 10))" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CHECK (`a` > 0) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP CONSTRAINT `fuga_chk_2`",
+		},
+	},
+	{
+		Name: "drop a duplicate anonymous check constraint",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CHECK (`a` > 0), CHECK (`a` > 0) )",
+		},
+		Current: []string{"CREATE TABLE `fuga` (" +
+			"`a` int DEFAULT NULL," +
+			"CONSTRAINT `fuga_chk_1` CHECK ((`a` > 0))," +
+			"CONSTRAINT `fuga_chk_2` CHECK ((`a` > 0))" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CHECK (`a` > 0) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP CONSTRAINT `fuga_chk_2`",
+		},
+	},
+	{
+		Name: "change the expression of an anonymous check constraint",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CHECK (`a` > 0) )",
+		},
+		Current: []string{"CREATE TABLE `fuga` (" +
+			"`a` int DEFAULT NULL," +
+			"CONSTRAINT `fuga_chk_1` CHECK ((`a` > 0))" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CHECK (`a` > 1) )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP CONSTRAINT `fuga_chk_1`, ADD CHECK (`a` > 1)",
+		},
+	},
+	{
+		Name: "make an anonymous check constraint not enforced",
+		Tests: []string{
+			// MariaDB does not support NOT ENFORCED.
+			"CREATE TABLE `fuga` ( `a` INTEGER, CHECK (a > 0) NOT ENFORCED )",
+		},
+		Before: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CHECK (`a` > 0) )",
+		},
+		Current: []string{"CREATE TABLE `fuga` (" +
+			"`a` int DEFAULT NULL," +
+			"CONSTRAINT `fuga_chk_1` CHECK ((`a` > 0))" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `a` INTEGER, CHECK (`a` > 0) NOT ENFORCED )",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ALTER CHECK `fuga_chk_1` NOT ENFORCED",
 		},
 	},
 }
