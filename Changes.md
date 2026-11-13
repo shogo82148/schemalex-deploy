@@ -2,7 +2,10 @@
 
 ## [unreleased]
 
-- support CHECK constraints
+- support CHECK constraints [#334](https://github.com/shogo82148/schemalex-deploy/pull/334)
+
+## [v0.2.0] - 2026-11-12
+
 - support generated columns
 - accept non-reserved keywords (e.g. `action`, `date`, `text`) as identifiers without quoting
 - fix format generating SQL that cannot be parsed again: ENUM without values, quoted non-numeric defaults of numeric columns, NUL characters, quoted table option values, and columns with both PRIMARY KEY and UNIQUE
@@ -87,7 +90,8 @@
 
 - initial release
 
-[unreleased]: https://github.com/shogo82148/schemalex-deploy/compare/v0.1.7...main
+[unreleased]: https://github.com/shogo82148/schemalex-deploy/compare/v0.2.0...main
+[v0.2.0]: https://github.com/shogo82148/schemalex-deploy/compare/v0.1.7...v0.2.0
 [v0.1.7]: https://github.com/shogo82148/schemalex-deploy/compare/v0.1.6...v0.1.7
 [v0.1.6]: https://github.com/shogo82148/schemalex-deploy/compare/v0.1.5...v0.1.6
 [v0.1.5]: https://github.com/shogo82148/schemalex-deploy/compare/v0.1.4...v0.1.5
