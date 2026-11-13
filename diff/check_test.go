@@ -98,6 +98,15 @@ func TestDiff_CheckConstraints(t *testing.T) {
 			want:   "ALTER TABLE `t` DROP CONSTRAINT `c`, ADD CONSTRAINT `c` CHECK (a > 1) NOT ENFORCED;\n",
 		},
 		{
+			// the quote in the comment is not the start of a string literal, so b is found.
+			name:   "recreate a column used by a constraint with a comment",
+			before: "CREATE TABLE t (a INT, b INT AS (a + 1) VIRTUAL, CONSTRAINT c CHECK (a > 0 /* it's */ AND b > 0));",
+			after:  "CREATE TABLE t (a INT, b INT AS (a + 1) STORED, CONSTRAINT c CHECK (a > 0 /* it's */ AND b > 0));",
+			want: "ALTER TABLE `t` DROP CONSTRAINT `c`, DROP COLUMN `b`, " +
+				"ADD COLUMN `b` INT (11) GENERATED ALWAYS AS (a + 1) STORED AFTER `a`, " +
+				"ADD CONSTRAINT `c` CHECK (a > 0 /* it's */ AND b > 0);\n",
+		},
+		{
 			name:   "drop a table constraint and a column",
 			before: "CREATE TABLE t (a INT, b INT, CONSTRAINT c CHECK (a < b), INDEX idx_b (b));",
 			after:  "CREATE TABLE t (a INT);",

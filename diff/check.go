@@ -146,11 +146,27 @@ func (ctx *alterCtx) usesRecreatedColumn(expr string) bool {
 }
 
 // exprIdents returns the identifiers in expr, e.g. ["a", "b", "concat"] for "concat(`a`, b, 'c')".
-// The quoted identifiers are unquoted, and the string literals are skipped.
+// The quoted identifiers are unquoted, and the string literals and the comments are skipped.
+// The comments are recognized as the lexer does, see lexer.run.
 func exprIdents(expr string) []string {
 	var idents []string
 	for i := 0; i < len(expr); {
 		switch c := expr[i]; {
+		case strings.HasPrefix(expr[i:], "/*"):
+			// a block comment. the markers of executable comments are already removed from expr.
+			end := strings.Index(expr[i+2:], "*/")
+			if end < 0 {
+				return idents
+			}
+			i += 2 + end + 2
+		case c == '#' || strings.HasPrefix(expr[i:], "-- ") || strings.HasPrefix(expr[i:], "--\t") ||
+			strings.HasPrefix(expr[i:], "--\n") || strings.HasPrefix(expr[i:], "--\r"):
+			// a line comment.
+			end := strings.IndexByte(expr[i:], '\n')
+			if end < 0 {
+				return idents
+			}
+			i += end + 1
 		case c == '\'' || c == '"':
 			i = skipQuoted(expr, i)
 		case c == '`':
