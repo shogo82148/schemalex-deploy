@@ -782,12 +782,13 @@ CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 		// the constraints using the column are dropped and added again with the column,
 		// because MySQL implicitly drops the constraint that uses only the dropped column,
 		// and rejects dropping the column used by the other constraints.
+		// MariaDB shows the constraints in the order they are added, so the unchanged one is first.
 		Name: "change generated column used by check constraints from virtual to stored",
 		Before: []string{
-			"CREATE TABLE `fuga` ( `a` INTEGER, `b` INTEGER AS (`a` + 1) VIRTUAL, CONSTRAINT `b_pos` CHECK (b > 0), CONSTRAINT `a_lt_b` CHECK (`a` < `B`), CONSTRAINT `a_pos` CHECK (a > 0) )",
+			"CREATE TABLE `fuga` ( `a` INTEGER, `b` INTEGER AS (`a` + 1) VIRTUAL, CONSTRAINT `a_pos` CHECK (a > 0), CONSTRAINT `b_pos` CHECK (b > 0), CONSTRAINT `a_lt_b` CHECK (`a` < `B`) )",
 		},
 		After: []string{
-			"CREATE TABLE `fuga` ( `a` INTEGER, `b` INTEGER AS (`a` + 1) STORED, CONSTRAINT `b_pos` CHECK (b > 0), CONSTRAINT `a_lt_b` CHECK (`a` < `B`), CONSTRAINT `a_pos` CHECK (a > 0) )",
+			"CREATE TABLE `fuga` ( `a` INTEGER, `b` INTEGER AS (`a` + 1) STORED, CONSTRAINT `a_pos` CHECK (a > 0), CONSTRAINT `b_pos` CHECK (b > 0), CONSTRAINT `a_lt_b` CHECK (`a` < `B`) )",
 		},
 		Expect: []string{
 			"ALTER TABLE `fuga` DROP CONSTRAINT `b_pos`, DROP CONSTRAINT `a_lt_b`, " +
