@@ -502,6 +502,7 @@ func TestImportCheckConstraints(t *testing.T) {
 	if len(plan.Stmts) > 0 {
 		t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
 	}
+	assertSameCheckClauses(t, db.db, after)
 }
 
 // The names of CHECK constraints without names are found from the current schema.
@@ -560,14 +561,45 @@ func TestDeployCheckConstraints(t *testing.T) {
 		t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
 	}
 
-	// the constraints in the database are the expected ones.
-	var count int
-	row := db.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE()")
-	if err := row.Scan(&count); err != nil {
+	// the constraints in the database are same as the ones created directly.
+	// the follow-up plan compares with the saved schema, so it does not detect the difference in the database.
+	assertSameCheckClauses(t, db.db, after)
+}
+
+// assertSameCheckClauses checks that the CHECK constraints in db are same as the ones created by ddl directly,
+// ignoring their names, because the server names the constraints without names.
+func assertSameCheckClauses(t *testing.T, db *sql.DB, ddl string) {
+	t.Helper()
+	ctx := t.Context()
+
+	want, cleanup := database.SetupTestDB()
+	defer cleanup()
+	if _, err := want.ExecContext(ctx, ddl); err != nil {
 		t.Fatal(err)
 	}
-	if count != 2 {
-		t.Errorf("want 2 check constraints, got %d", count)
+
+	clauses := func(db *sql.DB) []string {
+		t.Helper()
+		rows, err := db.QueryContext(ctx, "SELECT CHECK_CLAUSE FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() ORDER BY CHECK_CLAUSE")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var ret []string
+		for rows.Next() {
+			var clause string
+			if err := rows.Scan(&clause); err != nil {
+				t.Fatal(err)
+			}
+			ret = append(ret, clause)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		return ret
+	}
+	if diff := cmp.Diff(clauses(want), clauses(db)); diff != "" {
+		t.Errorf("check constraints are unmatched: (-directly/+deployed)\n%s", diff)
 	}
 }
 

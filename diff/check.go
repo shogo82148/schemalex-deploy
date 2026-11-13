@@ -113,7 +113,7 @@ func (ctx *alterCtx) diffChecks() (*checkChanges, error) {
 		if err != nil {
 			return nil, err
 		}
-		if !equal {
+		if !equal || ctx.usesRecreatedColumn(f.Expr) || ctx.usesRecreatedColumn(t.Expr) {
 			changes.drop = append(changes.drop, f)
 			changes.add = append(changes.add, t)
 			continue
@@ -124,6 +124,81 @@ func (ctx *alterCtx) diffChecks() (*checkChanges, error) {
 	}
 	ctx.checks = changes
 	return changes, nil
+}
+
+// usesRecreatedColumn reports whether expr may use a column that is dropped and added again, see needsRecreateColumn.
+// The constraint must also be dropped and added again,
+// because MySQL implicitly drops the constraint when it uses only the dropped column,
+// and rejects dropping the column when the constraint also uses other columns.
+//
+// It may report true for an identifier that is not a column, e.g. a function with the same name.
+// It just recreates the constraint unnecessarily.
+func (ctx *alterCtx) usesRecreatedColumn(expr string) bool {
+	if ctx.recreateColumns.Cardinality() == 0 {
+		return false
+	}
+	for _, ident := range exprIdents(expr) {
+		if _, ok := ctx.recreateColumns[model.NewTableColumn(ident).ID()]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// exprIdents returns the identifiers in expr, e.g. ["a", "b", "concat"] for "concat(`a`, b, 'c')".
+// The quoted identifiers are unquoted, and the string literals are skipped.
+func exprIdents(expr string) []string {
+	var idents []string
+	for i := 0; i < len(expr); {
+		switch c := expr[i]; {
+		case c == '\'' || c == '"':
+			i = skipQuoted(expr, i)
+		case c == '`':
+			end := skipQuoted(expr, i)
+			bodyEnd := end
+			if end-1 > i && expr[end-1] == '`' {
+				bodyEnd = end - 1 // the closing backquote
+			}
+			idents = append(idents, strings.ReplaceAll(expr[i+1:bodyEnd], "``", "`"))
+			i = end
+		case isIdentChar(c):
+			start := i
+			for i < len(expr) && isIdentChar(expr[i]) {
+				i++
+			}
+			idents = append(idents, expr[start:i])
+		default:
+			i++
+		}
+	}
+	return idents
+}
+
+// skipQuoted returns the position after the quoted string or identifier that starts at expr[start].
+// The quote is escaped by doubling it, and by a backslash in string literals.
+func skipQuoted(expr string, start int) int {
+	quote := expr[start]
+	for i := start + 1; i < len(expr); i++ {
+		switch expr[i] {
+		case '\\':
+			if quote != '`' {
+				i++ // skip the escaped character
+			}
+		case quote:
+			if i+1 < len(expr) && expr[i+1] == quote {
+				i++ // the doubled quote
+				continue
+			}
+			return i + 1
+		}
+	}
+	return len(expr)
+}
+
+// isIdentChar reports whether c can be a part of an unquoted identifier.
+// https://dev.mysql.com/doc/refman/26.10/en/identifiers.html
+func isIdentChar(c byte) bool {
+	return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' || c == '_' || c == '$' || c >= 0x80
 }
 
 // hasUnmatchedChecks reports whether both an unnamed constraint in the new table
