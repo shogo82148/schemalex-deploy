@@ -78,13 +78,13 @@ func (db *DB) Plan(ctx context.Context, schema string) (*Plan, error) {
 			conn, connErr = db.db.Conn(ctx)
 		}
 		if connErr != nil {
-			log.Printf("failed to get a connection to normalize table %s, so the expressions of its generated columns are compared as written: %v", table.Name.Quoted(), connErr)
+			log.Printf("failed to get a connection to normalize table %s, so the expressions of its generated columns and check constraints are compared as written: %v", table.Name.Quoted(), connErr)
 			return nil, nil
 		}
 
 		normalized, err := normalizeTable(ctx, conn, table)
 		if err != nil {
-			log.Printf("failed to normalize table %s, so the expressions of its generated columns are compared as written: %v", table.Name.Quoted(), err)
+			log.Printf("failed to normalize table %s, so the expressions of its generated columns and check constraints are compared as written: %v", table.Name.Quoted(), err)
 			return nil, nil
 		}
 		return normalized, nil
@@ -339,17 +339,19 @@ func showTables(ctx context.Context, tx *sql.Tx) ([]string, error) {
 	return tables, nil
 }
 
-// normalizeTable creates the columns of table as a temporary table,
+// normalizeTable creates the columns and the CHECK constraints of table as a temporary table,
 // and returns the definition of the table normalized by the server.
-// MySQL rewrites the expressions of generated columns into its own form,
+// MySQL rewrites the expressions of generated columns and CHECK constraints into its own form,
 // so the result is used to compare them.
+// The CHECK constraints in the result are in the same order as table, and have the same names as table.
 // conn must be a dedicated connection, because temporary tables are visible only in the session.
 func normalizeTable(ctx context.Context, conn *sql.Conn, table *model.Table) (*model.Table, error) {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		return nil, err
 	}
-	name := model.Ident("schemalex_normalize_" + hex.EncodeToString(b[:]))
+	suffix := hex.EncodeToString(b[:])
+	name := model.Ident("schemalex_normalize_" + suffix)
 
 	tmp := model.NewTable(name)
 	tmp.Temporary = true
@@ -362,6 +364,19 @@ func normalizeTable(ctx context.Context, conn *sql.Conn, table *model.Table) (*m
 		c.Unique = false
 		c.Key = false
 		tmp.Columns = append(tmp.Columns, &c)
+	}
+	// the names of CHECK constraints must be unique in the schema,
+	// and SHOW CREATE TABLE sorts the constraints by their names,
+	// so they are renamed to the unique names in order.
+	checkNames := make(map[string]int, len(table.Checks))
+	for i, chk := range table.Checks {
+		c := *chk
+		c.Name = model.MaybeIdent{
+			Ident: model.Ident(fmt.Sprintf("schemalex_chk_%s_%06d", suffix[:8], i)),
+			Valid: true,
+		}
+		checkNames[strings.ToLower(string(c.Name.Ident))] = i
+		tmp.Checks = append(tmp.Checks, &c)
 	}
 	for _, opt := range table.Options {
 		// keep the character set and the collation, because they may affect the expressions.
@@ -401,5 +416,23 @@ func normalizeTable(ctx context.Context, conn *sql.Conn, table *model.Table) (*m
 	if !ok {
 		return nil, fmt.Errorf("unexpected statement: %T", stmts[0])
 	}
+
+	// restore the order and the names of the CHECK constraints.
+	checks := make([]*model.CheckConstraint, len(table.Checks))
+	for _, chk := range normalized.Checks {
+		i, ok := checkNames[strings.ToLower(string(chk.Name.Ident))]
+		if !ok || !chk.Name.Valid || checks[i] != nil {
+			return nil, fmt.Errorf("unexpected check constraint in the temporary table: %s", chk.Name.Quoted())
+		}
+		c := *chk
+		c.Name = table.Checks[i].Name
+		checks[i] = &c
+	}
+	for i, chk := range checks {
+		if chk == nil {
+			return nil, fmt.Errorf("check constraint not found in the temporary table: CHECK (%s)", table.Checks[i].Expr)
+		}
+	}
+	normalized.Checks = checks
 	return normalized, nil
 }

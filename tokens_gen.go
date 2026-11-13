@@ -104,6 +104,7 @@ const (
 	DOUBLE
 	DROP
 	DYNAMIC
+	ENFORCED
 	ENGINE
 	ENUM
 	EXISTS
@@ -239,6 +240,7 @@ var keywordIdentMap = map[string]TokenType{
 	"DOUBLE":             DOUBLE,
 	"DROP":               DROP,
 	"DYNAMIC":            DYNAMIC,
+	"ENFORCED":           ENFORCED,
 	"ENGINE":             ENGINE,
 	"ENUM":               ENUM,
 	"EXISTS":             EXISTS,
@@ -542,6 +544,8 @@ func (t TokenType) String() string {
 		return "DROP"
 	case DYNAMIC:
 		return "DYNAMIC"
+	case ENFORCED:
+		return "ENFORCED"
 	case ENGINE:
 		return "ENGINE"
 	case ENUM:

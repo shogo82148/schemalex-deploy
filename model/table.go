@@ -11,6 +11,7 @@ type Table struct {
 	Columns     []*TableColumn
 	Indexes     []*Index
 	Options     []*TableOption
+	Checks      []*CheckConstraint
 
 	// Partition is the partitioning clause of the table, e.g. `PARTITION BY HASH (id) PARTITIONS 2`.
 	// It is kept as it is written, except for the markers of executable comments.
@@ -137,6 +138,10 @@ func (t *Table) Normalize() *Table {
 	tbl.Columns = columns
 	tbl.Options = make([]*TableOption, len(t.Options))
 	copy(tbl.Options, t.Options)
+	if t.Checks != nil {
+		tbl.Checks = make([]*CheckConstraint, len(t.Checks))
+		copy(tbl.Checks, t.Checks)
+	}
 	return &tbl
 }
 

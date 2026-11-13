@@ -435,6 +435,174 @@ func TestImportJSONColumns(t *testing.T) {
 	}
 }
 
+// MySQL rewrites the expressions of CHECK constraints into its own form, and names the constraints without names,
+// e.g. `CHECK (a > 0)` into `CONSTRAINT `t_chk_1` CHECK ((`a` > 0))`.
+// It should not produce any changes for equivalent constraints after importing the schema.
+func TestImportCheckConstraints(t *testing.T) {
+	database.SkipIfNoTestDatabase(t)
+
+	ctx := t.Context()
+	rawDB, cleanup := database.SetupTestDB()
+	defer cleanup()
+	db := &DB{
+		db: rawDB,
+	}
+
+	const before = `CREATE TABLE t (
+		a INTEGER CHECK (a > 0),
+		b INTEGER,
+		c VARCHAR(10) NOT NULL,
+		CHECK (a < b),
+		CONSTRAINT c_values CHECK (c IN ('x', "y"))
+	);
+`
+	if _, err := db.db.ExecContext(ctx, before); err != nil {
+		t.Fatal(err)
+	}
+	sqlText, err := db.LoadSchema(ctx)
+	if err != nil {
+		t.Fatalf("failed to load schema: %v", err)
+	}
+	if err := db.Import(ctx, sqlText); err != nil {
+		t.Fatalf("failed to import: %v", err)
+	}
+
+	plan, err := db.Plan(ctx, before)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	if len(plan.Stmts) > 0 {
+		t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+	}
+
+	// change the expression of the constraint without its name.
+	const after = `CREATE TABLE t (
+		a INTEGER CHECK (a > 0),
+		b INTEGER,
+		c VARCHAR(10) NOT NULL,
+		CHECK (a <= b),
+		CONSTRAINT c_values CHECK (c IN ('x', "y"))
+	);
+`
+	plan, err = db.Plan(ctx, after)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	if len(plan.Stmts) != 1 || !strings.HasSuffix(string(plan.Stmts[0]), ", ADD CHECK (a <= b)") {
+		t.Errorf("want dropping and adding the constraint, got %q", plan.Stmts)
+	}
+	if err := db.Deploy(ctx, plan); err != nil {
+		t.Fatalf("failed to deploy: %v", err)
+	}
+
+	plan, err = db.Plan(ctx, after)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	if len(plan.Stmts) > 0 {
+		t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+	}
+	assertSameCheckClauses(t, db.db, after)
+}
+
+// The names of CHECK constraints without names are found from the current schema.
+func TestDeployCheckConstraints(t *testing.T) {
+	database.SkipIfNoTestDatabase(t)
+
+	ctx := t.Context()
+	rawDB, cleanup := database.SetupTestDB()
+	defer cleanup()
+	db := &DB{
+		db: rawDB,
+	}
+
+	deploy := func(schema string) []string {
+		t.Helper()
+		plan, err := db.Plan(ctx, schema)
+		if err != nil {
+			t.Fatalf("failed to plan: %v", err)
+		}
+		if err := db.Deploy(ctx, plan); err != nil {
+			t.Fatalf("failed to deploy: %v", err)
+		}
+		var stmts []string
+		for _, stmt := range plan.Stmts {
+			stmts = append(stmts, string(stmt))
+		}
+		return stmts
+	}
+
+	deploy(`CREATE TABLE t (
+		a INTEGER CHECK (a > 0),
+		b INTEGER,
+		CHECK (a < b),
+		CHECK (b < 100)
+	);
+`)
+
+	// drop the constraint without its name, and change the expression of another one.
+	const after = `CREATE TABLE t (
+		a INTEGER CHECK (a > 0),
+		b INTEGER,
+		CHECK (b < 1000)
+	);
+`
+	stmts := deploy(after)
+	if len(stmts) != 1 || !strings.HasPrefix(stmts[0], "ALTER TABLE `t` DROP CONSTRAINT ") || !strings.HasSuffix(stmts[0], ", ADD CHECK (b < 1000)") {
+		t.Errorf("want dropping two constraints and adding one, got %q", stmts)
+	}
+
+	// no diff is detected after deploying.
+	plan, err := db.Plan(ctx, after)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	if len(plan.Stmts) > 0 {
+		t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+	}
+
+	// the constraints in the database are same as the ones created directly.
+	// the follow-up plan compares with the saved schema, so it does not detect the difference in the database.
+	assertSameCheckClauses(t, db.db, after)
+}
+
+// assertSameCheckClauses checks that the CHECK constraints in db are same as the ones created by ddl directly,
+// ignoring their names, because the server names the constraints without names.
+func assertSameCheckClauses(t *testing.T, db *sql.DB, ddl string) {
+	t.Helper()
+	ctx := t.Context()
+
+	want, cleanup := database.SetupTestDB()
+	defer cleanup()
+	if _, err := want.ExecContext(ctx, ddl); err != nil {
+		t.Fatal(err)
+	}
+
+	clauses := func(db *sql.DB) []string {
+		t.Helper()
+		rows, err := db.QueryContext(ctx, "SELECT CHECK_CLAUSE FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() ORDER BY CHECK_CLAUSE")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var ret []string
+		for rows.Next() {
+			var clause string
+			if err := rows.Scan(&clause); err != nil {
+				t.Fatal(err)
+			}
+			ret = append(ret, clause)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		return ret
+	}
+	if diff := cmp.Diff(clauses(want), clauses(db)); diff != "" {
+		t.Errorf("check constraints are unmatched: (-directly/+deployed)\n%s", diff)
+	}
+}
+
 // https://github.com/shogo82148/schemalex-deploy/issues/323
 func TestPlanPartitionedTable(t *testing.T) {
 	database.SkipIfNoTestDatabase(t)

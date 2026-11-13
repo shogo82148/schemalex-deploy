@@ -209,16 +209,23 @@ type alterCtx struct {
 	// they are computed lazily, and nil if they are not computed yet or cannot be normalized.
 	normalized                   bool
 	normalizedFrom, normalizedTo *model.Table
+
+	// checks are the changes of the CHECK constraints, see diffChecks.
+	// they are computed lazily, and nil if they are not computed yet.
+	checks *checkChanges
 }
 
 func (ctx *diffCtx) alterTables() error {
 	procs := []func(*alterCtx) error{
+		(*alterCtx).dropTableChecks,
 		(*alterCtx).dropTableIndexes,
 		(*alterCtx).dropTableColumns,
 		(*alterCtx).addTableColumns,
 		(*alterCtx).alterTableColumns,
 		(*alterCtx).addTableIndexes,
 		(*alterCtx).alterTableIndexes,
+		(*alterCtx).addTableChecks,
+		(*alterCtx).alterTableChecks,
 	}
 
 	ids := ctx.toSet.Intersect(ctx.fromSet)
@@ -561,34 +568,45 @@ func (ctx *alterCtx) alterTableColumns() error {
 // after they are normalized by tableNormalizer.
 // It returns false if tableNormalizer is not specified or the tables cannot be normalized.
 func (ctx *alterCtx) equalGeneratedExpr(columnName string) (bool, error) {
-	if ctx.tableNormalizer == nil {
+	normalizedFrom, normalizedTo, err := ctx.normalize()
+	if err != nil {
+		return false, err
+	}
+	if normalizedFrom == nil || normalizedTo == nil {
 		return false, nil
+	}
+
+	from, ok := normalizedFrom.LookupColumn(columnName)
+	if !ok || !from.Generated.Valid {
+		return false, nil
+	}
+	to, ok := normalizedTo.LookupColumn(columnName)
+	if !ok || !to.Generated.Valid {
+		return false, nil
+	}
+	return from.Generated.Expr == to.Generated.Expr, nil
+}
+
+// normalize returns the old and new tables normalized by tableNormalizer.
+// They are normalized only once, when it is called first.
+// It returns nil if tableNormalizer is not specified or the table cannot be normalized.
+func (ctx *alterCtx) normalize() (from, to *model.Table, err error) {
+	if ctx.tableNormalizer == nil {
+		return nil, nil, nil
 	}
 	if !ctx.normalized {
 		ctx.normalized = true
 		from, err := ctx.tableNormalizer(ctx.from)
 		if err != nil {
-			return false, fmt.Errorf("failed to normalize the old table %q: %w", ctx.from.Name, err)
+			return nil, nil, fmt.Errorf("failed to normalize the old table %q: %w", ctx.from.Name, err)
 		}
 		to, err := ctx.tableNormalizer(ctx.to)
 		if err != nil {
-			return false, fmt.Errorf("failed to normalize the new table %q: %w", ctx.to.Name, err)
+			return nil, nil, fmt.Errorf("failed to normalize the new table %q: %w", ctx.to.Name, err)
 		}
 		ctx.normalizedFrom, ctx.normalizedTo = from, to
 	}
-	if ctx.normalizedFrom == nil || ctx.normalizedTo == nil {
-		return false, nil
-	}
-
-	from, ok := ctx.normalizedFrom.LookupColumn(columnName)
-	if !ok || !from.Generated.Valid {
-		return false, nil
-	}
-	to, ok := ctx.normalizedTo.LookupColumn(columnName)
-	if !ok || !to.Generated.Valid {
-		return false, nil
-	}
-	return from.Generated.Expr == to.Generated.Expr, nil
+	return ctx.normalizedFrom, ctx.normalizedTo, nil
 }
 
 func (ctx *alterCtx) dropTableIndexes() error {

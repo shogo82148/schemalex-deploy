@@ -156,6 +156,7 @@ func _main() error {
 		{Ident: "DOUBLE", Reserved: true},
 		{Ident: "DROP", Reserved: true},
 		{Ident: "DYNAMIC"},
+		{Ident: "ENFORCED"},
 		{Ident: "ENGINE"},
 		{Ident: "ENUM"},
 		{Ident: "EXISTS", Reserved: true},

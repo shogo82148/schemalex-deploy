@@ -1094,32 +1094,149 @@ primary key (id, c)
 			"`Doc` JSON DEFAULT NULL\n" +
 			");\n",
 	})
-	// other CHECK constraints on columns are not supported.
-	parse("ColumnCheck", &Spec{
-		Input: "CREATE TABLE t (a INT CHECK (a > 0))",
-		Error: true,
-	})
+	// other CHECK constraints on columns are kept as table constraints.
 	parse("ColumnCheckJSONValidOtherColumn", &Spec{
 		Input: "CREATE TABLE t (doc LONGTEXT, doc2 LONGTEXT CHECK (json_valid(doc)))",
-		Error: true,
+		Expect: "CREATE TABLE `t` (\n" +
+			"`doc` LONGTEXT,\n" +
+			"`doc2` LONGTEXT,\n" +
+			"CHECK (json_valid(doc))\n" +
+			");\n",
 	})
 	parse("ColumnCheckJSONValidText", &Spec{
 		// MariaDB uses LONGTEXT for JSON columns.
 		Input: "CREATE TABLE t (doc TEXT CHECK (json_valid(doc)))",
-		Error: true,
+		Expect: "CREATE TABLE `t` (\n" +
+			"`doc` TEXT,\n" +
+			"CHECK (json_valid(doc))\n" +
+			");\n",
 	})
 	parse("ColumnCheckJSONValidOtherCharset", &Spec{
 		// MariaDB uses utf8mb4 and utf8mb4_bin for JSON columns.
 		Input: "CREATE TABLE t (doc LONGTEXT CHARACTER SET latin1 CHECK (json_valid(doc)))",
-		Error: true,
+		Expect: "CREATE TABLE `t` (\n" +
+			"`doc` LONGTEXT CHARACTER SET `latin1`,\n" +
+			"CHECK (json_valid(doc))\n" +
+			");\n",
 	})
 	parse("ColumnCheckJSONValidOtherCollation", &Spec{
-		Input: "CREATE TABLE t (doc LONGTEXT CHECK (json_valid(doc)) COLLATE utf8mb4_general_ci)",
-		Error: true,
+		Input: "CREATE TABLE t (a INT CHECK (a > 0), doc LONGTEXT CHECK (json_valid(doc)) COLLATE utf8mb4_general_ci CHECK (doc <> ''))",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"`doc` LONGTEXT COLLATE `utf8mb4_general_ci`,\n" +
+			"CHECK (a > 0),\n" +
+			"CHECK (json_valid(doc)),\n" +
+			"CHECK (doc <> '')\n" +
+			");\n",
+	})
+	parse("ColumnCheckJSONValidNotEnforced", &Spec{
+		// MariaDB does not support NOT ENFORCED, so it is not a JSON column.
+		Input: "CREATE TABLE t (doc LONGTEXT CHECK (json_valid(doc)) NOT ENFORCED)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`doc` LONGTEXT,\n" +
+			"CHECK (json_valid(doc)) NOT ENFORCED\n" +
+			");\n",
 	})
 	parse("ColumnCheckEmpty", &Spec{
 		Input: "CREATE TABLE t (doc LONGTEXT CHECK ())",
 		Error: true,
+	})
+
+	// https://dev.mysql.com/doc/refman/26.10/en/create-table-check-constraints.html
+	parse("TableCheck", &Spec{
+		Input: "CREATE TABLE t (a INT, b INT, CHECK (a < b), CONSTRAINT CHECK (a > 0), CONSTRAINT `c` CHECK ((b > 0)) ENFORCED, constraint d check (a <> b) not enforced, KEY (a))",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"`b` INT (11) DEFAULT NULL,\n" +
+			"INDEX (`a`),\n" +
+			"CHECK (a < b),\n" +
+			"CHECK (a > 0),\n" +
+			"CONSTRAINT `c` CHECK (b > 0),\n" +
+			"CONSTRAINT `d` CHECK (a <> b) NOT ENFORCED\n" +
+			");\n",
+	})
+	parse("ColumnCheck", &Spec{
+		// the constraints in column definitions are kept as table constraints in order.
+		Input: "CREATE TABLE t (a INT CHECK (a > 0) NOT NULL, CHECK (a < 100), b INT CONSTRAINT b_pos CHECK (b > 0) NOT ENFORCED DEFAULT 1 CONSTRAINT CHECK (b < 10), c INT CHECK (c > 0) NOT   /* comment */ NULL)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) NOT NULL,\n" +
+			"`b` INT (11) DEFAULT 1,\n" +
+			"`c` INT (11) NOT NULL,\n" +
+			"CHECK (a > 0),\n" +
+			"CHECK (a < 100),\n" +
+			"CONSTRAINT `b_pos` CHECK (b > 0) NOT ENFORCED,\n" +
+			"CHECK (b < 10),\n" +
+			"CHECK (c > 0)\n" +
+			");\n",
+	})
+	parse("TableCheckOnly", &Spec{
+		Input: "CREATE TABLE t (a INT, CHECK (a IN ('x', \"y)\")))",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"CHECK (a IN ('x', \"y)\"))\n" +
+			");\n",
+	})
+	parse("MySQLShowCreateTableCheck", &Spec{
+		Input: "CREATE TABLE `t` (\n" +
+			"  `a` int DEFAULT NULL,\n" +
+			"  `c` varchar(10) DEFAULT NULL,\n" +
+			"  CONSTRAINT `b_pos` CHECK ((`a` > 0)) /*!80016 NOT ENFORCED */,\n" +
+			"  CONSTRAINT `named` CHECK ((`c` in (_utf8mb4'x',_utf8mb4'y'))),\n" +
+			"  CONSTRAINT `t_chk_1` CHECK ((`a` > -(1)))\n" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"`c` VARCHAR (10) DEFAULT NULL,\n" +
+			"CONSTRAINT `b_pos` CHECK (`a` > 0) NOT ENFORCED,\n" +
+			"CONSTRAINT `named` CHECK (`c` in (_utf8mb4'x',_utf8mb4'y')),\n" +
+			"CONSTRAINT `t_chk_1` CHECK (`a` > -(1))\n" +
+			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4, DEFAULT COLLATE = utf8mb4_0900_ai_ci;\n",
+	})
+	parse("MariaDBShowCreateTableCheck", &Spec{
+		Input: "CREATE TABLE `t` (\n" +
+			"  `a` int(11) DEFAULT NULL CHECK (`a` > 0),\n" +
+			"  `b` int(11) DEFAULT NULL,\n" +
+			"  CONSTRAINT `CONSTRAINT_1` CHECK (`a` < `b`)\n" +
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"`b` INT (11) DEFAULT NULL,\n" +
+			"CHECK (`a` > 0),\n" +
+			"CONSTRAINT `CONSTRAINT_1` CHECK (`a` < `b`)\n" +
+			") ENGINE = InnoDB, DEFAULT CHARACTER SET = utf8mb4, DEFAULT COLLATE = utf8mb4_general_ci;\n",
+	})
+	parse("ColumnCheckNotNullAfterNot", &Spec{
+		// NOT after the constraint is NOT NULL of the column.
+		Input: "CREATE TABLE t (a INT CHECK (a > 0) NOT NULL ENFORCED)",
+		Error: true,
+	})
+	parse("TableCheckEmpty", &Spec{
+		Input: "CREATE TABLE t (a INT, CHECK ())",
+		Error: true,
+	})
+	parse("TableCheckNoParen", &Spec{
+		Input: "CREATE TABLE t (a INT, CHECK a > 0)",
+		Error: true,
+	})
+	parse("TableCheckUnterminated", &Spec{
+		Input: "CREATE TABLE t (a INT, CHECK (a > 0)",
+		Error: true,
+	})
+	parse("TableCheckEnforcedTwice", &Spec{
+		Input: "CREATE TABLE t (a INT, CHECK (a > 0) NOT ENFORCED ENFORCED)",
+		Error: true,
+	})
+	parse("ConstraintWithoutCheckInColumn", &Spec{
+		Input: "CREATE TABLE t (a INT CONSTRAINT c UNIQUE)",
+		Error: true,
+	})
+	parse("EnforcedAsIdentifier", &Spec{
+		// ENFORCED is a non-reserved keyword.
+		Input: "CREATE TABLE t (enforced INT CHECK (enforced > 0) ENFORCED)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`enforced` INT (11) DEFAULT NULL,\n" +
+			"CHECK (enforced > 0)\n" +
+			");\n",
 	})
 
 	parse("MariaDBExecutableComment", &Spec{

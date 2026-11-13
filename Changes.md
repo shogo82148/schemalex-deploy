@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+- support CHECK constraints [#334](https://github.com/shogo82148/schemalex-deploy/pull/334)
+
 ## [v0.2.0] - 2026-11-12
 
 - support generated columns
