@@ -879,7 +879,7 @@ func TestImportViews(t *testing.T) {
 CREATE VIEW b AS SELECT id FROM t WHERE id > 1 WITH CHECK OPTION;
 CREATE SQL SECURITY INVOKER VIEW a (x) AS SELECT id FROM b;
 `
-	for _, q := range strings.Split(schema, ";\n") {
+	for q := range strings.SplitSeq(schema, ";\n") {
 		if q == "" {
 			continue
 		}
