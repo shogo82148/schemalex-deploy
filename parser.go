@@ -1822,7 +1822,21 @@ func (p *Parser) parsePartition(ctx *parseCtx, table *model.Table) error {
 	if first.Type != PARTITION {
 		return newParseError(ctx, first, "expected PARTITION")
 	}
-	ctx.skipWhiteSpaces()
+
+	var markers []*Token // the markers of executable comments in the clause
+
+	// skip the spaces and the comments between PARTITION and BY,
+	// remembering the markers of executable comments, e.g. `/*!PARTITION*/BY HASH (id)`.
+	for {
+		t := ctx.peek()
+		if t.Type != SPACE && t.Type != COMMENT_IDENT {
+			break
+		}
+		if ctx.isExecutableCommentMarker(t) {
+			markers = append(markers, t)
+		}
+		ctx.advance()
+	}
 	by := ctx.next()
 	if by.Type != BY {
 		return newParseError(ctx, by, "expected BY")
@@ -1831,7 +1845,6 @@ func (p *Parser) parsePartition(ctx *parseCtx, table *model.Table) error {
 	// collect the tokens up to the end of the statement.
 	// string literals and quoted identifiers are single tokens,
 	// so parentheses and semicolons inside them are not counted.
-	var markers []*Token // the markers of executable comments in the clause
 	depth := 0
 	// end is the end of the last token, excluding the spaces and the comments after it,
 	// e.g. a trailing "-- comment" would comment out the semicolon after the clause in the output.

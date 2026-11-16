@@ -367,6 +367,14 @@ primary key (id, c)
 			")\n" +
 			"PARTITION BY HASH (id) PARTITIONS 2;\n",
 	})
+	parse("PartitionWithExecutableCommentBeforeBy", &Spec{
+		// the executable comment closes between PARTITION and BY.
+		Input: "CREATE TABLE t (id INT) /*!PARTITION*/BY HASH (id) /*!50100 PARTITIONS 2 */",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`id` INT (11) DEFAULT NULL\n" +
+			")\n" +
+			"PARTITION BY HASH (id) PARTITIONS 2;\n",
+	})
 	parse("PartitionWithTrailingComment", &Spec{
 		// the trailing comment is removed, otherwise it comments out the semicolon in the output.
 		Input: "CREATE TABLE t (id INT) PARTITION BY HASH (id) -- comment\n;",
