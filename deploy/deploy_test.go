@@ -764,3 +764,171 @@ CREATE TABLE u (
 		}
 	})
 }
+
+func TestDeployViews(t *testing.T) {
+	database.SkipIfNoTestDatabase(t)
+
+	ctx := t.Context()
+	rawDB, cleanup := database.SetupTestDB()
+	defer cleanup()
+	db := &DB{
+		db: rawDB,
+	}
+
+	deploy := func(schema string) []string {
+		t.Helper()
+		plan, err := db.Plan(ctx, schema)
+		if err != nil {
+			t.Fatalf("failed to plan: %v", err)
+		}
+		if err := db.Deploy(ctx, plan); err != nil {
+			t.Fatalf("failed to deploy: %v", err)
+		}
+		var stmts []string
+		for _, stmt := range plan.Stmts {
+			stmts = append(stmts, string(stmt))
+		}
+
+		// no diff is detected after deploying.
+		plan, err = db.Plan(ctx, schema)
+		if err != nil {
+			t.Fatalf("failed to plan: %v", err)
+		}
+		if len(plan.Stmts) > 0 {
+			t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+		}
+		return stmts
+	}
+	selectAll := func(view string) []int {
+		t.Helper()
+		rows, err := db.db.QueryContext(ctx, "SELECT * FROM "+util.Backquote(view)+" ORDER BY 1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var ret []int
+		for rows.Next() {
+			var v int
+			if err := rows.Scan(&v); err != nil {
+				t.Fatal(err)
+			}
+			ret = append(ret, v)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		return ret
+	}
+
+	// create the views in the order of their dependencies.
+	stmts := deploy(`CREATE TABLE t (id INTEGER NOT NULL, PRIMARY KEY (id));
+CREATE VIEW b AS SELECT id FROM t WHERE id > 1;
+CREATE VIEW a AS SELECT id FROM b WHERE id < 4;
+`)
+	want := []string{
+		"CREATE TABLE `t` (\n  `id` INT (11) NOT NULL,\n  PRIMARY KEY (`id`)\n)",
+		"CREATE VIEW `b` AS SELECT id FROM t WHERE id > 1",
+		"CREATE VIEW `a` AS SELECT id FROM b WHERE id < 4",
+	}
+	if diff := cmp.Diff(want, stmts); diff != "" {
+		t.Errorf("unexpected statements (-want/+got):\n%s", diff)
+	}
+	if _, err := db.db.ExecContext(ctx, "INSERT INTO t (id) VALUES (1), (2), (3), (4), (5)"); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]int{2, 3}, selectAll("a")); diff != "" {
+		t.Errorf("unexpected rows (-want/+got):\n%s", diff)
+	}
+
+	// replace the view, and drop another view.
+	stmts = deploy(`CREATE TABLE t (id INTEGER NOT NULL, PRIMARY KEY (id));
+CREATE VIEW a AS SELECT id FROM t WHERE id < 3;
+`)
+	want = []string{
+		"DROP VIEW `b`",
+		"CREATE OR REPLACE VIEW `a` AS SELECT id FROM t WHERE id < 3",
+	}
+	if diff := cmp.Diff(want, stmts); diff != "" {
+		t.Errorf("unexpected statements (-want/+got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]int{1, 2}, selectAll("a")); diff != "" {
+		t.Errorf("unexpected rows (-want/+got):\n%s", diff)
+	}
+	_, views, err := database.ListTables(ctx, db.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]string{"a"}, views); diff != "" {
+		t.Errorf("unexpected views (-want/+got):\n%s", diff)
+	}
+}
+
+// LoadSchema used to fail if the database has views,
+// because SHOW CREATE TABLE returns four columns for views.
+func TestImportViews(t *testing.T) {
+	database.SkipIfNoTestDatabase(t)
+
+	ctx := t.Context()
+	rawDB, cleanup := database.SetupTestDB()
+	defer cleanup()
+	db := &DB{
+		db: rawDB,
+	}
+
+	const schema = `CREATE TABLE t (id INTEGER NOT NULL, PRIMARY KEY (id));
+CREATE VIEW b AS SELECT id FROM t WHERE id > 1 WITH CHECK OPTION;
+CREATE SQL SECURITY INVOKER VIEW a (x) AS SELECT id FROM b;
+`
+	for q := range strings.SplitSeq(schema, ";\n") {
+		if q == "" {
+			continue
+		}
+		if _, err := db.db.ExecContext(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	sqlText, err := db.LoadSchema(ctx)
+	if err != nil {
+		t.Fatalf("failed to load schema: %v", err)
+	}
+	for _, s := range []string{"DROP VIEW IF EXISTS `a`;", "DROP VIEW IF EXISTS `b`;", "CREATE ALGORITHM=UNDEFINED"} {
+		if !strings.Contains(sqlText, s) {
+			t.Errorf("want the schema contains %q, but not: %s", s, sqlText)
+		}
+	}
+	if err := db.Import(ctx, sqlText); err != nil {
+		t.Fatalf("failed to import: %v", err)
+	}
+
+	// the imported schema has no diff.
+	plan, err := db.Plan(ctx, sqlText)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	if len(plan.Stmts) > 0 {
+		t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+	}
+
+	// the select statements are compared as written,
+	// so the views are replaced by the equivalent definitions, and the tables are not changed.
+	plan, err = db.Plan(ctx, schema)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	for _, stmt := range plan.Stmts {
+		if !strings.HasPrefix(string(stmt), "CREATE OR REPLACE ") {
+			t.Errorf("want only replacing views, got %q", stmt)
+		}
+	}
+	if err := db.Deploy(ctx, plan); err != nil {
+		t.Fatalf("failed to deploy: %v", err)
+	}
+	plan, err = db.Plan(ctx, schema)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	if len(plan.Stmts) > 0 {
+		t.Errorf("want no diff is detected, but not: %v", plan.Stmts)
+	}
+}

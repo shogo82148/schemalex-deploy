@@ -1249,12 +1249,19 @@ primary key (id, c)
 
 	// Unsupported syntax in executable comments is an error, as it is outside of them.
 	parse("UnsupportedStatementInExecutableComment", &Spec{
+		// a part of mysqldump output for triggers.
+		Input: "/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `trg` BEFORE INSERT ON `t` FOR EACH ROW SET NEW.a = 1 */;\n" +
+			"CREATE TABLE t (a INT);",
+		Error: true,
+	})
+	parse("MysqldumpView", &Spec{
 		// a part of mysqldump output for views.
 		Input: "/*!50001 CREATE ALGORITHM=UNDEFINED */\n" +
 			"/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */\n" +
 			"/*!50001 VIEW `v` AS select 1 AS `a` */;\n" +
 			"CREATE TABLE t (a INT);",
-		Error: true,
+		Expect: "CREATE ALGORITHM = UNDEFINED DEFINER = `root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select 1 AS `a`;\n" +
+			"CREATE TABLE `t` (\n`a` INT (11) DEFAULT NULL\n);\n",
 	})
 	parse("MysqldumpCreateDatabase", &Spec{
 		// the options of CREATE DATABASE are not supported.
@@ -1405,6 +1412,10 @@ func TestFormatRoundTrip(t *testing.T) {
 		"CREATE TABLE t (a INT, b INT AS (a # comment\n + 1))",
 		"CREATE TABLE t (a INT, b INT AS (a /* comment */))",
 		"CREATE TABLE t (id INT) PARTITION BY RANGE (id) (PARTITION p0 VALUES LESS THAN (10), PARTITION p1 VALUES LESS THAN MAXVALUE)",
+		"CREATE VIEW v AS SELECT * FROM t",
+		"CREATE OR REPLACE ALGORITHM = TEMPTABLE DEFINER = 'a'@'%' SQL SECURITY INVOKER VIEW v (x, y) AS SELECT a, b FROM t WITH LOCAL CHECK OPTION",
+		"CREATE VIEW IF NOT EXISTS `a``b` AS SELECT 1 WITH CHECK OPTION",
+		"CREATE VIEW v AS SELECT a # comment\n FROM t",
 	}
 	for _, ddl0 := range tests {
 		t.Run(ddl0, func(t *testing.T) {

@@ -63,6 +63,7 @@ const (
 	EQUAL         // =
 	COMMENT_IDENT // // /*   */, --, #
 	ACTION
+	ALGORITHM
 	ALWAYS
 	AS
 	ASC
@@ -77,6 +78,7 @@ const (
 	BTREE
 	BY
 	CASCADE
+	CASCADED
 	CHAR
 	CHARACTER
 	CHARSET
@@ -96,6 +98,7 @@ const (
 	DATETIME
 	DECIMAL
 	DEFAULT
+	DEFINER
 	DELAY_KEY_WRITE
 	DELETE
 	DESC
@@ -125,12 +128,14 @@ const (
 	INT
 	INTEGER
 	INVISIBLE
+	INVOKER
 	JSON
-	KEY_BLOCK_SIZE
 	KEY
+	KEY_BLOCK_SIZE
 	LAST
 	LIKE
 	LINESTRING
+	LOCAL
 	LONGBLOB
 	LONGTEXT
 	MATCH
@@ -139,6 +144,7 @@ const (
 	MEDIUMINT
 	MEDIUMTEXT
 	MEMORY
+	MERGE
 	MIN_ROWS
 	MULTILINESTRING
 	MULTIPOINT
@@ -149,6 +155,8 @@ const (
 	NULL
 	NUMERIC
 	ON
+	OPTION
+	OR
 	PACK_KEYS
 	PARSER
 	PARTIAL
@@ -160,12 +168,15 @@ const (
 	REAL
 	REDUNDANT
 	REFERENCES
+	REPLACE
 	RESTRICT
 	ROW_FORMAT
+	SECURITY
 	SET
 	SIMPLE
 	SMALLINT
 	SPATIAL
+	SQL
 	SRID
 	STATS_AUTO_RECALC
 	STATS_PERSISTENT
@@ -175,6 +186,7 @@ const (
 	TABLE
 	TABLESPACE
 	TEMPORARY
+	TEMPTABLE
 	TEXT
 	TIME
 	TIMESTAMP
@@ -182,6 +194,7 @@ const (
 	TINYINT
 	TINYTEXT
 	TRUE
+	UNDEFINED
 	UNION
 	UNIQUE
 	UNSIGNED
@@ -190,6 +203,7 @@ const (
 	USING
 	VARBINARY
 	VARCHAR
+	VIEW
 	VIRTUAL
 	VISIBLE
 	WITH
@@ -199,6 +213,7 @@ const (
 
 var keywordIdentMap = map[string]TokenType{
 	"ACTION":             ACTION,
+	"ALGORITHM":          ALGORITHM,
 	"ALWAYS":             ALWAYS,
 	"AS":                 AS,
 	"ASC":                ASC,
@@ -213,6 +228,7 @@ var keywordIdentMap = map[string]TokenType{
 	"BTREE":              BTREE,
 	"BY":                 BY,
 	"CASCADE":            CASCADE,
+	"CASCADED":           CASCADED,
 	"CHAR":               CHAR,
 	"CHARACTER":          CHARACTER,
 	"CHARSET":            CHARSET,
@@ -232,6 +248,7 @@ var keywordIdentMap = map[string]TokenType{
 	"DATETIME":           DATETIME,
 	"DECIMAL":            DECIMAL,
 	"DEFAULT":            DEFAULT,
+	"DEFINER":            DEFINER,
 	"DELAY_KEY_WRITE":    DELAY_KEY_WRITE,
 	"DELETE":             DELETE,
 	"DESC":               DESC,
@@ -261,12 +278,14 @@ var keywordIdentMap = map[string]TokenType{
 	"INT":                INT,
 	"INTEGER":            INTEGER,
 	"INVISIBLE":          INVISIBLE,
+	"INVOKER":            INVOKER,
 	"JSON":               JSON,
-	"KEY_BLOCK_SIZE":     KEY_BLOCK_SIZE,
 	"KEY":                KEY,
+	"KEY_BLOCK_SIZE":     KEY_BLOCK_SIZE,
 	"LAST":               LAST,
 	"LIKE":               LIKE,
 	"LINESTRING":         LINESTRING,
+	"LOCAL":              LOCAL,
 	"LONGBLOB":           LONGBLOB,
 	"LONGTEXT":           LONGTEXT,
 	"MATCH":              MATCH,
@@ -275,6 +294,7 @@ var keywordIdentMap = map[string]TokenType{
 	"MEDIUMINT":          MEDIUMINT,
 	"MEDIUMTEXT":         MEDIUMTEXT,
 	"MEMORY":             MEMORY,
+	"MERGE":              MERGE,
 	"MIN_ROWS":           MIN_ROWS,
 	"MULTILINESTRING":    MULTILINESTRING,
 	"MULTIPOINT":         MULTIPOINT,
@@ -285,6 +305,8 @@ var keywordIdentMap = map[string]TokenType{
 	"NULL":               NULL,
 	"NUMERIC":            NUMERIC,
 	"ON":                 ON,
+	"OPTION":             OPTION,
+	"OR":                 OR,
 	"PACK_KEYS":          PACK_KEYS,
 	"PARSER":             PARSER,
 	"PARTIAL":            PARTIAL,
@@ -296,12 +318,15 @@ var keywordIdentMap = map[string]TokenType{
 	"REAL":               REAL,
 	"REDUNDANT":          REDUNDANT,
 	"REFERENCES":         REFERENCES,
+	"REPLACE":            REPLACE,
 	"RESTRICT":           RESTRICT,
 	"ROW_FORMAT":         ROW_FORMAT,
+	"SECURITY":           SECURITY,
 	"SET":                SET,
 	"SIMPLE":             SIMPLE,
 	"SMALLINT":           SMALLINT,
 	"SPATIAL":            SPATIAL,
+	"SQL":                SQL,
 	"SRID":               SRID,
 	"STATS_AUTO_RECALC":  STATS_AUTO_RECALC,
 	"STATS_PERSISTENT":   STATS_PERSISTENT,
@@ -311,6 +336,7 @@ var keywordIdentMap = map[string]TokenType{
 	"TABLE":              TABLE,
 	"TABLESPACE":         TABLESPACE,
 	"TEMPORARY":          TEMPORARY,
+	"TEMPTABLE":          TEMPTABLE,
 	"TEXT":               TEXT,
 	"TIME":               TIME,
 	"TIMESTAMP":          TIMESTAMP,
@@ -318,6 +344,7 @@ var keywordIdentMap = map[string]TokenType{
 	"TINYINT":            TINYINT,
 	"TINYTEXT":           TINYTEXT,
 	"TRUE":               TRUE,
+	"UNDEFINED":          UNDEFINED,
 	"UNION":              UNION,
 	"UNIQUE":             UNIQUE,
 	"UNSIGNED":           UNSIGNED,
@@ -326,6 +353,7 @@ var keywordIdentMap = map[string]TokenType{
 	"USING":              USING,
 	"VARBINARY":          VARBINARY,
 	"VARCHAR":            VARCHAR,
+	"VIEW":               VIEW,
 	"VIRTUAL":            VIRTUAL,
 	"VISIBLE":            VISIBLE,
 	"WITH":               WITH,
@@ -386,14 +414,18 @@ func (t TokenType) IsReservedKeyword() bool {
 		NULL,
 		NUMERIC,
 		ON,
+		OPTION,
+		OR,
 		PARTITION,
 		PRIMARY,
 		REAL,
 		REFERENCES,
+		REPLACE,
 		RESTRICT,
 		SET,
 		SMALLINT,
 		SPATIAL,
+		SQL,
 		STORED,
 		TABLE,
 		TINYBLOB,
@@ -462,6 +494,8 @@ func (t TokenType) String() string {
 		return "COMMENT_IDENT"
 	case ACTION:
 		return "ACTION"
+	case ALGORITHM:
+		return "ALGORITHM"
 	case ALWAYS:
 		return "ALWAYS"
 	case AS:
@@ -490,6 +524,8 @@ func (t TokenType) String() string {
 		return "BY"
 	case CASCADE:
 		return "CASCADE"
+	case CASCADED:
+		return "CASCADED"
 	case CHAR:
 		return "CHAR"
 	case CHARACTER:
@@ -528,6 +564,8 @@ func (t TokenType) String() string {
 		return "DECIMAL"
 	case DEFAULT:
 		return "DEFAULT"
+	case DEFINER:
+		return "DEFINER"
 	case DELAY_KEY_WRITE:
 		return "DELAY_KEY_WRITE"
 	case DELETE:
@@ -586,18 +624,22 @@ func (t TokenType) String() string {
 		return "INTEGER"
 	case INVISIBLE:
 		return "INVISIBLE"
+	case INVOKER:
+		return "INVOKER"
 	case JSON:
 		return "JSON"
-	case KEY_BLOCK_SIZE:
-		return "KEY_BLOCK_SIZE"
 	case KEY:
 		return "KEY"
+	case KEY_BLOCK_SIZE:
+		return "KEY_BLOCK_SIZE"
 	case LAST:
 		return "LAST"
 	case LIKE:
 		return "LIKE"
 	case LINESTRING:
 		return "LINESTRING"
+	case LOCAL:
+		return "LOCAL"
 	case LONGBLOB:
 		return "LONGBLOB"
 	case LONGTEXT:
@@ -614,6 +656,8 @@ func (t TokenType) String() string {
 		return "MEDIUMTEXT"
 	case MEMORY:
 		return "MEMORY"
+	case MERGE:
+		return "MERGE"
 	case MIN_ROWS:
 		return "MIN_ROWS"
 	case MULTILINESTRING:
@@ -634,6 +678,10 @@ func (t TokenType) String() string {
 		return "NUMERIC"
 	case ON:
 		return "ON"
+	case OPTION:
+		return "OPTION"
+	case OR:
+		return "OR"
 	case PACK_KEYS:
 		return "PACK_KEYS"
 	case PARSER:
@@ -656,10 +704,14 @@ func (t TokenType) String() string {
 		return "REDUNDANT"
 	case REFERENCES:
 		return "REFERENCES"
+	case REPLACE:
+		return "REPLACE"
 	case RESTRICT:
 		return "RESTRICT"
 	case ROW_FORMAT:
 		return "ROW_FORMAT"
+	case SECURITY:
+		return "SECURITY"
 	case SET:
 		return "SET"
 	case SIMPLE:
@@ -668,6 +720,8 @@ func (t TokenType) String() string {
 		return "SMALLINT"
 	case SPATIAL:
 		return "SPATIAL"
+	case SQL:
+		return "SQL"
 	case SRID:
 		return "SRID"
 	case STATS_AUTO_RECALC:
@@ -686,6 +740,8 @@ func (t TokenType) String() string {
 		return "TABLESPACE"
 	case TEMPORARY:
 		return "TEMPORARY"
+	case TEMPTABLE:
+		return "TEMPTABLE"
 	case TEXT:
 		return "TEXT"
 	case TIME:
@@ -700,6 +756,8 @@ func (t TokenType) String() string {
 		return "TINYTEXT"
 	case TRUE:
 		return "TRUE"
+	case UNDEFINED:
+		return "UNDEFINED"
 	case UNION:
 		return "UNION"
 	case UNIQUE:
@@ -716,6 +774,8 @@ func (t TokenType) String() string {
 		return "VARBINARY"
 	case VARCHAR:
 		return "VARCHAR"
+	case VIEW:
+		return "VIEW"
 	case VIRTUAL:
 		return "VIRTUAL"
 	case VISIBLE:

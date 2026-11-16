@@ -72,6 +72,8 @@ func format(ctx *fmtCtx, v any) error {
 		return formatReference(ctx, v)
 	case *model.CheckConstraint:
 		return formatCheckConstraint(ctx, v)
+	case *model.View:
+		return formatView(ctx, v)
 	default:
 		return fmt.Errorf("unsupported model type: %T", v)
 	}
@@ -470,6 +472,77 @@ func formatIndex(ctx *fmtCtx, index *model.Index) error {
 		if err := formatReference(newctx, ref); err != nil {
 			return err
 		}
+	}
+
+	if _, err := buf.WriteTo(ctx.dst); err != nil {
+		return err
+	}
+	return nil
+}
+
+func formatView(ctx *fmtCtx, view *model.View) error {
+	if view.Select == "" {
+		return fmt.Errorf("format: empty select statement in the view %s", view.Name.Quoted())
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("CREATE")
+	if view.OrReplace {
+		buf.WriteString(" OR REPLACE")
+	}
+
+	switch view.Algorithm {
+	case "":
+	case model.ViewAlgorithmUndefined, model.ViewAlgorithmMerge, model.ViewAlgorithmTemptable:
+		buf.WriteString(" ALGORITHM = ")
+		buf.WriteString(view.Algorithm)
+	default:
+		return fmt.Errorf("format: unknown algorithm %q in the view %s", view.Algorithm, view.Name.Quoted())
+	}
+
+	if view.Definer.Valid {
+		buf.WriteString(" DEFINER = ")
+		buf.WriteString(view.Definer.Value)
+	}
+
+	switch view.SQLSecurity {
+	case "":
+	case model.ViewSQLSecurityDefiner, model.ViewSQLSecurityInvoker:
+		buf.WriteString(" SQL SECURITY ")
+		buf.WriteString(view.SQLSecurity)
+	default:
+		return fmt.Errorf("format: unknown SQL security %q in the view %s", view.SQLSecurity, view.Name.Quoted())
+	}
+
+	buf.WriteString(" VIEW")
+	if view.IfNotExists {
+		buf.WriteString(" IF NOT EXISTS")
+	}
+	buf.WriteByte(' ')
+	buf.WriteString(view.Name.Quoted())
+
+	if len(view.Columns) > 0 {
+		buf.WriteString(" (")
+		for i, col := range view.Columns {
+			if i > 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(col.Quoted())
+		}
+		buf.WriteByte(')')
+	}
+
+	buf.WriteString(" AS ")
+	buf.WriteString(view.Select)
+
+	switch view.CheckOption {
+	case "":
+	case model.ViewCheckOptionCascaded, model.ViewCheckOptionLocal:
+		buf.WriteString(" WITH ")
+		buf.WriteString(view.CheckOption)
+		buf.WriteString(" CHECK OPTION")
+	default:
+		return fmt.Errorf("format: unknown check option %q in the view %s", view.CheckOption, view.Name.Quoted())
 	}
 
 	if _, err := buf.WriteTo(ctx.dst); err != nil {
