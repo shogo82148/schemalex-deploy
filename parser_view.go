@@ -142,41 +142,114 @@ func (p *Parser) parseEqual(ctx *parseCtx) error {
 	return nil
 }
 
-// parseDefiner parses the user of the DEFINER clause, e.g. `'root'@'localhost'` and `CURRENT_USER`,
+// parseDefiner parses the account of the DEFINER clause, e.g. `'root'@'localhost'`, `root@localhost` and `CURRENT_USER`,
 // and returns it as it is written, except for the markers of executable comments.
+// https://dev.mysql.com/doc/refman/26.10/en/account-names.html
 func (p *Parser) parseDefiner(ctx *parseCtx) (string, error) {
-	first := ctx.peek()
 	start := ctx.peekPos()
-	end := start
-	var markers []*Token
-LOOP:
-	for {
-		t := ctx.peek()
-		significant := true
-		switch t.Type {
-		case SQL, VIEW, SEMICOLON, EOF:
-			break LOOP
-		case ILLEGAL:
-			if isUnterminatedQuote(t) {
-				return "", newParseError(ctx, t, "unterminated quoted string")
+	var markers []*Token // the markers of executable comments in the account
+	// skip skips the white spaces and the comments, and records the markers of executable comments.
+	skip := func() {
+		for {
+			t := ctx.peek()
+			if t.Type != SPACE && t.Type != COMMENT_IDENT {
+				return
 			}
-		case SPACE:
-			significant = false
-		case COMMENT_IDENT:
-			significant = false
 			if ctx.isExecutableCommentMarker(t) {
 				markers = append(markers, t)
 			}
-		}
-		ctx.advance()
-		if significant {
-			end = ctx.peekPos()
+			ctx.advance()
 		}
 	}
-	if end == start {
-		return "", newParseError(ctx, first, "expected the user of DEFINER")
+	// optional parses the tokens by f if it reports true, otherwise it rewinds the tokens.
+	optional := func(f func() (bool, error)) error {
+		idx, n := ctx.idx, len(markers)
+		ok, err := f()
+		if err != nil {
+			return err
+		}
+		if !ok {
+			ctx.idx, markers = idx, markers[:n]
+		}
+		return nil
+	}
+
+	var end int
+	t := ctx.next()
+	switch {
+	case t.Type == IDENT && strings.EqualFold(t.Value, "CURRENT_USER"):
+		// CURRENT_USER [()]
+		end = ctx.peekPos()
+		err := optional(func() (bool, error) {
+			skip()
+			if ctx.peek().Type != LPAREN {
+				return false, nil
+			}
+			ctx.advance()
+			skip()
+			if t := ctx.next(); t.Type != RPAREN {
+				return false, newParseError(ctx, t, "expected RPAREN")
+			}
+			end = ctx.peekPos()
+			return true, nil
+		})
+		if err != nil {
+			return "", err
+		}
+	case isAccountNamePart(t):
+		// user_name [@host_name]
+		// the user name may be a non-reserved keyword, e.g. `view@localhost`.
+		end = ctx.peekPos()
+		err := optional(func() (bool, error) {
+			skip()
+			if t := ctx.peek(); t.Type != ILLEGAL || t.Value != "@" {
+				return false, nil
+			}
+			ctx.advance()
+			skip()
+			host := ctx.next()
+			if isAccountNamePart(host) && host.Type != IDENT && !host.Type.IsKeyword() {
+				// a quoted host name.
+				end = ctx.peekPos()
+				return true, nil
+			}
+			// an unquoted host name, e.g. `localhost` and `127.0.0.1`.
+			// it continues up to a white space, because the lexer splits it into some tokens.
+			for t := host; ; t = ctx.next() {
+				switch t.Type {
+				case SPACE, COMMENT_IDENT, SEMICOLON, EOF:
+					ctx.rewind()
+					if t == host {
+						return false, newParseError(ctx, t, "expected the host name of DEFINER")
+					}
+					return true, nil
+				case ILLEGAL:
+					if isUnterminatedQuote(t) {
+						return false, newParseError(ctx, t, "unterminated quoted string")
+					}
+				}
+				end = ctx.peekPos()
+			}
+		})
+		if err != nil {
+			return "", err
+		}
+	default:
+		if isUnterminatedQuote(t) {
+			return "", newParseError(ctx, t, "unterminated quoted string")
+		}
+		return "", newParseError(ctx, t, "expected the user of DEFINER")
 	}
 	return strings.TrimFunc(removeExecutableCommentMarkers(ctx.input, start, end, markers), isSpace), nil
+}
+
+// isAccountNamePart reports whether t can be the user name or the host name of an account.
+func isAccountNamePart(t *Token) bool {
+	switch t.Type {
+	case SINGLE_QUOTE_IDENT, DOUBLE_QUOTE_IDENT:
+		return true
+	}
+	return isIdent(t)
 }
 
 // parseViewColumns parses the column list of a view after `(`.

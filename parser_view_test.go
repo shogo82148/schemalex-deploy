@@ -95,6 +95,61 @@ func TestParseView(t *testing.T) {
 			},
 		},
 		{
+			name: "unquoted account with keywords",
+			src:  "CREATE DEFINER = view@localhost VIEW v AS SELECT 1",
+			want: &model.View{
+				Name:    "v",
+				Definer: model.MaybeString{Valid: true, Value: "view@localhost"},
+				Select:  "SELECT 1",
+			},
+		},
+		{
+			name: "unquoted host name is a keyword",
+			src:  "CREATE DEFINER=root@view VIEW v AS SELECT 1",
+			want: &model.View{
+				Name:    "v",
+				Definer: model.MaybeString{Valid: true, Value: "root@view"},
+				Select:  "SELECT 1",
+			},
+		},
+		{
+			name: "unquoted IP address",
+			src:  "CREATE DEFINER = root@127.0.0.1 SQL SECURITY INVOKER VIEW v AS SELECT 1",
+			want: &model.View{
+				Name:        "v",
+				Definer:     model.MaybeString{Valid: true, Value: "root@127.0.0.1"},
+				SQLSecurity: model.ViewSQLSecurityInvoker,
+				Select:      "SELECT 1",
+			},
+		},
+		{
+			name: "quoted account with spaces",
+			src:  "CREATE DEFINER = 'root' @ '%' VIEW v AS SELECT 1",
+			want: &model.View{
+				Name:    "v",
+				Definer: model.MaybeString{Valid: true, Value: "'root' @ '%'"},
+				Select:  "SELECT 1",
+			},
+		},
+		{
+			name: "user name without host name",
+			src:  "CREATE DEFINER = `view` VIEW v AS SELECT 1",
+			want: &model.View{
+				Name:    "v",
+				Definer: model.MaybeString{Valid: true, Value: "`view`"},
+				Select:  "SELECT 1",
+			},
+		},
+		{
+			name: "CURRENT_USER without parentheses",
+			src:  "CREATE DEFINER = current_user VIEW v AS SELECT 1",
+			want: &model.View{
+				Name:    "v",
+				Definer: model.MaybeString{Valid: true, Value: "current_user"},
+				Select:  "SELECT 1",
+			},
+		},
+		{
 			name: "IF NOT EXISTS and CURRENT_USER",
 			src:  "CREATE DEFINER = CURRENT_USER() VIEW IF NOT EXISTS v AS SELECT 1",
 			want: &model.View{
@@ -141,7 +196,12 @@ func TestParseView_Error(t *testing.T) {
 		{"CREATE OR VIEW v AS SELECT 1", "expected REPLACE"},
 		{"CREATE ALGORITHM = FAST VIEW v AS SELECT 1", "expected UNDEFINED, MERGE or TEMPTABLE"},
 		{"CREATE ALGORITHM MERGE VIEW v AS SELECT 1", "expected EQUAL"},
-		{"CREATE DEFINER = VIEW v AS SELECT 1", "expected the user of DEFINER"},
+		{"CREATE DEFINER = VIEW v AS SELECT 1", "expected VIEW"},
+		{"CREATE DEFINER = ; VIEW v AS SELECT 1", "expected the user of DEFINER"},
+		{"CREATE DEFINER = root@;", "expected the host name of DEFINER"},
+		{"CREATE DEFINER = 'root VIEW v AS SELECT 1", "unterminated quoted string"},
+		{"CREATE DEFINER = CURRENT_USER( VIEW v AS SELECT 1", "expected RPAREN"},
+		{"CREATE DEFINER = root localhost VIEW v AS SELECT 1", "expected VIEW"},
 		{"CREATE SQL SECURITY NOBODY VIEW v AS SELECT 1", "expected DEFINER or INVOKER"},
 		{"CREATE OR REPLACE TABLE t (a INT)", "expected VIEW"},
 		{"CREATE OR REPLACE VIEW IF NOT EXISTS v AS SELECT 1", "OR REPLACE and IF NOT EXISTS cannot be used together"},

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/shogo82148/schemalex-deploy/format"
 	"github.com/shogo82148/schemalex-deploy/model"
@@ -42,6 +43,7 @@ func (ctx *diffCtx) dropViews() error {
 			return fmt.Errorf("failed to lookup view: %q", id)
 		}
 		ctx.append("DROP VIEW " + view.Name.Quoted())
+		ctx.markChanged(view.Name)
 	}
 	return nil
 }
@@ -50,13 +52,23 @@ func (ctx *diffCtx) dropViews() error {
 // They are created after the tables are changed, because views refer to tables,
 // and a new view may have the same name as a dropped table.
 // They are created in the order of their dependencies, because a view can refer to other views.
+//
+// The views that refer to the created, dropped or changed tables and views are also replaced,
+// even if their definitions are not changed,
+// because MySQL expands `SELECT *` into the columns when the view is created.
+// e.g. a view `SELECT * FROM t` does not have a column added to `t` later,
+// and it becomes invalid if a column is dropped from `t`.
+// The references are guessed from the identifiers in the select statements, see viewRefs,
+// so a view may be replaced unnecessarily. It does not touch any data.
+// The replaced views are also treated as changed, so the views that refer to them are replaced too.
 func (ctx *diffCtx) createViews() error {
 	var buf bytes.Buffer
 	for _, view := range sortViews(ctx.toViews, ctx.toViewOrder) {
 		from, exists := ctx.fromViews[view.ID()]
-		if exists && equalView(from, view) {
+		if exists && equalView(from, view) && !ctx.refersToChanged(view) {
 			continue
 		}
+		ctx.markChanged(view.Name)
 
 		v := *view
 		if exists {
@@ -70,6 +82,36 @@ func (ctx *diffCtx) createViews() error {
 		ctx.append(buf.String())
 	}
 	return nil
+}
+
+// refersToChanged reports whether the view refers to a table or a view that is created, dropped or changed.
+func (ctx *diffCtx) refersToChanged(view *model.View) bool {
+	for _, ref := range viewRefs(view) {
+		if _, ok := ctx.changed[ref]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// viewRefs returns the lower-cased names that the view may refer to, excluding the view itself.
+// They are the identifiers in the select statement, so they include the names of columns, aliases and functions.
+func viewRefs(view *model.View) []string {
+	self := strings.ToLower(string(view.Name))
+	seen := newSet()
+	var refs []string
+	for _, ident := range exprIdents(view.Select) {
+		ref := strings.ToLower(ident)
+		if ref == self {
+			continue
+		}
+		if _, ok := seen[ref]; ok {
+			continue
+		}
+		seen.Add(ref)
+		refs = append(refs, ref)
+	}
+	return refs
 }
 
 // equalView reports whether the views a and b have the same definition.
@@ -120,20 +162,11 @@ func viewSQLSecurity(v *model.View) string {
 func sortViews(views map[string]*model.View, order []string) []*model.View {
 	refs := make(map[string][]string, len(views))
 	for _, id := range order {
-		seen := newSet()
-		for _, ident := range exprIdents(views[id].Select) {
-			ref := model.NewView(model.Ident(ident)).ID()
-			if ref == id {
-				continue
+		for _, name := range viewRefs(views[id]) {
+			ref := model.NewView(model.Ident(name)).ID()
+			if _, ok := views[ref]; ok {
+				refs[id] = append(refs[id], ref)
 			}
-			if _, ok := views[ref]; !ok {
-				continue
-			}
-			if _, ok := seen[ref]; ok {
-				continue
-			}
-			seen.Add(ref)
-			refs[id] = append(refs[id], ref)
 		}
 	}
 

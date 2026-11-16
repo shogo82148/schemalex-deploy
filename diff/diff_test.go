@@ -1006,6 +1006,63 @@ CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 		},
 	},
 	{
+		// MySQL expands `*` into the columns when the view is created,
+		// so the view becomes invalid if it is not replaced after dropping the column.
+		Name: "replace views that refer to the table whose column is dropped",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL )",
+			"CREATE TABLE `hoge` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT * FROM `fuga`",
+			"CREATE VIEW `w` AS SELECT * FROM `v`",
+			"CREATE VIEW `x` AS SELECT * FROM `hoge`",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE TABLE `hoge` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT * FROM `fuga`",
+			"CREATE VIEW `w` AS SELECT * FROM `v`",
+			"CREATE VIEW `x` AS SELECT * FROM `hoge`",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` DROP COLUMN `a`",
+			"CREATE OR REPLACE VIEW `v` AS SELECT * FROM `fuga`",
+			"CREATE OR REPLACE VIEW `w` AS SELECT * FROM `v`",
+		},
+	},
+	{
+		// the view does not have the column added later, unless it is replaced.
+		Name: "replace views that refer to the table whose column is added",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT * FROM `fuga`",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT * FROM `fuga`",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `id`",
+			"CREATE OR REPLACE VIEW `v` AS SELECT * FROM `fuga`",
+		},
+	},
+	{
+		Name: "replace views that refer to the replaced view",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id` FROM `fuga`",
+			"CREATE VIEW `w` AS SELECT * FROM `v`",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id`, `a` FROM `fuga`",
+			"CREATE VIEW `w` AS SELECT * FROM `v`",
+		},
+		Expect: []string{
+			"CREATE OR REPLACE VIEW `v` AS SELECT `id`, `a` FROM `fuga`",
+			"CREATE OR REPLACE VIEW `w` AS SELECT * FROM `v`",
+		},
+	},
+	{
 		// mysqldump defines a placeholder view first, and replaces it later.
 		Name: "the last definition of a view is used",
 		Before: []string{
