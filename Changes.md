@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+## [v0.3.0] - 2026-11-16
+
 - support CHECK constraints [#334](https://github.com/shogo82148/schemalex-deploy/pull/334)
 - support views: `CREATE VIEW` is parsed, and the diff creates, replaces (`CREATE OR REPLACE VIEW`) and drops views
 - fix `-import` failing when the database has views
@@ -92,7 +94,8 @@
 
 - initial release
 
-[unreleased]: https://github.com/shogo82148/schemalex-deploy/compare/v0.2.0...main
+[unreleased]: https://github.com/shogo82148/schemalex-deploy/compare/v0.3.0...main
+[v0.3.0]: https://github.com/shogo82148/schemalex-deploy/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/shogo82148/schemalex-deploy/compare/v0.1.7...v0.2.0
 [v0.1.7]: https://github.com/shogo82148/schemalex-deploy/compare/v0.1.6...v0.1.7
 [v0.1.6]: https://github.com/shogo82148/schemalex-deploy/compare/v0.1.5...v0.1.6
