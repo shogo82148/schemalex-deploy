@@ -142,7 +142,8 @@ The definitions of views are compared as follows:
   because its default value is the user who deploys the schema.
 - A view is also replaced if a table or a view it refers to is created, dropped or changed,
   because MySQL expands `SELECT *` into the columns when the view is created.
-  The references are guessed from the identifiers in the select statement, so a view may be replaced unnecessarily.
+  The references are guessed from the names after `FROM` and `JOIN` in the select statement, without parsing it,
+  so a view may be replaced unnecessarily.
 
 `-import` imports views by `SHOW CREATE VIEW`.
 The server rewrites the select statements into its own form, e.g. ``select `hoge`.`id` AS `id` from `hoge` ``,

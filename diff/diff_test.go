@@ -989,9 +989,8 @@ CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 		},
 	},
 	{
-		// the column `b` is not a reference to the view `b`,
-		// but it is treated as a reference and makes a cycle.
-		Name: "views in a cycle of references are created in the order of definitions",
+		// the column `b` is not a reference to the view `b`.
+		Name: "a column with the same name as a view is not a reference",
 		Before: []string{
 			"CREATE TABLE `fuga` ( `b` INTEGER NOT NULL )",
 		},
@@ -1060,6 +1059,28 @@ CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 		Expect: []string{
 			"CREATE OR REPLACE VIEW `v` AS SELECT `id`, `a` FROM `fuga`",
 			"CREATE OR REPLACE VIEW `w` AS SELECT * FROM `v`",
+		},
+	},
+	{
+		// the alias `a` is not a reference to the view `a`.
+		// `b` must be replaced before `a`, even if `b` is defined last.
+		Name: "an alias with the same name as a view is not a reference",
+		Before: []string{
+			"CREATE TABLE `t` ( `id` INTEGER NOT NULL, `x` INTEGER NOT NULL )",
+			"CREATE VIEW `b` AS SELECT * FROM `t`",
+			"CREATE VIEW `a` AS SELECT * FROM `b`",
+			"CREATE OR REPLACE VIEW `b` AS SELECT * FROM `t` AS `a`",
+		},
+		After: []string{
+			"CREATE TABLE `t` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `b` AS SELECT * FROM `t`",
+			"CREATE VIEW `a` AS SELECT * FROM `b`",
+			"CREATE OR REPLACE VIEW `b` AS SELECT * FROM `t` AS `a`",
+		},
+		Expect: []string{
+			"ALTER TABLE `t` DROP COLUMN `x`",
+			"CREATE OR REPLACE VIEW `b` AS SELECT * FROM `t` AS `a`",
+			"CREATE OR REPLACE VIEW `a` AS SELECT * FROM `b`",
 		},
 	},
 	{
