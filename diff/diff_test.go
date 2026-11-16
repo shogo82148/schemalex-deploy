@@ -1099,6 +1099,22 @@ CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 		},
 	},
 	{
+		// the common table expression `t` is visible only in the subquery.
+		Name: "replace views that refer to the table with the same name as a common table expression",
+		Before: []string{
+			"CREATE TABLE `t` ( `id` INTEGER NOT NULL, `x` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT * FROM `t` WHERE EXISTS (WITH `t` AS (SELECT 1) SELECT * FROM `t`)",
+		},
+		After: []string{
+			"CREATE TABLE `t` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT * FROM `t` WHERE EXISTS (WITH `t` AS (SELECT 1) SELECT * FROM `t`)",
+		},
+		Expect: []string{
+			"ALTER TABLE `t` DROP COLUMN `x`",
+			"CREATE OR REPLACE VIEW `v` AS SELECT * FROM `t` WHERE EXISTS (WITH `t` AS (SELECT 1) SELECT * FROM `t`)",
+		},
+	},
+	{
 		// mysqldump defines a placeholder view first, and replaces it later.
 		Name: "the last definition of a view is used",
 		Before: []string{

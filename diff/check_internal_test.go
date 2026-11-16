@@ -65,6 +65,10 @@ func TestTableRefs(t *testing.T) {
 		{"WITH RECURSIVE c (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM c) SELECT * FROM c, t", []string{"t"}},
 		{"WITH c AS (SELECT 1), d AS (SELECT * FROM t) SELECT * FROM c JOIN d", []string{"t"}},
 		{"SELECT a FROM t GROUP BY a WITH ROLLUP", []string{"t"}},
+		// common table expressions are visible only in their scopes.
+		{"SELECT * FROM t WHERE EXISTS (WITH t AS (SELECT 1) SELECT * FROM t)", []string{"t"}},
+		{"SELECT * FROM (WITH c AS (SELECT 1) SELECT * FROM c) AS d, c", []string{"c"}},
+		{"WITH c AS (SELECT 1) SELECT * FROM (SELECT * FROM c) AS d, db.c", []string{"c"}},
 		// string literals and comments.
 		{"SELECT 'FROM x' FROM /* FROM y */ t -- FROM z\n", []string{"t"}},
 		{"SELECT 1", nil},

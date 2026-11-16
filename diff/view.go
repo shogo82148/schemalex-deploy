@@ -136,7 +136,7 @@ func viewRefs(view *model.View) []string {
 // tableRefs guesses the names of the tables and views that the select statement refers to.
 // They are the identifiers that follow FROM and JOIN, and the commas in the FROM clauses.
 // The schema names are removed, e.g. `t` for `db.t`.
-// The names of common table expressions are excluded, e.g. `cte` for `WITH cte AS (...) SELECT * FROM cte`.
+// The names of common table expressions are excluded in their scopes, e.g. `cte` for `WITH cte AS (...) SELECT * FROM cte`.
 // It does not parse the statement, so the result may be inaccurate.
 func tableRefs(stmt string) []string {
 	tokens := sqlTokens(stmt)
@@ -158,19 +158,36 @@ func tableRefs(stmt string) []string {
 		return i >= 0 && i < len(tokens) && (tokens[i].kind == sqlTokenWord || tokens[i].kind == sqlTokenQuotedIdent)
 	}
 
-	ctes := newSet()
+	// scope is the state for each depth of the parentheses.
+	type scope struct {
+		inFrom bool // whether it is in a FROM clause
+		ctes   set  // the lower-cased names of the common table expressions defined in the scope
+	}
+	scopes := []scope{{ctes: newSet()}}
+	// isCTE reports whether the name is a common table expression visible in the current scope.
+	isCTE := func(name string) bool {
+		name = strings.ToLower(name)
+		for _, s := range scopes {
+			if _, ok := s.ctes[name]; ok {
+				return true
+			}
+		}
+		return false
+	}
+
 	var refs []string
-	inFrom := []bool{false} // whether it is in a FROM clause, for each depth of the parentheses
 	expectTable := false
 	for i := 0; i < len(tokens); i++ {
 		t := tokens[i]
+		cur := &scopes[len(scopes)-1]
 
 		// the names of common table expressions:
 		// `WITH [RECURSIVE] name [(columns)] AS (...)` and `..., name [(columns)] AS (...)`.
+		// they are visible in the scope of the WITH clause, i.e. in the same parentheses.
 		if ident(i) && (keyword(i-1, "WITH") || keyword(i-1, "RECURSIVE") && keyword(i-2, "WITH") ||
 			symbol(i-1, ",") && symbol(i-2, ")") && keyword(i+1, "AS") && symbol(i+2, "(")) {
 			if !keyword(i, "RECURSIVE", "ROLLUP") {
-				ctes.Add(strings.ToLower(t.text))
+				cur.ctes.Add(strings.ToLower(t.text))
 				expectTable = false
 				continue
 			}
@@ -178,47 +195,40 @@ func tableRefs(stmt string) []string {
 
 		switch {
 		case keyword(i, "FROM", "JOIN", "STRAIGHT_JOIN"):
-			inFrom[len(inFrom)-1] = true
+			cur.inFrom = true
 			expectTable = true
-		case keyword(i, "SELECT", "WHERE", "GROUP", "HAVING", "WINDOW", "ORDER", "LIMIT",
+		case keyword(i, "SELECT", "WITH", "WHERE", "GROUP", "HAVING", "WINDOW", "ORDER", "LIMIT",
 			"UNION", "INTERSECT", "EXCEPT", "FOR", "INTO"):
 			// ON and USING do not end the FROM clause, e.g. `FROM t JOIN u USING (id), v`.
-			inFrom[len(inFrom)-1] = false
+			cur.inFrom = false
 			expectTable = false
 		case keyword(i, "LATERAL"):
 			// `JOIN LATERAL (...)`
 		case symbol(i, "("):
 			// a parenthesized table reference, e.g. `FROM (t JOIN u)`, is in the FROM clause.
-			// a derived table, e.g. `FROM (SELECT ...)`, starts a new clause at SELECT.
-			inFrom = append(inFrom, expectTable)
+			// a derived table, e.g. `FROM (SELECT ...)`, starts a new clause at SELECT or WITH.
+			scopes = append(scopes, scope{inFrom: expectTable, ctes: newSet()})
 		case symbol(i, ")"):
-			if len(inFrom) > 1 {
-				inFrom = inFrom[:len(inFrom)-1]
+			if len(scopes) > 1 {
+				scopes = scopes[:len(scopes)-1]
 			}
 			expectTable = false
 		case symbol(i, ","):
-			expectTable = inFrom[len(inFrom)-1]
+			expectTable = cur.inFrom
 		case ident(i) && expectTable:
-			name := t.text
 			if symbol(i+1, ".") && ident(i+2) {
-				// schema_name.table_name
-				name = tokens[i+2].text
+				// schema_name.table_name. it is not a common table expression.
+				refs = append(refs, tokens[i+2].text)
 				i += 2
+			} else if !isCTE(t.text) {
+				refs = append(refs, t.text)
 			}
-			refs = append(refs, name)
 			expectTable = false
 		default:
 			expectTable = false
 		}
 	}
-
-	ret := refs[:0]
-	for _, ref := range refs {
-		if _, ok := ctes[strings.ToLower(ref)]; !ok {
-			ret = append(ret, ref)
-		}
-	}
-	return ret
+	return refs
 }
 
 type sqlTokenKind int
