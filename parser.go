@@ -247,8 +247,10 @@ func (p *Parser) parseCreate(ctx *parseCtx) (model.Stmt, error) {
 			return nil, newParseError(ctx, t, "expected TABLE")
 		}
 		return p.parseCreateTable(ctx, true)
+	case OR, ALGORITHM, DEFINER, SQL, VIEW:
+		return p.parseCreateView(ctx)
 	default:
-		return nil, newParseError(ctx, t, "expected DATABASE, TABLE or TEMPORARY")
+		return nil, newParseError(ctx, t, "expected DATABASE, TABLE, TEMPORARY or VIEW")
 	}
 }
 

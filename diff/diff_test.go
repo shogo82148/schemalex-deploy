@@ -827,6 +827,197 @@ CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 		Expect: []string{
 			"ALTER TABLE `fuga` ALTER CHECK `c` ENFORCED",
 		},
+	}, {
+		Name: "create view",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id` FROM `fuga` WHERE `id` > 0",
+		},
+		Expect: []string{
+			"CREATE VIEW `v` AS SELECT `id` FROM `fuga` WHERE `id` > 0",
+		},
+	},
+	{
+		Name: "create view with options",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE ALGORITHM=MERGE DEFINER=CURRENT_USER SQL SECURITY INVOKER VIEW `v` (`x`) AS SELECT `id` FROM `fuga` WITH LOCAL CHECK OPTION",
+		},
+		Expect: []string{
+			"CREATE ALGORITHM = MERGE DEFINER = CURRENT_USER SQL SECURITY INVOKER VIEW `v` (`x`) AS SELECT `id` FROM `fuga` WITH LOCAL CHECK OPTION",
+		},
+	},
+	{
+		Name: "drop view",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id` FROM `fuga`",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+		},
+		Expect: []string{
+			"DROP VIEW `v`",
+		},
+	},
+	{
+		Name: "replace view",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id` FROM `fuga`",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id`, `a` FROM `fuga`",
+		},
+		Expect: []string{
+			"CREATE OR REPLACE VIEW `v` AS SELECT `id`, `a` FROM `fuga`",
+		},
+	},
+	{
+		Name: "replace view to remove check option",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id` FROM `fuga` WITH CHECK OPTION",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id` FROM `fuga`",
+		},
+		Expect: []string{
+			"CREATE OR REPLACE VIEW `v` AS SELECT `id` FROM `fuga`",
+		},
+	},
+	{
+		Name: "view with default options is not changed",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id` FROM `fuga` WITH CHECK OPTION",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE OR REPLACE ALGORITHM = UNDEFINED DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT `id` FROM `fuga` WITH CASCADED CHECK OPTION",
+		},
+		Expect: []string{},
+	},
+	{
+		Name: "replace view after altering table",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id` FROM `fuga`",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id`, `a` FROM `fuga`",
+		},
+		Expect: []string{
+			"ALTER TABLE `fuga` ADD COLUMN `a` INT (11) NOT NULL AFTER `id`",
+			"CREATE OR REPLACE VIEW `v` AS SELECT `id`, `a` FROM `fuga`",
+		},
+	},
+	{
+		Name: "create views in the order of dependencies",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `c` AS SELECT `id` FROM `fuga`",
+			"CREATE VIEW `b` AS SELECT `id` FROM `c`",
+			"CREATE VIEW `a` AS SELECT `b`.`id` FROM `b` JOIN `c` USING (`id`)",
+		},
+		Expect: []string{
+			"CREATE VIEW `c` AS SELECT `id` FROM `fuga`",
+			"CREATE VIEW `b` AS SELECT `id` FROM `c`",
+			"CREATE VIEW `a` AS SELECT `b`.`id` FROM `b` JOIN `c` USING (`id`)",
+		},
+	},
+	{
+		Name: "replace views in the order of dependencies",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL )",
+			"CREATE VIEW `c` AS SELECT `id` FROM `fuga`",
+			"CREATE VIEW `b` AS SELECT `id` FROM `c`",
+			"CREATE VIEW `a` AS SELECT `id` FROM `b`",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL, `a` INTEGER NOT NULL )",
+			"CREATE VIEW `c` AS SELECT `id`, `a` FROM `fuga`",
+			"CREATE VIEW `b` AS SELECT `id`, `a` FROM `c`",
+			"CREATE VIEW `a` AS SELECT `id`, `a` FROM `b`",
+		},
+		Expect: []string{
+			"CREATE OR REPLACE VIEW `c` AS SELECT `id`, `a` FROM `fuga`",
+			"CREATE OR REPLACE VIEW `b` AS SELECT `id`, `a` FROM `c`",
+			"CREATE OR REPLACE VIEW `a` AS SELECT `id`, `a` FROM `b`",
+		},
+	},
+	{
+		Name: "replace table with view",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE TABLE `hoge` ( `id` INTEGER NOT NULL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `hoge` AS SELECT `id` FROM `fuga`",
+		},
+		Expect: []string{
+			"DROP TABLE `hoge`",
+			"CREATE VIEW `hoge` AS SELECT `id` FROM `fuga`",
+		},
+	},
+	{
+		Name: "replace view with table",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `hoge` AS SELECT `id` FROM `fuga`",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE TABLE `hoge` ( `id` INTEGER NOT NULL )",
+		},
+		Expect: []string{
+			"DROP VIEW `hoge`",
+			"CREATE TABLE `hoge` (\n`id` INT (11) NOT NULL\n)",
+		},
+	},
+	{
+		// the column `b` is not a reference to the view `b`,
+		// but it is treated as a reference and makes a cycle.
+		Name: "views in a cycle of references are created in the order of definitions",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `b` INTEGER NOT NULL )",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `b` INTEGER NOT NULL )",
+			"CREATE VIEW `a` AS SELECT `b` FROM `fuga`",
+			"CREATE VIEW `b` AS SELECT `b` FROM `a`",
+		},
+		Expect: []string{
+			"CREATE VIEW `a` AS SELECT `b` FROM `fuga`",
+			"CREATE VIEW `b` AS SELECT `b` FROM `a`",
+		},
+	},
+	{
+		// mysqldump defines a placeholder view first, and replaces it later.
+		Name: "the last definition of a view is used",
+		Before: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT 1 AS `id`",
+			"CREATE OR REPLACE VIEW `v` AS SELECT `id` FROM `fuga`",
+		},
+		After: []string{
+			"CREATE TABLE `fuga` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT `id` FROM `fuga`",
+		},
+		Expect: []string{},
 	},
 }
 
@@ -864,6 +1055,26 @@ func TestDiff(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+// The views are created after the views they refer to, even if they are defined before them.
+func TestDiff_ViewDependencies(t *testing.T) {
+	before := "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );"
+	after := "CREATE TABLE `fuga` ( `id` INTEGER NOT NULL );\n" +
+		"CREATE VIEW `x` AS SELECT `id` FROM `y`;\n" +
+		"CREATE VIEW `y` AS SELECT `id` FROM `z`;\n" +
+		"CREATE VIEW `z` AS SELECT `id` FROM `fuga`;\n"
+
+	var buf bytes.Buffer
+	if err := diff.Strings(&buf, before, after); err != nil {
+		t.Fatal(err)
+	}
+	want := "CREATE VIEW `z` AS SELECT `id` FROM `fuga`;\n" +
+		"CREATE VIEW `y` AS SELECT `id` FROM `z`;\n" +
+		"CREATE VIEW `x` AS SELECT `id` FROM `y`;\n"
+	if diff := cmp.Diff(want, buf.String()); diff != "" {
+		t.Errorf("(-want/+got):\n%s", diff)
 	}
 }
 
@@ -959,7 +1170,7 @@ func TestDiff_Integrated(t *testing.T) {
 				t.Errorf("tables are unmatched: (-migrated/+directly)\n%s", diff)
 			}
 			if diff := cmp.Diff(views1, views2); diff != "" {
-				t.Errorf("tables are unmatched: (-migrated/+directly)\n%s", diff)
+				t.Errorf("views are unmatched: (-migrated/+directly)\n%s", diff)
 			}
 
 			for _, tbl := range tables1 {
@@ -976,6 +1187,23 @@ func TestDiff_Integrated(t *testing.T) {
 				}
 				if diff := cmp.Diff(create1, create2); diff != "" {
 					t.Errorf("table %s definition is unmatched: (-migrated/+directly)\n%s", tbl, diff)
+				}
+			}
+
+			for _, view := range views1 {
+				var row *sql.Row
+				var tmp, charset, collation string
+				var create1, create2 string
+				row = db1.QueryRowContext(ctx, "SHOW CREATE VIEW "+util.Backquote(view))
+				if err := row.Scan(&tmp, &create1, &charset, &collation); err != nil {
+					t.Fatal(err)
+				}
+				row = db2.QueryRowContext(ctx, "SHOW CREATE VIEW "+util.Backquote(view))
+				if err := row.Scan(&tmp, &create2, &charset, &collation); err != nil {
+					t.Fatal(err)
+				}
+				if diff := cmp.Diff(create1, create2); diff != "" {
+					t.Errorf("view %s definition is unmatched: (-migrated/+directly)\n%s", view, diff)
 				}
 			}
 		})
@@ -1334,7 +1562,7 @@ func TestDiffWithAutoNamedObjects_Integrated(t *testing.T) {
 				t.Errorf("tables are unmatched: (-migrated/+directly)\n%s", diff)
 			}
 			if diff := cmp.Diff(views1, views2); diff != "" {
-				t.Errorf("tables are unmatched: (-migrated/+directly)\n%s", diff)
+				t.Errorf("views are unmatched: (-migrated/+directly)\n%s", diff)
 			}
 
 			for _, tbl := range tables1 {

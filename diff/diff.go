@@ -18,11 +18,21 @@ import (
 type diffCtx struct {
 	fromSet set
 	toSet   set
-	from    model.Stmts
-	to      model.Stmts
-	cur     model.Stmts
-	result  Stmts
-	indent  string
+
+	// fromViewSet and toViewSet are the IDs of the views, and fromViews and toViews are the views by their IDs.
+	fromViewSet set
+	toViewSet   set
+	fromViews   map[string]*model.View
+	toViews     map[string]*model.View
+
+	// toViewOrder is the IDs of the views in the new schema, in the order of their definitions.
+	toViewOrder []string
+
+	from   model.Stmts
+	to     model.Stmts
+	cur    model.Stmts
+	result Stmts
+	indent string
 
 	tableNormalizer TableNormalizer
 }
@@ -41,12 +51,20 @@ func newDiffCtx(from, to, cur model.Stmts) *diffCtx {
 		}
 	}
 
+	fromViewSet, fromViews, _ := viewsByID(from)
+	toViewSet, toViews, toViewOrder := viewsByID(to)
+
 	return &diffCtx{
-		fromSet: fromSet,
-		toSet:   toSet,
-		from:    from,
-		to:      to,
-		cur:     cur,
+		fromSet:     fromSet,
+		toSet:       toSet,
+		fromViewSet: fromViewSet,
+		toViewSet:   toViewSet,
+		fromViews:   fromViews,
+		toViews:     toViews,
+		toViewOrder: toViewOrder,
+		from:        from,
+		to:          to,
+		cur:         cur,
 	}
 }
 
@@ -87,9 +105,11 @@ func Diff(from, to model.Stmts, options ...Option) (Stmts, error) {
 	}
 
 	procs := []func() error{
+		ctx.dropViews,
 		ctx.dropTables,
 		ctx.createTables,
 		ctx.alterTables,
+		ctx.createViews,
 	}
 	for _, p := range procs {
 		if err := p(); err != nil {

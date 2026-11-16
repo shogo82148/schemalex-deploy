@@ -3,6 +3,8 @@
 ## [unreleased]
 
 - support CHECK constraints [#334](https://github.com/shogo82148/schemalex-deploy/pull/334)
+- support views: `CREATE VIEW` is parsed, and the diff creates, replaces (`CREATE OR REPLACE VIEW`) and drops views
+- fix `-import` failing when the database has views
 
 ## [v0.2.0] - 2026-11-12
 

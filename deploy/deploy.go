@@ -16,6 +16,7 @@ import (
 	"github.com/shogo82148/schemalex-deploy"
 	"github.com/shogo82148/schemalex-deploy/diff"
 	"github.com/shogo82148/schemalex-deploy/format"
+	"github.com/shogo82148/schemalex-deploy/internal/util"
 	"github.com/shogo82148/schemalex-deploy/model"
 )
 
@@ -184,12 +185,12 @@ func (db *DB) LoadSchema(ctx context.Context) (string, error) {
 	}
 	defer tx.Commit()
 
-	tables, err := showTables(ctx, tx)
+	tables, views, err := showTables(ctx, tx)
 	if err != nil {
 		return "", err
 	}
 
-	if len(tables) == 0 {
+	if len(tables) == 0 && len(views) == 0 {
 		return "", nil
 	}
 
@@ -201,13 +202,36 @@ func (db *DB) LoadSchema(ctx context.Context) (string, error) {
 	for _, tbl := range tables {
 		log.Printf("import table: %s", tbl)
 		statements = append(statements,
-			fmt.Sprintf("DROP TABLE IF EXISTS `%s`;", tbl),
+			fmt.Sprintf("DROP TABLE IF EXISTS %s;", util.Backquote(tbl)),
 			"", // blank line
 		)
-		row := tx.QueryRowContext(ctx, fmt.Sprintf("SHOW CREATE TABLE `%s`", tbl))
+		row := tx.QueryRowContext(ctx, "SHOW CREATE TABLE "+util.Backquote(tbl))
 		var tmp, sqlText string
 		if err := row.Scan(&tmp, &sqlText); err != nil {
 			return "", fmt.Errorf("failed to get create table %q: %w", tbl, err)
+		}
+
+		if !strings.HasSuffix(sqlText, ";") {
+			sqlText = sqlText + ";"
+		}
+
+		statements = append(statements,
+			sqlText,
+			"", // blank line
+		)
+	}
+
+	// views are imported after tables, because they refer to tables.
+	for _, view := range views {
+		log.Printf("import view: %s", view)
+		statements = append(statements,
+			fmt.Sprintf("DROP VIEW IF EXISTS %s;", util.Backquote(view)),
+			"", // blank line
+		)
+		row := tx.QueryRowContext(ctx, "SHOW CREATE VIEW "+util.Backquote(view))
+		var tmp, sqlText, charset, collation string
+		if err := row.Scan(&tmp, &sqlText, &charset, &collation); err != nil {
+			return "", fmt.Errorf("failed to get create view %q: %w", view, err)
 		}
 
 		if !strings.HasSuffix(sqlText, ";") {
@@ -317,26 +341,32 @@ func updateLatestVersion(ctx context.Context, tx *sql.Tx, rev *schemalexRevision
 	return nil
 }
 
-func showTables(ctx context.Context, tx *sql.Tx) ([]string, error) {
-	rows, err := tx.QueryContext(ctx, "SHOW TABLES")
+// showTables returns the names of the tables and the views in the database.
+func showTables(ctx context.Context, tx *sql.Tx) (tables, views []string, err error) {
+	rows, err := tx.QueryContext(ctx, "SHOW FULL TABLES")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get table list: %w", err)
+		return nil, nil, fmt.Errorf("failed to get table list: %w", err)
 	}
 	defer rows.Close()
 
-	var tables []string
 	for rows.Next() {
-		var table string
-		if err := rows.Scan(&table); err != nil {
-			return nil, fmt.Errorf("failed to scan table name: %w", err)
+		var name, typ string
+		if err := rows.Scan(&name, &typ); err != nil {
+			return nil, nil, fmt.Errorf("failed to scan table name: %w", err)
 		}
-		tables = append(tables, table)
+		switch typ {
+		case "VIEW":
+			views = append(views, name)
+		default:
+			// "BASE TABLE", and "SYSTEM VERSIONED" and "SEQUENCE" in MariaDB.
+			tables = append(tables, name)
+		}
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("some error occurred during iteration: %w", err)
+		return nil, nil, fmt.Errorf("some error occurred during iteration: %w", err)
 	}
-	return tables, nil
+	return tables, views, nil
 }
 
 // normalizeTable creates the columns and the CHECK constraints of table as a temporary table,
