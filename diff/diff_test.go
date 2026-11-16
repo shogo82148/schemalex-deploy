@@ -1084,6 +1084,21 @@ CONSTRAINT bar_fk FOREIGN KEY (integer_s) REFERENCES bar (id)
 		},
 	},
 	{
+		Name: "replace views that refer to the table in parentheses",
+		Before: []string{
+			"CREATE TABLE `t` ( `id` INTEGER NOT NULL, `x` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT * FROM (`t`)",
+		},
+		After: []string{
+			"CREATE TABLE `t` ( `id` INTEGER NOT NULL )",
+			"CREATE VIEW `v` AS SELECT * FROM (`t`)",
+		},
+		Expect: []string{
+			"ALTER TABLE `t` DROP COLUMN `x`",
+			"CREATE OR REPLACE VIEW `v` AS SELECT * FROM (`t`)",
+		},
+	},
+	{
 		// mysqldump defines a placeholder view first, and replaces it later.
 		Name: "the last definition of a view is used",
 		Before: []string{

@@ -51,6 +51,12 @@ func TestTableRefs(t *testing.T) {
 		{"SELECT * FROM db.t JOIN `db`.`u` USING (id), v", []string{"t", "u", "v"}},
 		{"SELECT * FROM t LEFT JOIN u ON t.id = u.id STRAIGHT_JOIN v", []string{"t", "u", "v"}},
 		{"SELECT x FROM (SELECT a AS x FROM t) AS d, u", []string{"t", "u"}},
+		// parenthesized table references.
+		{"SELECT * FROM (t)", []string{"t"}},
+		{"SELECT * FROM (t JOIN u ON t.id = u.id), v", []string{"t", "u", "v"}},
+		{"SELECT * FROM ((t, u)) JOIN (v)", []string{"t", "u", "v"}},
+		{"SELECT * FROM t JOIN LATERAL (SELECT a FROM u) AS d", []string{"t", "u"}},
+		{"SELECT f(a, b) FROM t", []string{"t"}},
 		{"SELECT (SELECT max(a) FROM t) AS m, b FROM u", []string{"t", "u"}},
 		{"SELECT a FROM t UNION SELECT a FROM u", []string{"t", "u"}},
 		{"SELECT * FROM t WHERE a IN (SELECT a FROM u)", []string{"t", "u"}},

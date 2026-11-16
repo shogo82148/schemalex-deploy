@@ -188,8 +188,9 @@ func tableRefs(stmt string) []string {
 		case keyword(i, "LATERAL"):
 			// `JOIN LATERAL (...)`
 		case symbol(i, "("):
-			inFrom = append(inFrom, false)
-			expectTable = false
+			// a parenthesized table reference, e.g. `FROM (t JOIN u)`, is in the FROM clause.
+			// a derived table, e.g. `FROM (SELECT ...)`, starts a new clause at SELECT.
+			inFrom = append(inFrom, expectTable)
 		case symbol(i, ")"):
 			if len(inFrom) > 1 {
 				inFrom = inFrom[:len(inFrom)-1]
