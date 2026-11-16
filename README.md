@@ -100,6 +100,52 @@ Enter a value: yes
 -import           imports existing table schemas from running database
 ```
 
+## VIEWS
+
+The schema can also contain views.
+
+```sql
+-- schema.sql
+CREATE TABLE hoge (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    c VARCHAR (20) NOT NULL DEFAULT "hoge",
+    PRIMARY KEY (id)
+);
+
+CREATE VIEW hoge_view AS SELECT id, c FROM hoge WHERE id > 100;
+```
+
+The following syntax is supported.
+`IF NOT EXISTS` is supported by MariaDB.
+
+```sql
+CREATE [OR REPLACE]
+    [ALGORITHM = {UNDEFINED | MERGE | TEMPTABLE}]
+    [DEFINER = user]
+    [SQL SECURITY {DEFINER | INVOKER}]
+    VIEW [IF NOT EXISTS] view_name [(column_list)]
+    AS select_statement
+    [WITH [CASCADED | LOCAL] CHECK OPTION]
+```
+
+schemalex-deploy creates new views by `CREATE VIEW`, changes views by `CREATE OR REPLACE VIEW`, and drops removed views by `DROP VIEW`.
+Views are dropped before the tables are changed, and created or changed after them,
+so the views can refer to the new tables and columns, and a table can be replaced with a view of the same name, and vice versa.
+A view is created after the views it refers to.
+
+The definitions of views are compared as follows:
+
+- The select statements are compared as written, so a change only in white spaces or comments also changes the view.
+  Changing a view doesn't touch any data.
+- Omitted `ALGORITHM` and `SQL SECURITY` are the same as their default values, `UNDEFINED` and `DEFINER`.
+- `DEFINER` is compared only if both the old and new schemas have it,
+  because its default value is the user who deploys the schema.
+
+`-import` imports views by `SHOW CREATE VIEW`.
+The server rewrites the select statements into its own form, e.g. ``select `hoge`.`id` AS `id` from `hoge` ``,
+so the first deployment after `-import` changes all views by `CREATE OR REPLACE VIEW`,
+unless the schema has the definitions as the server returns them.
+
 ## ENCRYPTED CONNECTIONS
 
 `-ssl-mode` is compatible with [the option of the same name of the mysql(1)](https://dev.mysql.com/doc/refman/8.0/en/connection-options.html#option_general_ssl-mode).
