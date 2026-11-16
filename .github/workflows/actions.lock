@@ -7,6 +7,10 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'actions/setup-go@v7.0.0'
         - 'github/codeql-action@v4.39.3'
+    '.github/workflows/fuzz.yml':
+        - 'actions/checkout@v7.0.1'
+        - 'actions/setup-go@v7.0.0'
+        - 'shogo82148/actions-go-fuzz@v1.2.7'
     '.github/workflows/release.yml':
         - 'actions/attest@v4.2.2'
         - 'actions/checkout@v7.0.1'
@@ -64,6 +68,11 @@ dependencies:
         commit: 'sha1-284129a3ac23bc5d8ac1522e0b6511df74a8836d'
         owner_id: 48765237
         repo_id: 208542589
+    'shogo82148/actions-go-fuzz@v1.2.7':
+        ref: 'v1.2.7'
+        commit: 'sha1-f5addfafb428396a1321238d916c421eb25a1136'
+        owner_id: 1157344
+        repo_id: 658286023
     'shogo82148/actions-goveralls@v1.11.5':
         ref: 'v1.11.5'
         commit: 'sha1-548a2a7896df420c38df648845a5525a33f82585'
