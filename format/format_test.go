@@ -367,6 +367,22 @@ primary key (id, c)
 			")\n" +
 			"PARTITION BY HASH (id) PARTITIONS 2;\n",
 	})
+	parse("PartitionWithNestedExecutableComment", &Spec{
+		// a comment like `/*!*/` in an executable comment is an ordinary comment,
+		// so it is removed, otherwise it would be an executable comment in the output.
+		Input: "CREATE TABLE t (id INT) /*!PARTITION BY/*!*/HASH (id) PARTITIONS 2 */",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`id` INT (11) DEFAULT NULL\n" +
+			")\n" +
+			"PARTITION BY HASH (id) PARTITIONS 2;\n",
+	})
+	parse("CheckWithNestedExecutableComment", &Spec{
+		Input: "CREATE TABLE t (a INT, /*!CHECK (a/*!*/> 0)*/)",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`a` INT (11) DEFAULT NULL,\n" +
+			"CHECK (a > 0)\n" +
+			");\n",
+	})
 	parse("PartitionWithExecutableCommentBeforeBy", &Spec{
 		// the executable comment closes between PARTITION and BY.
 		Input: "CREATE TABLE t (id INT) /*!PARTITION*/BY HASH (id) /*!50100 PARTITIONS 2 */",
@@ -1270,6 +1286,12 @@ primary key (id, c)
 			"CREATE TABLE t (a INT);",
 		Expect: "CREATE ALGORITHM = UNDEFINED DEFINER = `root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select 1 AS `a`;\n" +
 			"CREATE TABLE `t` (\n`a` INT (11) DEFAULT NULL\n);\n",
+	})
+	parse("ViewWithNestedExecutableComment", &Spec{
+		// a comment like `/*!*/` in an executable comment is an ordinary comment,
+		// so it is removed, otherwise it would be an executable comment in the output.
+		Input:  "CREATE VIEW v AS /*!SELECT/*!*/1 AS a*/",
+		Expect: "CREATE VIEW `v` AS SELECT 1 AS a;\n",
 	})
 	parse("MysqldumpCreateDatabase", &Spec{
 		// the options of CREATE DATABASE are not supported.

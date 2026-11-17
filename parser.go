@@ -63,7 +63,8 @@ type parseCtx struct {
 	lexsrc []*Token
 	idx    int
 
-	// executableCommentMarkers is the set of the tokens that open or close executable comments.
+	// executableCommentMarkers is the set of the tokens that open or close executable comments,
+	// and the comments like `/*! ... */` nested in executable comments.
 	executableCommentMarkers map[*Token]struct{}
 }
 
@@ -220,7 +221,9 @@ func (p *Parser) parseStatement(ctx *parseCtx) (model.Stmt, error) {
 	}
 }
 
-// isExecutableCommentMarker reports whether t opens or closes an executable comment.
+// isExecutableCommentMarker reports whether t opens or closes an executable comment,
+// or t is a comment like `/*! ... */` nested in an executable comment.
+// they are removed from the clauses kept as they are written.
 func (pctx *parseCtx) isExecutableCommentMarker(t *Token) bool {
 	_, ok := pctx.executableCommentMarkers[t]
 	return ok
@@ -1901,6 +1904,7 @@ LOOP:
 
 // removeExecutableCommentMarkers returns input[start:end] without the markers of executable comments,
 // i.e. `/*!`, `/*!NNNNN` and `*/`, so that the content of the comments remains.
+// The comments like `/*! ... */` nested in executable comments are also removed.
 // The spaces around the removed markers are squashed,
 // and a space is inserted instead of a marker between non-space characters, because the markers separate tokens.
 func removeExecutableCommentMarkers(input []byte, start, end int, markers []*Token) string {

@@ -37,7 +37,8 @@ type lexer struct {
 	// executableCommentOpener is the token that opens the last executable comment.
 	executableCommentOpener *Token
 
-	// executableCommentMarkers is the set of the tokens that open or close executable comments.
+	// executableCommentMarkers is the set of the tokens that open or close executable comments,
+	// and the comments like `/*! ... */` nested in executable comments.
 	executableCommentMarkers map[*Token]struct{}
 }
 
@@ -47,7 +48,8 @@ func lex(input []byte) []*Token {
 	return l.out
 }
 
-// emitExecutableCommentMarker emits a COMMENT_IDENT token that opens or closes an executable comment.
+// emitExecutableCommentMarker emits a COMMENT_IDENT token that opens or closes an executable comment,
+// or a comment like `/*! ... */` nested in an executable comment.
 func (l *lexer) emitExecutableCommentMarker() {
 	l.emit(COMMENT_IDENT)
 	if l.executableCommentMarkers == nil {
@@ -173,7 +175,16 @@ OUTER:
 					l.executableCommentOpener = l.out[len(l.out)-1]
 					continue OUTER
 				}
+				nested := l.inExecutableComment && l.peek() == '!'
 				l.runCComment()
+				if nested {
+					// a comment like `/*! ... */` in an executable comment is an ordinary comment,
+					// but it would be an executable comment if it were kept outside the executable comment,
+					// e.g. `/*!PARTITION BY/*!*/*/0` would be formatted as `PARTITION BY/*!*/ 0`.
+					// so it is removed along with the markers of executable comments.
+					l.emitExecutableCommentMarker()
+					continue OUTER
+				}
 				l.emit(COMMENT_IDENT)
 			default:
 				l.emit(SLASH)
