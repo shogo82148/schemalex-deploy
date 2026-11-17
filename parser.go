@@ -1913,7 +1913,13 @@ func removeExecutableCommentMarkers(input []byte, start, end int, markers []*Tok
 	squash := false
 	write := func(b []byte) {
 		if squash && buf.Len() > 0 {
-			if isSpace(rune(buf.String()[buf.Len()-1])) {
+			if strings.HasSuffix(buf.String(), "--") {
+				// `--` followed by a space starts a line comment,
+				// e.g. `BY/*!--*/0` must not be `BY -- 0`, so the spaces are removed instead.
+				// `--` followed by a non-space character is lexed as a DASH token,
+				// so `--0` is equivalent to the original.
+				b = bytes.TrimLeft(b, " \t\r\n")
+			} else if isSpace(rune(buf.String()[buf.Len()-1])) {
 				b = bytes.TrimLeft(b, " \t\r\n")
 			} else if len(b) > 0 && !isSpace(rune(b[0])) {
 				// the marker separates the tokens, e.g. `BY/*!*/0` means `BY 0`, not `BY0`.

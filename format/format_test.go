@@ -376,6 +376,15 @@ primary key (id, c)
 			")\n" +
 			"PARTITION BY HASH (id) PARTITIONS 2;\n",
 	})
+	parse("PartitionWithDashesBeforeExecutableCommentMarker", &Spec{
+		// `--` followed by a non-space character is not a comment,
+		// so no space is inserted after it, otherwise it would be a line comment in the output.
+		Input: "CREATE TABLE t (id INT) PARTITION BY/*!--*/ 0",
+		Expect: "CREATE TABLE `t` (\n" +
+			"`id` INT (11) DEFAULT NULL\n" +
+			")\n" +
+			"PARTITION BY --0;\n",
+	})
 	parse("CheckWithNestedExecutableComment", &Spec{
 		Input: "CREATE TABLE t (a INT, /*!CHECK (a/*!*/> 0)*/)",
 		Expect: "CREATE TABLE `t` (\n" +
